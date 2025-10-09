@@ -1,14 +1,13 @@
 {
-  "name": "song-quiz-youtube",
+  "name": "song-quiz-spotify-sdk",
   "version": "1.0.0",
-  "description": "Ein Multiplayer Song-Quiz mit YouTube API",
+  "description": "Ein Multiplayer Song-Quiz mit Spotify Web Playback SDK",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "axios": "^1.7.2",
-    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "ws": "^8.17.0"
   }
 }
