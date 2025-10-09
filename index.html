@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Song-Quiz Deluxe</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <button id="theme-toggle"><i class="fa-solid fa-moon"></i></button>
+
+    <div id="scoreboard" class="scoreboard hidden">
+        <h3><i class="fa-solid fa-trophy"></i> Rangliste</h3>
+        <ul id="scoreboard-list"></ul>
+    </div>
+
+    <div class="app-container">
+        <div id="login-screen" class="screen active">
+            <div class="card animate-fade-in">
+                <h1><i class="fa-brands fa-spotify" style="color: #1DB954;"></i> Song-Quiz Deluxe</h1>
+                <p>Bitte verbinde dich mit deinem Spotify Premium Account, um zu spielen.</p>
+                <button id="login-button" class="btn-primary"><i class="fa-brands fa-spotify"></i> Mit Spotify einloggen</button>
+            </div>
+        </div>
+
+        <div id="nickname-screen" class="screen">
+            <div class="card animate-fade-in">
+                <h1><i class="fa-solid fa-music"></i> Fast geschafft!</h1>
+                <p>Gib deinen Nickname ein, um zu starten.</p>
+                <input type="text" id="nickname-input" placeholder="Dein Name..." maxlength="15">
+                <button id="nickname-submit-button" class="btn-primary">Weiter <i class="fa-solid fa-arrow-right"></i></button>
+            </div>
+        </div>
+
+        <div id="home-screen" class="screen">
+            <div class="card animate-fade-in">
+                <h1>Willkommen, <span id="welcome-nickname"></span>!</h1>
+                <p>Was möchtest du tun?</p>
+                <div class="home-buttons">
+                    <button id="show-create-button" class="btn-primary"><i class="fa-solid fa-plus"></i> Spiel erstellen</button>
+                    <button id="show-join-button" class="btn-secondary"><i class="fa-solid fa-right-to-bracket"></i> Spiel beitreten</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="lobby-screen" class="screen">
+            </div>
+        <div id="countdown-screen" class="screen">
+            </div>
+        <div id="game-screen" class="screen">
+            </div>
+        <div id="result-screen" class="screen">
+            </div>
+        <div id="game-over-screen" class="screen">
+            </div>
+    </div>
+
+    <div id="join-modal-overlay" class="modal-overlay hidden">
+       </div>
+    
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "song-quiz-youtube",
+  "version": "1.0.0",
+  "description": "Ein Multiplayer Song-Quiz mit YouTube API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "ws": "^8.17.0"
+  }
+}
