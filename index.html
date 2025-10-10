@@ -9,6 +9,8 @@
 </head>
 <body>
 
+    <div id="live-scoreboard" class="hidden"></div>
+
     <main id="nickname-screen" class="screen active">
         <div class="container slide-in">
             <h1>Willkommen!</h1>
@@ -27,6 +29,7 @@
     </main>
 
     <main id="lobby-screen" class="screen">
+        <button class="button-leave"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
         <div class="container lobby-container">
             <h2>Lobby PIN: <span id="lobby-pin">----</span></h2>
             <ul id="player-list"></ul>
@@ -41,6 +44,7 @@
     </main>
 
     <main id="game-screen" class="screen">
+        <button class="button-leave"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
         <div class="container game-container">
             <div class="game-header">
                 <span id="round-info">Runde 1 / 10</span>
@@ -67,12 +71,23 @@
     <div id="join-modal-overlay" class="hidden">
         <div class="container modal">
             <h2>Raum beitreten</h2>
-            <input type="number" id="pin-input" placeholder="PIN eingeben...">
+            <div class="pin-display">
+                <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
+            </div>
+            <div id="numpad" class="numpad">
+                <button class="num-btn">1</button> <button class="num-btn">2</button> <button class="num-btn">3</button>
+                <button class="num-btn">4</button> <button class="num-btn">5</button> <button class="num-btn">6</button>
+                <button class="num-btn">7</button> <button class="num-btn">8</button> <button class="num-btn">9</button>
+                <button class="num-btn action-btn" data-action="clear"><i class="fa-solid fa-xmark"></i></button>
+                <button class="num-btn">0</button>
+                <button class="num-btn action-btn" data-action="backspace"><i class="fa-solid fa-delete-left"></i></button>
+            </div>
             <button id="join-game-button" class="button-primary">Beitreten</button>
             <button id="close-modal-button" class="button-secondary">Abbrechen</button>
         </div>
     </div>
     
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
