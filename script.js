@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Globale Variablen
     const ws = { socket: null };
     let myPlayerId = null, myNickname = '', isHost = false;
-    let spotifyToken = null, spotifyPlayer = null, spotifyDeviceId = null;
+    let spotifyPlayer = null, spotifyDeviceId = null;
     let clientRoundTimer = null, currentPin = '';
 
     // HTML-Elemente
@@ -27,6 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
         numpadButtons: document.querySelectorAll('#numpad .num-btn'),
         joinGameButton: document.getElementById('join-game-button'),
         closeModalButton: document.getElementById('close-modal-button'),
+        countdownRoundInfo: document.getElementById('countdown-round-info'),
+        countdownTimer: document.getElementById('countdown-timer'),
         roundInfo: document.getElementById('round-info'),
         timeLeft: document.getElementById('time-left'),
         artistGuess: document.getElementById('artist-guess'),
@@ -41,7 +43,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // APP INITIALISIERUNG & SPOTIFY PLAYER
     window.onSpotifyWebPlaybackSDKReady = () => {};
-    function initializeSpotifyPlayer(token) {
+    function initializeSpotifyPlayer() {
+        const token = document.cookie.split('; ').find(row => row.startsWith('spotify_access_token='))?.split('=')[1];
+        if (!token) return;
         spotifyPlayer = new Spotify.Player({ name: 'Fakester Quiz', getOAuthToken: cb => { cb(token); }, volume: 0.5 });
         spotifyPlayer.addListener('ready', ({ device_id }) => { console.log('Spotify Player bereit mit ID:', device_id); spotifyDeviceId = device_id; });
         spotifyPlayer.addListener('not_ready', ({ device_id }) => console.log('Gerät offline:', device_id));
@@ -50,11 +54,10 @@ document.addEventListener('DOMContentLoaded', () => {
     async function initializeApp() {
         myNickname = localStorage.getItem('nickname');
         try {
-            const response = await fetch('/api/status');
-            if (!response.ok) throw new Error('Nicht eingeloggt');
-            // EINGELOGGT
+            await fetch('/api/status');
             elements.showCreateButtonLogin.classList.add('hidden');
             elements.showCreateButtonAction.classList.remove('hidden');
+            if (window.Spotify) { initializeSpotifyPlayer(); } else { window.onSpotifyWebPlaybackSDKReady = initializeSpotifyPlayer; }
             if (myNickname) {
                 elements.welcomeNickname.textContent = myNickname;
                 showScreen('home-screen');
@@ -62,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen('nickname-screen');
             }
         } catch (error) {
-            // NICHT EINGELOGGT
             elements.showCreateButtonLogin.classList.remove('hidden');
             elements.showCreateButtonAction.classList.add('hidden');
             if (myNickname) {
@@ -88,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'lobby-update': updateLobby(payload); break;
             case 'error': alert(`Fehler: ${payload.message}`); break;
+            case 'round-countdown': showCountdown(payload); break;
             case 'new-round':
                 updateLiveScoreboard(payload.scores); startRoundUI(payload);
                 if (isHost) { playTrack(payload.song.spotifyId); }
@@ -102,7 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function showScreen(screenId) { elements.screens.forEach(screen => screen.classList.toggle('active', screen.id === screenId)); }
     async function fetchAndDisplayPlaylists() { try { const response = await fetch('/api/playlists'); const data = await response.json(); elements.playlistSelect.innerHTML = data.items.map(p => `<option value="${p.id}">${p.name}</option>`).join(''); sendSettingsUpdate(); } catch (error) { elements.playlistSelect.innerHTML = `<option>Laden fehlgeschlagen</option>`; } }
     function playTrack(spotifyId) { 
-        // Wir holen den Token direkt vor dem Abspielen neu aus dem Cookie
         const token = document.cookie.split('; ').find(row => row.startsWith('spotify_access_token='))?.split('=')[1];
         if (!spotifyDeviceId || !token) { console.error("Spotify Player oder Token nicht bereit."); return; } 
         fetch(`https://api.spotify.com/v1/playlists/[playlist_id]/tracks?device_id=${spotifyDeviceId}`, { method: 'PUT', body: JSON.stringify({ uris: [`spotify:track:${spotifyId}`] }), headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` } }); 
@@ -113,10 +115,23 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.hostSettings.classList.toggle('hidden', !isHost);
         elements.guestWaitingMessage.classList.toggle('hidden', isHost);
         if (isHost && settings) {
-            elements.playlistSelect.value = settings.playlistId;
+            if(settings.playlistId) elements.playlistSelect.value = settings.playlistId;
             document.querySelectorAll('#song-count-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.songCount));
             document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.guessTime));
         }
+    }
+    function showCountdown({ round, totalRounds }) {
+        elements.countdownRoundInfo.textContent = `Runde ${round} / ${totalRounds}`;
+        showScreen('countdown-screen');
+        let count = 5;
+        elements.countdownTimer.textContent = count;
+        const interval = setInterval(() => {
+            count--;
+            elements.countdownTimer.textContent = count;
+            if (count <= 0) {
+                clearInterval(interval);
+            }
+        }, 1000);
     }
     function startRoundUI({ round, totalRounds, guessTime }) {
         clearTimeout(clientRoundTimer); elements.roundInfo.textContent = `Runde ${round} / ${totalRounds}`;
@@ -151,9 +166,10 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('nickname-screen');
     });
     elements.showCreateButtonAction.addEventListener('click', () => {
-        showScreen('lobby-screen');
-        connectToServer(() => sendMessage('create-game', { nickname: myNickname }));
-        fetchAndDisplayPlaylists();
+        connectToServer(() => {
+            sendMessage('create-game', { nickname: myNickname });
+            fetchAndDisplayPlaylists();
+        });
     });
     elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
     elements.closeModalButton.addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
@@ -171,8 +187,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 ws.socket = null;
             }
             myNickname = localStorage.getItem('nickname');
-            elements.welcomeNickname.textContent = myNickname;
-            showScreen('home-screen');
+            if (myNickname) {
+                elements.welcomeNickname.textContent = myNickname;
+                showScreen('home-screen');
+            } else {
+                showScreen('nickname-screen');
+            }
             elements.liveScoreboard.classList.add('hidden');
         });
     });
