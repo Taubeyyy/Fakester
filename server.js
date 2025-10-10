@@ -1,226 +1,107 @@
-const WebSocket = require('ws');
-const fs = require('fs');
-const http = require('http');
+// Wichtige Pakete importieren
 const express = require('express');
+const axios = require('axios');
 const path = require('path');
+const cookieParser = require('cookie-parser');
+require('dotenv').config(); // Lädt die Umgebungsvariablen
+
+// Spotify-Zugangsdaten aus den Render Environment Variables laden
+const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
+const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI;
 
 const app = express();
-const server = http.createServer(app);
+// Der Port wird von Render automatisch bereitgestellt
+const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname)));
+// Middleware, um statische Dateien (HTML, CSS, JS) aus dem 'public' Ordner bereitzustellen
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(cookieParser());
 
-const wss = new WebSocket.Server({ server });
-
-let allSongs = {};
-let categories = [];
-try {
-    const allSongsData = fs.readFileSync('songs.json', 'utf-8');
-    allSongs = JSON.parse(allSongsData);
-    categories = Object.keys(allSongs);
-} catch (error) {
-    console.error("FEHLER: songs.json konnte nicht gelesen werden.");
-    process.exit(1);
-}
-
-let games = {};
-
-wss.on('connection', ws => {
-    const playerId = Date.now().toString();
-    ws.playerId = playerId;
-
-    ws.on('message', message => {
-        try {
-            const data = JSON.parse(message);
-            const { type, payload } = data;
-            const pin = ws.pin;
-            const game = games[pin];
-
-            switch (type) {
-                case 'create-game': {
-                    const newPin = generatePin();
-                    ws.pin = newPin;
-                    games[newPin] = {
-                        hostId: playerId,
-                        players: { [playerId]: { ws, nickname: payload.nickname, score: 0 } },
-                        settings: { category: categories[0], songCount: 5, guessTime: 60 },
-                        gameState: 'LOBBY'
-                    };
-                    console.log(`Lobby ${newPin} von ${payload.nickname} erstellt.`);
-                    ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, settings: games[newPin].settings, playerId } }));
-                    broadcastLobbyUpdate(newPin);
-                    break;
-                }
-                case 'join-game': {
-                    const { pin, nickname } = payload;
-                    if (games[pin] && games[pin].gameState === 'LOBBY') {
-                        ws.pin = pin;
-                        const finalNickname = handleNickname(games[pin].players, nickname);
-                        games[pin].players[playerId] = { ws, nickname: finalNickname, score: 0 };
-                        console.log(`${finalNickname} ist der Lobby ${pin} beigetreten.`);
-                        ws.send(JSON.stringify({ type: 'join-success', payload: { pin, settings: games[pin].settings, playerId } }));
-                        broadcastLobbyUpdate(pin);
-                    } else {
-                        ws.send(JSON.stringify({ type: 'error', payload: { message: 'Ungültiger PIN oder Spiel läuft bereits.' } }));
-                    }
-                    break;
-                }
-                case 'change-nickname': {
-                    if (game && game.players[playerId]) {
-                        game.players[playerId].nickname = payload.newNickname;
-                        broadcastLobbyUpdate(pin);
-                    }
-                    break;
-                }
-                case 'update-settings': {
-                    if (game && game.hostId === playerId) {
-                        game.settings = payload;
-                        broadcastLobbyUpdate(pin);
-                    }
-                    break;
-                }
-                case 'start-game': {
-                    if (game && game.hostId === playerId) {
-                        startGame(pin);
-                    }
-                    break;
-                }
-                case 'submit-guess': {
-                    if (game && game.gameState === 'PLAYING' && !game.guesses[playerId]) {
-                        game.guesses[playerId] = payload.guess;
-                        ws.send(JSON.stringify({ type: 'guess-received' }));
-                    }
-                    break;
-                }
-                case 'player-ready': {
-                    if (game && game.gameState === 'PLAYING') {
-                        game.readyPlayers.add(playerId);
-                        if (game.readyPlayers.size === Object.keys(game.players).length) {
-                            clearTimeout(game.roundTimer);
-                            evaluateRound(pin);
-                        }
-                    }
-                    break;
-                }
-            }
-        } catch (error) {
-            console.error("Fehler bei der Verarbeitung der Nachricht:", error);
-        }
-    });
-
-    ws.on('close', () => {
-        const pin = ws.pin;
-        if (!pin || !games[pin] || !games[pin].players[ws.playerId]) return;
-        delete games[pin].players[ws.playerId];
-        if (Object.keys(games[pin].players).length === 0) {
-            console.log(`Lobby ${pin} wurde geschlossen.`);
-            delete games[pin];
-        } else {
-            if (ws.playerId === games[pin].hostId) {
-                games[pin].hostId = Object.keys(games[pin].players)[0];
-            }
-            broadcastLobbyUpdate(pin);
-        }
-    });
+// === ROUTE 1: LOGIN ===
+// Wenn der Nutzer auf den Login-Button klickt, wird er hierher geleitet.
+// Diese Route leitet ihn direkt zu Spotify weiter.
+app.get('/login', (req, res) => {
+  const scopes = 'user-read-private user-read-email playlist-read-private'; // Berechtigungen, die wir von Spotify anfordern
+  const authUrl = 'https://accounts.spotify.com/authorize?' +
+    new URLSearchParams({
+      response_type: 'code',
+      client_id: CLIENT_ID,
+      scope: scopes,
+      redirect_uri: REDIRECT_URI,
+    }).toString();
+  res.redirect(authUrl);
 });
 
-function generatePin() {
-    let pin;
-    do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]);
-    return pin;
-}
+// === ROUTE 2: CALLBACK ===
+// Nachdem der Nutzer bei Spotify zugestimmt hat, wird er hierher zurückgeleitet.
+app.get('/callback', async (req, res) => {
+  const code = req.query.code || null;
 
-function handleNickname(players, nickname) {
-    let finalNickname = nickname, count = 2;
-    const nicknamesInLobby = Object.values(players).map(p => p.nickname);
-    while (nicknamesInLobby.includes(finalNickname)) {
-        finalNickname = `${nickname} (${count++})`;
-    }
-    return finalNickname;
-}
+  if (!code) {
+    return res.status(400).send('Error: Spotify hat keinen Code bereitgestellt.');
+  }
 
-function broadcastLobbyUpdate(pin) {
-    const game = games[pin];
-    if (!game) return;
-    const playersData = Object.entries(game.players).map(([id, p]) => ({ id, nickname: p.nickname, score: p.score }));
-    const payload = { pin, hostId: game.hostId, players: playersData, settings: game.settings, categories: categories };
-    broadcastToLobby(pin, { type: 'lobby-update', payload });
-}
-
-function startGame(pin) {
-    const game = games[pin];
-    if (!game) return;
-    game.gameState = 'COUNTDOWN';
-    broadcastToLobby(pin, { type: 'game-countdown' });
-    setTimeout(() => {
-        game.gameState = 'PLAYING';
-        game.currentRound = 0;
-        Object.values(game.players).forEach(p => p.score = 0);
-        const songCount = Math.min(game.settings.songCount, allSongs[game.settings.category].length);
-        game.songList = [...allSongs[game.settings.category]].sort(() => 0.5 - Math.random()).slice(0, songCount);
-        startNewRound(pin);
-    }, 5000);
-}
-
-function startNewRound(pin) {
-    const game = games[pin];
-    if (!game || game.currentRound >= game.songList.length) {
-        if (game) game.gameState = 'FINISHED';
-        broadcastToLobby(pin, {type: 'game-over', payload: {scores: getScores(pin)}});
-        return;
-    }
-    game.currentRound++;
-    game.guesses = {};
-    game.readyPlayers = new Set();
-    game.currentSong = game.songList[game.currentRound - 1];
-    broadcastToLobby(pin, {
-        type: 'new-round',
-        payload: {
-            round: game.currentRound, totalRounds: game.songList.length,
-            guessTime: game.settings.guessTime, song: { spotifyId: game.currentSong.spotifyId }
-        }
+  try {
+    // Den erhaltenen Code gegen einen Access Token eintauschen
+    const response = await axios({
+      method: 'post',
+      url: 'https://accounts.spotify.com/api/token',
+      data: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: REDIRECT_URI,
+      }).toString(),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic ' + (Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64'))
+      }
     });
-    game.roundTimer = setTimeout(() => evaluateRound(pin), game.settings.guessTime * 1000);
-}
 
-function evaluateRound(pin) {
-    const game = games[pin];
-    if (!game) return;
-    const song = game.currentSong;
-    Object.keys(game.players).forEach(pId => {
-        const player = game.players[pId];
-        const guess = game.guesses[pId];
-        if (!guess) return;
-        const yearDiff = Math.abs(guess.year - song.year);
-        if (yearDiff === 0) player.score += 250;
-        else if (yearDiff <= 5) player.score += 100;
-        else if (yearDiff <= 10) player.score += 50;
-        else if (yearDiff <= 20) player.score += 10;
-        if (guess.artist.toLowerCase() === song.artist.toLowerCase()) player.score += 75;
-        if (guess.title.toLowerCase() === song.title.toLowerCase()) player.score += 75;
+    const { access_token, refresh_token } = response.data;
+
+    // Den Token sicher in einem Cookie speichern (sicherer als im Local Storage)
+    res.cookie('spotify_access_token', access_token, { httpOnly: true, secure: true, maxAge: 3600000 }); // 1 Stunde gültig
+
+    // Den Nutzer zur Hauptseite (oder zur Lobby-Erstellungs-Seite) zurückleiten
+    res.redirect('/lobby.html');
+
+  } catch (error) {
+    console.error('Fehler beim Abrufen des Tokens:', error.response ? error.response.data : error.message);
+    res.status(500).send('Fehler bei der Spotify-Authentifizierung.');
+  }
+});
+
+// === ROUTE 3: GESCHÜTZTE API (Beispiel) ===
+// Eine Beispiel-API, um die Playlists des Nutzers abzurufen.
+// Sie funktioniert nur, wenn ein gültiger Token im Cookie vorhanden ist.
+app.get('/api/playlists', async (req, res) => {
+  const token = req.cookies.spotify_access_token;
+
+  if (!token) {
+    // Dies ist der Fehler, den du bekommen hast!
+    return res.status(401).json({ error: { status: 401, message: "No token provided" } });
+  }
+
+  try {
+    const response = await axios.get('https://api.spotify.com/v1/me/playlists', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     });
-    broadcastToLobby(pin, { type: 'round-result', payload: { song, scores: getScores(pin) } });
-    setTimeout(() => startNewRound(pin), 8000);
-}
+    res.json(response.data);
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Playlists:', error.response ? error.response.data : error.message);
+    res.status(error.response.status || 500).json({ message: "Fehler beim Abrufen der Playlists." });
+  }
+});
 
-function getScores(pin) {
-    const game = games[pin];
-    if (!game) return [];
-    return Object.entries(game.players)
-        .map(([id, p]) => ({ id, nickname: p.nickname, score: p.score }))
-        .sort((a, b) => b.score - a.score);
-}
 
-function broadcastToLobby(pin, message) {
-    const game = games[pin];
-    if (!game) return;
-    const messageString = JSON.stringify(message);
-    Object.values(game.players).forEach(player => {
-        if (player.ws.readyState === WebSocket.OPEN) {
-            player.ws.send(messageString);
-        }
-    });
-}
+// Hauptseite bereitstellen
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-server.listen(process.env.PORT || 8080, () => {
-    console.log('✅ Fakester-Server läuft...');
+app.listen(PORT, () => {
+  console.log(`Fakester Server läuft auf Port ${PORT}`);
 });
