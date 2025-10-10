@@ -1,2 +1,2 @@
 # Fakester
-Party gues song game 
+hobby project
