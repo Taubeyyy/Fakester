@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =================================================================
     
     const CLIENT_ID = "ec63d6f7ae1c4b888cefcccedd291b53en"; 
-    const REDIRECT_URI = window.location.origin + window.location.pathname.replace('index.html', '');
+    const REDIRECT_URI = window.location.origin + '/';
     const SCOPES = [
         "streaming", "user-read-email", "user-read-private",
         "user-read-playback-state", "user-modify-playback-state"
