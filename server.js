@@ -7,7 +7,6 @@ const path = require('path');
 const app = express();
 const server = http.createServer(app);
 
-// Stellt die `index.html` und alle anderen Frontend-Dateien bereit
 app.use(express.static(path.join(__dirname)));
 
 const wss = new WebSocket.Server({ server });
@@ -222,6 +221,6 @@ function broadcastToLobby(pin, message) {
     });
 }
 
-server.listen(8080, () => {
-    console.log('✅ Spiel-Server v12 (Spotify SDK) läuft auf http://localhost:8080');
+server.listen(process.env.PORT || 8080, () => {
+    console.log('✅ Fakester-Server läuft...');
 });

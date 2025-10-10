@@ -1,5 +1,5 @@
 {
-  "name": "song-quiz-spotify-sdk",
+  "name": "fakester",
   "version": "1.0.0",
   "description": "Ein Multiplayer Song-Quiz mit Spotify Web Playback SDK",
   "main": "server.js",

@@ -1,11 +1,33 @@
+// =================================================================
+// =========== DEBUG-FENSTER FUNKTIONEN ========================
+// =================================================================
+function logToScreen(message, isError = false) {
+    const logContainer = document.getElementById('debug-log');
+    if (logContainer) {
+        const p = document.createElement('p');
+        p.textContent = `> ${message}`;
+        if (isError) p.className = 'error';
+        logContainer.appendChild(p);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+}
+
+window.onerror = function(message, source, lineno, colno, error) {
+    logToScreen(`FEHLER: ${message} in Zeile ${lineno}`, true);
+    return true;
+};
+
+logToScreen("script.js wird geladen...");
+
 document.addEventListener('DOMContentLoaded', () => {
+    logToScreen("DOM ist geladen. Starte App-Logik...");
+
     // =================================================================
     // =========== SPOTIFY SDK & LOGIN LOGIK (FINAL) =============
     // =================================================================
     
-    // WICHTIG: Füge hier deine Client ID aus dem Spotify Dashboard ein!
-    const CLIENT_ID = "ec63d6f7ae1c4b888cefcccedd291b53"; 
-    const REDIRECT_URI = window.location.origin + window.location.pathname;
+    const CLIENT_ID = "ec63d6f7ae1c4b888cefcccedd291b53en"; 
+    const REDIRECT_URI = window.location.origin + window.location.pathname.replace('index.html', '');
     const SCOPES = [
         "streaming", "user-read-email", "user-read-private",
         "user-read-playback-state", "user-modify-playback-state"
@@ -16,10 +38,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let accessToken = null;
 
     window.onSpotifyWebPlaybackSDKReady = () => {
+        logToScreen("Spotify SDK ist bereit.");
         const token = getAccessTokenFromUrl();
         if (token) {
             accessToken = token;
+            logToScreen("Access Token gefunden. Initialisiere Player...");
             initializeSpotifyPlayer(token);
+        } else {
+            logToScreen("Kein Access Token gefunden. Warte auf Nutzeraktion.");
         }
     };
 
@@ -35,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function spotifyLogin() {
+        logToScreen("Speichere Nickname und starte Spotify Login...");
         localStorage.setItem('nickname_before_login', myNickname);
         const authUrl = `https://api.spotify.com/v1/users/XXXXXXXX/playlists?response_type=token&client_id=${CLIENT_ID}&scope=${SCOPES.join('%20')}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
         window.location = authUrl;
@@ -42,40 +69,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initializeSpotifyPlayer(token) {
         spotifyPlayer = new Spotify.Player({
-            name: 'Song Quiz Deluxe Player',
+            name: 'Fakester Song Quiz',
             getOAuthToken: cb => { cb(token); },
             volume: 0.5
         });
 
         spotifyPlayer.addListener('ready', ({ device_id }) => {
-            console.log('Spotify Player ist bereit mit Geräte-ID:', device_id);
+            logToScreen(`Spotify Player ist bereit mit Geräte-ID: ${device_id}`);
             spotifyDeviceId = device_id;
             const nickname = localStorage.getItem('nickname_before_login');
             if (nickname) {
                 myNickname = nickname;
                 welcomeNickname.textContent = myNickname;
-                showScreen('home-screen'); // Zeige jetzt den Home-Screen
+                showScreen('home-screen');
                 connectToServerAndCreateGame();
                 localStorage.removeItem('nickname_before_login');
             }
         });
 
-        spotifyPlayer.addListener('not_ready', ({ device_id }) => console.log('Gerät ist offline:', device_id));
-        spotifyPlayer.addListener('authentication_error', ({ message }) => {
-            console.error('Authentifizierungsfehler:', message);
-            alert("Login abgelaufen. Bitte Seite neu laden und erneut einloggen.");
-        });
-        spotifyPlayer.addListener('account_error', ({ message }) => {
-            console.error('Account-Fehler:', message);
-            alert("Fehler mit dem Spotify-Account. Es wird ein Premium-Account benötigt.");
-        });
+        spotifyPlayer.addListener('not_ready', ({ device_id }) => logToScreen(`Gerät ist offline: ${device_id}`, true));
+        spotifyPlayer.addListener('authentication_error', ({ message }) => logToScreen(`Authentifizierungsfehler: ${message}`, true));
+        spotifyPlayer.addListener('account_error', ({ message }) => logToScreen(`Account-Fehler: ${message}`, true));
 
-        spotifyPlayer.connect();
+        spotifyPlayer.connect().then(success => {
+            if (success) logToScreen("Verbindung zum Spotify Player erfolgreich.");
+        });
     }
     
     function playTrack(spotifyId) {
         if (!spotifyDeviceId) {
-            alert("Spotify Player nicht bereit. Bitte öffne deine Spotify App, klicke auf das 'Geräte'-Symbol, wähle den 'Song Quiz Deluxe Player' und starte die Runde erneut.");
+            logToScreen("Spotify Player nicht aktiv. Bitte in Spotify App auswählen.", true);
+            alert("Spotify Player nicht bereit. Bitte öffne deine Spotify App, klicke auf das 'Geräte'-Symbol, wähle den 'Fakester Song Quiz' Player und starte die Runde erneut.");
             return;
         }
         fetch(`https://api.spotify.com/v1/playlists/[playlist_id]/tracks?device_id=${spotifyDeviceId}`, {
@@ -86,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =================================================================
-    // =========== SPIEL-LOGIK & EVENT LISTENERS (VOLLSTÄNDIG) =============
+    // =========== SPIEL-LOGIK & EVENT LISTENERS =====================
     // =================================================================
     
     const screens = document.querySelectorAll('.screen');
@@ -94,8 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let myPlayerId = null, myNickname = '', isHost = false, countdownInterval = null, timeLeftInterval = null;
 
     const scoreboard = document.getElementById('scoreboard'), scoreboardList = document.getElementById('scoreboard-list'),
-    nicknameScreen = document.getElementById('nickname-screen'), nicknameInput = document.getElementById('nickname-input'), 
-    nicknameSubmitButton = document.getElementById('nickname-submit-button'),
+    nicknameInput = document.getElementById('nickname-input'), nicknameSubmitButton = document.getElementById('nickname-submit-button'),
     welcomeNickname = document.getElementById('welcome-nickname'), showCreateButton = document.getElementById('show-create-button'),
     showJoinButton = document.getElementById('show-join-button'), lobbyPinDisplay = document.getElementById('lobby-pin'),
     playerList = document.getElementById('player-list'), playerCount = document.getElementById('player-count'),
@@ -106,38 +129,32 @@ document.addEventListener('DOMContentLoaded', () => {
     pinDisplaySpans = document.querySelectorAll('.pin-display-box span'), numberpadButtons = document.querySelectorAll('.numberpad .num-btn'),
     joinGameButton = document.getElementById('join-game-button'), joinErrorMessage = document.getElementById('join-error-message'),
     submitGuessButton = document.getElementById('submit-guess-button'), readyButton = document.getElementById('ready-button'),
-    timeLeftDisplay = document.getElementById('time-left'), backToHomeButton = document.getElementById('back-to-home-button');
+    timeLeftDisplay = document.getElementById('time-left'), backToHomeButton = document.getElementById('back-to-home-button'),
+    themeToggleButton = document.getElementById('theme-toggle');
 
-    // Initialen Screen festlegen
     if (!getAccessTokenFromUrl()) {
         showScreen('nickname-screen');
+        logToScreen("Zeige initialen Nickname-Screen.");
     }
 
     function showScreen(screenId) {
         screens.forEach(screen => screen.classList.toggle('active', screen.id === screenId));
     }
 
-    function connectToServer(isHost, actionPayload) {
-        if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
-            sendMessage(actionPayload.type, actionPayload.payload);
-            return;
-        }
+    function connectToServer(action) {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws.socket = new WebSocket(`${protocol}//${window.location.host}`);
         ws.socket.onopen = () => {
-            console.log("WebSocket-Verbindung hergestellt.");
-            sendMessage(actionPayload.type, actionPayload.payload);
+            logToScreen("WebSocket-Verbindung hergestellt.");
+            action();
         };
         ws.socket.onmessage = handleServerMessage;
-        ws.socket.onclose = () => {
-             alert("Verbindung zum Server verloren. Bitte lade die Seite neu.");
-             showScreen('nickname-screen');
-             scoreboard.classList.remove('visible');
-        };
+        ws.socket.onclose = () => { logToScreen("WebSocket-Verbindung getrennt.", true); };
+        ws.socket.onerror = () => { logToScreen("WebSocket-Fehler.", true); };
     }
 
     function connectToServerAndCreateGame() {
-        connectToServer(true, { type: 'create-game', payload: { nickname: myNickname } });
+        connectToServer(() => sendMessage('create-game', { nickname: myNickname }));
     }
     
     function sendMessage(type, payload) {
@@ -217,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     nicknameSubmitButton.addEventListener('click', () => {
+        logToScreen("'Weiter' geklickt!");
         myNickname = nicknameInput.value.trim();
         if (myNickname) {
             welcomeNickname.textContent = myNickname;
@@ -225,42 +243,113 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     showCreateButton.addEventListener('click', () => spotifyLogin());
+    
     showJoinButton.addEventListener('click', () => {
         currentPin = "";
         updatePinDisplay();
         joinErrorMessage.classList.add('hidden');
         joinModalOverlay.classList.remove('hidden');
     });
+
     backToHomeButton.addEventListener('click', () => showScreen('home-screen'));
 
-    function makeNicknameEditable(e) { /* ... unverändert ... */ }
+    function makeNicknameEditable(e) {
+        const element = e.target;
+        const input = document.createElement('input');
+        input.type = 'text'; input.value = element.textContent;
+        element.replaceWith(input);
+        input.focus();
+        const save = () => {
+            const newNickname = input.value.trim();
+            if (newNickname && newNickname !== myNickname) sendMessage('change-nickname', { newNickname });
+            input.replaceWith(element);
+            element.addEventListener('click', makeNicknameEditable, { once: true });
+        };
+        input.addEventListener('blur', save);
+        input.addEventListener('keydown', e => e.key === 'Enter' && e.target.blur());
+    }
+
     let currentPin = "";
-    function updatePinDisplay() { /* ... unverändert ... */ }
-    numberpadButtons.forEach(button => { /* ... unverändert ... */ });
-    closeModalButton.addEventListener('click', () => joinModalOverlay.classList.add('hidden'));
-    joinModalOverlay.addEventListener('click', e => e.target === joinModalOverlay && joinModalOverlay.classList.add('hidden'));
-    joinGameButton.addEventListener('click', () => {
-        if (currentPin.length === 4) connectToServer(false, { type: 'join-game', payload: { pin: currentPin, nickname: myNickname } });
+    function updatePinDisplay() {
+        pinDisplaySpans.forEach((span, i) => {
+            span.textContent = currentPin[i] || "";
+            span.classList.toggle('filled', !!currentPin[i]);
+});
+    }
+
+    numberpadButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const action = button.dataset.action;
+            if (action === 'clear') currentPin = "";
+            else if (action === 'backspace') currentPin = currentPin.slice(0, -1);
+            else if (currentPin.length < 4) currentPin += button.textContent;
+            updatePinDisplay();
+        });
     });
 
-    [categorySelect, songCountSelect, guessTimeSelect].forEach(el => { /* ... unverändert ... */ });
-    startGameButton.addEventListener('click', () => sendMessage('start-game'));
-    function updateLobbySettings(settings, categoriesFromServer) { /* ... unverändert ... */ }
-    function startGuessTimer(seconds) { /* ... unverändert ... */ }
-    function updateScoreboard(scores) { /* ... unverändert ... */ }
-    submitGuessButton.addEventListener('click', () => { /* ... unverändert ... */ });
-    readyButton.addEventListener('click', () => { /* ... unverändert ... */ });
+    closeModalButton.addEventListener('click', () => joinModalOverlay.classList.add('hidden'));
+    joinModalOverlay.addEventListener('click', e => { if (e.target === joinModalOverlay) joinModalOverlay.classList.add('hidden'); });
+    joinGameButton.addEventListener('click', () => {
+        if (currentPin.length === 4) connectToServer(() => sendMessage('join-game', { pin: currentPin, nickname: myNickname }));
+    });
+
+    [categorySelect, songCountSelect, guessTimeSelect].forEach(el => {
+        el.addEventListener('change', () => sendMessage('update-settings', {
+            category: categorySelect.value,
+            songCount: parseInt(songCountSelect.value),
+            guessTime: parseInt(guessTimeSelect.value)
+        }));
+    });
     
-    const themeToggleButton = document.getElementById('theme-toggle');
+    startGameButton.addEventListener('click', () => sendMessage('start-game'));
+    
+    function updateLobbySettings(settings, categoriesFromServer) {
+        categorySelect.innerHTML = categoriesFromServer.map(c => `<option value="${c}" ${c === settings.category ? 'selected' : ''}>${c}</option>`).join('');
+        songCountSelect.value = settings.songCount;
+        guessTimeSelect.value = settings.guessTime;
+    }
+
+    function startGuessTimer(seconds) {
+        let timeLeft = seconds;
+        timeLeftDisplay.textContent = timeLeft;
+        timeLeftInterval = setInterval(() => {
+            timeLeft--;
+            timeLeftDisplay.textContent = timeLeft;
+            if (timeLeft <= 0) clearInterval(timeLeftInterval);
+        }, 1000);
+    }
+    function updateScoreboard(scores) {
+        scoreboardList.innerHTML = scores.sort((a, b) => b.score - a.score)
+            .map(p => `<li><span>${p.nickname}</span><span class="score">${p.score}</span></li>`).join('');
+    }
+    submitGuessButton.addEventListener('click', () => {
+        const guess = {
+            artist: document.getElementById('artist-guess').value.trim(),
+            title: document.getElementById('title-guess').value.trim(),
+            year: parseInt(document.getElementById('year-guess').value, 10)
+        };
+        if (isNaN(guess.year)) { alert("Bitte gib eine gültige Jahreszahl ein."); return; }
+        sendMessage('submit-guess', { guess });
+    });
+    readyButton.addEventListener('click', () => {
+        sendMessage('player-ready');
+        readyButton.disabled = true;
+        readyButton.innerHTML = '<i class="fa-solid fa-check"></i> Warten...';
+    });
+    
     themeToggleButton.addEventListener('click', () => {
+        logToScreen("Theme-Button geklickt!");
         document.body.classList.toggle('dark-mode');
         const isDarkMode = document.body.classList.contains('dark-mode');
         localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
         themeToggleButton.innerHTML = isDarkMode ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
     });
     
-    // Initialen Theme-Status beim Laden der Seite setzen
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.body.classList.toggle('dark-mode', savedTheme === 'dark');
     themeToggleButton.innerHTML = savedTheme === 'dark' ? '<i class="fa-solid fa-sun"></i>' : '<i class="fa-solid fa-moon"></i>';
+    
+    logToScreen("Event Listeners angehängt.");
 });
+
+logToScreen("script.js geladen.");
