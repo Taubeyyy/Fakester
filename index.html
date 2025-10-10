@@ -10,8 +10,8 @@
 <body>
 
     <main id="nickname-screen" class="screen active">
-        <div class="container">
-            <h1>Willkommen bei Fakester!</h1>
+        <div class="container slide-in">
+            <h1>Willkommen!</h1>
             <p>Gib einen Nickname ein, um zu starten.</p>
             <input type="text" id="nickname-input" placeholder="Dein Nickname..." maxlength="15">
             <button id="nickname-submit-button" class="button-primary">Weiter</button>
@@ -21,51 +21,58 @@
     <main id="home-screen" class="screen">
         <div class="container">
             <h1>Hallo, <span id="welcome-nickname"></span>!</h1>
-            <p>Was möchtest du tun?</p>
-            <a href="/login" class="button-primary" id="show-create-button">
-                <i class="fa-brands fa-spotify"></i> Raum erstellen & mit Spotify verbinden
-            </a>
-            <button id="show-join-button">Raum beitreten</button>
+            <a href="/login" class="button-primary" id="show-create-button"><i class="fa-brands fa-spotify"></i> Raum erstellen</a>
+            <button id="show-join-button"><i class="fa-solid fa-right-to-bracket"></i> Raum beitreten</button>
         </div>
     </main>
 
     <main id="lobby-screen" class="screen">
         <div class="container lobby-container">
-            <div class="lobby-header">
-                <h2>Lobby PIN: <span id="lobby-pin">----</span></h2>
-                <h3>Spieler: <span id="player-count">0</span></h3>
-            </div>
+            <h2>Lobby PIN: <span id="lobby-pin">----</span></h2>
             <ul id="player-list"></ul>
-
             <div id="host-settings" class="hidden">
-                <h3>Einstellungen (nur für Host)</h3>
-                <div class="setting">
-                    <label for="playlist-select">Playlist:</label>
-                    <select id="playlist-select"><option>Lade Playlists...</option></select>
-                </div>
-                <div class="setting">
-                    <label for="song-count-select">Anzahl Songs:</label>
-                    <select id="song-count-select">
-                        <option value="5">5</option><option value="10" selected>10</option><option value="15">15</option><option value="20">20</option>
-                    </select>
-                </div>
-                <div class="setting">
-                    <label for="guess-time-select">Ratezeit (Sek.):</label>
-                    <select id="guess-time-select">
-                        <option value="20">20</option><option value="30" selected>30</option><option value="45">45</option><option value="60">60</option>
-                    </select>
-                </div>
-                <button id="start-game-button" class="button-start">Spiel starten</button>
+                <select id="playlist-select"><option>Lade Playlists...</option></select>
+                <button id="start-game-button" class="button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
             </div>
-            
             <div id="guest-waiting-message" class="hidden">
                 <p>Warte, bis der Host das Spiel startet...</p>
             </div>
         </div>
     </main>
 
-    <button id="theme-toggle"><i class="fa-solid fa-moon"></i></button>
+    <main id="game-screen" class="screen">
+        <div class="container game-container">
+            <div class="game-header">
+                <span id="round-info">Runde 1 / 10</span>
+                <span id="time-left">30</span>
+            </div>
+            <div class="guess-form">
+                <input type="text" id="artist-guess" placeholder="Künstler...">
+                <input type="text" id="title-guess" placeholder="Songtitel...">
+                <input type="number" id="year-guess" placeholder="Jahr...">
+                <button id="submit-guess-button" class="button-primary">Raten!</button>
+            </div>
+        </div>
+    </main>
 
+    <main id="result-screen" class="screen">
+        <div class="container">
+            <h2>Richtige Antwort:</h2>
+            <p id="correct-answer-info">Artist - Title (Year)</p>
+            <h3>Punktestand:</h3>
+            <ul id="scoreboard-list"></ul>
+        </div>
+    </main>
+
+    <div id="join-modal-overlay" class="hidden">
+        <div class="container modal">
+            <h2>Raum beitreten</h2>
+            <input type="number" id="pin-input" placeholder="PIN eingeben...">
+            <button id="join-game-button" class="button-primary">Beitreten</button>
+            <button id="close-modal-button" class="button-secondary">Abbrechen</button>
+        </div>
+    </div>
+    
     <script src="script.js"></script>
 </body>
 </html>
