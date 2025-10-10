@@ -22,8 +22,9 @@
 
     <main id="home-screen" class="screen">
         <div class="container">
-            <h1>Hallo, <span id="welcome-nickname"></span>!</h1>
-            <a href="/login" class="button-primary" id="show-create-button"><i class="fa-brands fa-spotify"></i> Raum erstellen</a>
+            <h1 id="welcome-header">Hallo, <span id="welcome-nickname" title="Klicken zum Ändern"></span>!</h1>
+            <a href="/login" class="button-primary" id="show-create-button-login"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
+            <button class="button-primary hidden" id="show-create-button-action"><i class="fa-solid fa-plus"></i> Raum erstellen</button>
             <button id="show-join-button"><i class="fa-solid fa-right-to-bracket"></i> Raum beitreten</button>
         </div>
     </main>
@@ -34,7 +35,29 @@
             <h2>Lobby PIN: <span id="lobby-pin">----</span></h2>
             <ul id="player-list"></ul>
             <div id="host-settings" class="hidden">
-                <select id="playlist-select"><option>Lade Playlists...</option></select>
+                <h3>Einstellungen</h3>
+                <div class="setting">
+                    <label>Playlist:</label>
+                    <select id="playlist-select"><option>Lade Playlists...</option></select>
+                </div>
+                <div class="setting">
+                    <label>Anzahl Songs:</label>
+                    <div class="setting-options" id="song-count-options">
+                        <button class="option-btn" data-value="5">5</button>
+                        <button class="option-btn active" data-value="10">10</button>
+                        <button class="option-btn" data-value="15">15</button>
+                        <button class="option-btn" data-value="20">20</button>
+                    </div>
+                </div>
+                <div class="setting">
+                    <label>Ratezeit (Sek.):</label>
+                    <div class="setting-options" id="guess-time-options">
+                        <button class="option-btn" data-value="20">20</button>
+                        <button class="option-btn active" data-value="30">30</button>
+                        <button class="option-btn" data-value="45">45</button>
+                        <button class="option-btn" data-value="60">60</button>
+                    </div>
+                </div>
                 <button id="start-game-button" class="button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
             </div>
             <div id="guest-waiting-message" class="hidden">
