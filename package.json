@@ -1,13 +1,18 @@
 {
   "name": "fakester",
-  "version": "1.0.0",
-  "description": "Ein Multiplayer Song-Quiz mit Spotify Web Playback SDK",
+  "version": "2.0.0",
+  "description": "A Spotify music quiz game for Render (Single Page App).",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "express": "^4.19.2",
-    "ws": "^8.17.0"
+    "axios": "^1.6.2",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "ws": "^8.14.2"
   }
 }
