@@ -1,3 +1,4 @@
+// Pakete importieren
 const WebSocket = require('ws');
 const http = require('http');
 const express = require('express');
@@ -39,7 +40,10 @@ app.get('/api/playlists', async (req, res) => {
     try {
         const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
         res.json(d.data);
-    } catch (e) { res.status(500).json({ message: "Fehler beim Abrufen der Playlists" }); }
+    } catch (e) {
+        console.error("Spotify /playlists API Fehler:", e.response ? e.response.data : e.message);
+        res.status(500).json({ message: "Fehler beim Abrufen der Playlists" });
+    }
 });
 app.get('/api/devices', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
@@ -47,7 +51,11 @@ app.get('/api/devices', async (req, res) => {
     try {
         const d = await axios.get('spotify.com/account', { headers: { 'Authorization': `Bearer ${token}` } });
         res.json(d.data);
-    } catch (e) { res.status(500).json({ message: "Fehler beim Abrufen der Geräte" }); }
+    } catch (e) {
+        // HIER IST DIE VERBESSERTE FEHLERLOGIK
+        console.error("!!! Spotify /devices API Fehler:", e.response ? JSON.stringify(e.response.data, null, 2) : e.message);
+        res.status(500).json({ message: "Fehler beim Abrufen der Geräte" });
+    }
 });
 const wss = new WebSocket.Server({ server });
 wss.on('connection', ws => {

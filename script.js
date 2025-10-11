@@ -93,9 +93,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function showScreen(screenId) { elements.screens.forEach(s => s.classList.toggle('active', s.id === screenId)); }
     async function fetchAndDisplayDevices() {
+        elements.refreshDevicesButton.disabled = true;
         elements.deviceSelect.innerHTML = `<option>Suche Geräte...</option>`;
         try {
             const response = await fetch('/api/devices', { headers: { 'Authorization': `Bearer ${spotifyToken}` } });
+            if (!response.ok) throw new Error('Server-Antwort nicht ok');
             const data = await response.json();
             if (data.devices && data.devices.length > 0) {
                 elements.deviceSelect.innerHTML = data.devices.map(d => `<option value="${d.id}" ${d.is_active ? 'selected' : ''}>${d.name} (${d.type})</option>`).join('');
@@ -104,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             sendSettingsUpdate();
         } catch (e) { elements.deviceSelect.innerHTML = `<option value="">Geräte laden fehlgeschlagen</option>`; }
+        finally { elements.refreshDevicesButton.disabled = false; }
     }
     async function fetchAndDisplayPlaylists() {
         try {

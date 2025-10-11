@@ -26,14 +26,14 @@ body {
     flex-direction: column;
     height: 100vh;
     overflow: hidden;
+    -webkit-tap-highlight-color: transparent; /* Verhindert blaues Aufleuchten bei Touch */
 }
 
 .app-background {
-    position: fixed;
-    top: 0; left: 0;
+    position: fixed; top: 0; left: 0;
     width: 100%; height: 100%;
-    background: radial-gradient(circle at top left, rgba(29, 185, 84, 0.2), transparent 40%),
-                radial-gradient(circle at bottom right, rgba(255, 69, 0, 0.15), transparent 50%);
+    background: radial-gradient(circle at top left, rgba(29, 185, 84, 0.1), transparent 40%),
+                radial-gradient(circle at bottom right, rgba(29, 185, 84, 0.05), transparent 50%);
     z-index: -1;
 }
 
@@ -48,125 +48,87 @@ body {
 }
 
 .app-header h1 {
-    font-size: 1.5rem;
-    color: var(--primary-color);
-    font-weight: 800;
-    letter-spacing: 2px;
+    font-size: 1.5rem; color: var(--primary-color);
+    font-weight: 800; letter-spacing: 2px;
 }
 
 .screen {
-    display: none;
-    flex-grow: 1;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    width: 100%;
-    height: 100%;
-    overflow-y: auto;
-    opacity: 0;
-    transition: opacity 0.3s ease-in-out;
+    display: none; flex-grow: 1; align-items: center; justify-content: flex-start; /* Startet oben */
+    padding: 30px 20px; width: 100%; height: 100%;
+    overflow-y: auto; opacity: 0; transition: opacity 0.3s ease-in-out;
 }
-
-.screen.active {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    opacity: 1;
-}
+.screen.active { display: flex; flex-direction: column; opacity: 1; }
 
 .container {
-    width: 100%;
-    max-width: 500px;
+    width: 100%; max-width: 500px;
     background-color: var(--surface-color);
-    padding: 30px;
-    border-radius: var(--border-radius);
-    text-align: center;
-    border: 1px solid var(--dark-grey);
+    padding: 30px; border-radius: var(--border-radius);
+    text-align: center; border: 1px solid var(--dark-grey);
 }
 
 h2 { font-size: 1.8rem; margin-bottom: 10px; font-weight: 800; }
-p { color: var(--text-muted-color); margin-bottom: 20px; }
+p { color: var(--text-muted-color); margin-bottom: 20px; line-height: 1.5; }
 
 /* Komponenten */
 .button-primary, .button-secondary, .button-start, .button-icon, .option-btn, .num-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 12px 24px;
-    border: 1px solid transparent;
-    border-radius: 50px;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 10px; padding: 12px 24px; border: 1px solid transparent; border-radius: 50px;
+    font-size: 16px; /* Wichtig für Mobile-Zoom */ font-weight: 700;
+    cursor: pointer; transition: all 0.2s; text-decoration: none;
 }
 .button-primary { background-color: var(--primary-color); color: #000; }
-.button-primary:hover { background-color: #fff; border-color: #fff; }
+.button-primary:hover { background-color: #fff; transform: scale(1.03); }
 .button-secondary { background-color: transparent; color: var(--text-color); border-color: var(--medium-grey); }
 .button-secondary:hover { background-color: var(--dark-grey); border-color: var(--text-muted-color); }
 .button-start { background-color: var(--accent-color); color: var(--text-color); }
-.button-start:hover { background-color: #ff6a33; }
+.button-start:hover { background-color: #ff6a33; transform: scale(1.03); }
 button:active, a:active { transform: scale(0.97); }
 
 input, select {
-    width: 100%;
-    padding: 12px 15px;
-    margin-bottom: 20px;
-    background-color: var(--dark-grey);
-    border: 1px solid var(--medium-grey);
-    border-radius: 8px;
-    color: var(--text-color);
-    font-size: 1rem;
-    font-family: 'Montserrat', sans-serif;
+    width: 100%; padding: 12px 15px; margin-bottom: 20px;
+    background-color: var(--dark-grey); border: 1px solid var(--medium-grey); border-radius: 8px;
+    color: var(--text-color); font-size: 16px; /* Wichtig für Mobile-Zoom */ font-family: 'Montserrat', sans-serif;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 input:focus, select:focus {
-    outline: none;
-    border-color: var(--primary-color);
+    outline: none; border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.3);
 }
 select { /* Custom dropdown arrow */ }
 
-.button-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+.button-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; width: 100%; }
 .setting { margin-bottom: 25px; text-align: left; }
-.setting label { display: block; margin-bottom: 10px; color: var(--text-muted-color); font-weight: 700; font-size: 0.9rem; }
-.setting-options { display: flex; justify-content: space-between; gap: 10px; }
+.setting label { display: block; margin-bottom: 10px; color: var(--text-muted-color); font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.setting-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .option-btn { flex: 1; margin: 0; background-color: var(--dark-grey); color: var(--text-color); border: 1px solid var(--medium-grey); }
 .option-btn.active { background-color: var(--primary-color); color: #000; border-color: var(--primary-color); }
 .select-with-refresh { display: flex; align-items: center; gap: 10px; }
 .select-with-refresh select { flex-grow: 1; margin-bottom: 0; }
 .button-icon { padding: 10px 12px; font-size: 1rem; line-height: 1; background-color: var(--dark-grey); color: var(--text-color); border-color: var(--medium-grey); }
 .button-icon:hover { background-color: var(--medium-grey); }
+.button-icon:disabled .fa-arrows-rotate { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-.button-leave {
-    position: absolute;
-    top: 80px; left: 20px;
-    background: none; border: none; font-size: 1.5rem; color: var(--text-muted-color); cursor: pointer;
-}
+.button-leave { position: absolute; top: 80px; left: 20px; background: none; border: none; font-size: 1.5rem; color: var(--text-muted-color); cursor: pointer; z-index: 5; }
 
 /* Spezifische Screens */
 #home-screen #welcome-nickname { cursor: pointer; border-bottom: 2px dotted var(--primary-color); }
 .pin-display-large { margin-bottom: 20px; }
-.pin-display-large p { margin: 0; font-size: 1rem; color: var(--text-muted-color); }
+.pin-display-large p { margin: 0; font-size: 1rem; color: var(--text-muted-color); text-transform: uppercase; letter-spacing: 1px; }
 .pin-display-large span { font-size: 3.5rem; font-weight: 800; color: var(--primary-color); letter-spacing: 5px; }
 #player-list { list-style: none; margin-bottom: 30px; width: 100%; }
 #player-list li { display: flex; justify-content: space-between; align-items: center; background-color: var(--dark-grey); padding: 12px 15px; border-radius: 8px; margin-bottom: 8px; font-size: 1.1rem; }
 #player-list .fa-crown { color: #FFD700; }
 .game-header { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 30px; font-weight: 700; }
-.timer-display { font-size: 1.5rem; display: flex; align-items: center; gap: 8px; }
+.timer-display { font-size: 1.5rem; display: flex; align-items: center; gap: 8px; color: var(--primary-color); }
 .scoreboard { list-style: none; width: 100%; text-align: left; }
 .scoreboard li { display: flex; justify-content: space-between; padding: 10px; border-radius: 4px; }
 .scoreboard li:nth-child(odd) { background-color: var(--dark-grey); }
-
-/* Numpad im Modal */
 .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
 .num-btn { padding: 20px; font-size: 1.5rem; background-color: var(--dark-grey); color: var(--text-color); border: 1px solid var(--medium-grey); }
 .num-btn.action-btn { background-color: var(--medium-grey); }
 .pin-display { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
 .pin-digit { width: 50px; height: 60px; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
 .pin-digit.filled { border-color: var(--primary-color); color: var(--primary-color); }
-
 .hidden { display: none !important; }
 
