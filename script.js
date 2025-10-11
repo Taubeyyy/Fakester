@@ -51,14 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/status');
             const data = await response.json();
             if (!data.loggedIn) throw new Error('Nicht eingeloggt');
-
             spotifyToken = data.token;
             document.cookie = "spotify_access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-
             elements.showCreateButtonLogin.classList.add('hidden');
             elements.showCreateButtonAction.classList.remove('hidden');
             elements.logoutButton.classList.remove('hidden');
-
             if (myNickname) {
                 elements.welcomeNickname.textContent = myNickname;
                 showScreen('home-screen');
@@ -78,63 +75,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     initializeApp();
-
-    function connectToServer(onOpenCallback) {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        ws.socket = new WebSocket(`${protocol}//${window.location.host}`);
-        ws.socket.onopen = onOpenCallback;
-        ws.socket.onmessage = handleServerMessage;
-    }
-
-    function sendMessage(type, payload) {
-        if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
-            ws.socket.send(JSON.stringify({ type, payload }));
-        }
-    }
-
+    function connectToServer(onOpenCallback) { const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; ws.socket = new WebSocket(`${protocol}//${window.location.host}`); ws.socket.onopen = onOpenCallback; ws.socket.onmessage = handleServerMessage; }
+    function sendMessage(type, payload) { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type, payload })); } }
     function handleServerMessage(event) {
         const { type, payload } = JSON.parse(event.data);
         switch (type) {
-            case 'game-created':
-                myPlayerId = payload.playerId; isHost = true;
-                elements.lobbyPinDisplay.textContent = payload.pin;
-                showScreen('lobby-screen');
-                fetchAndDisplayDevices();
-                fetchAndDisplayPlaylists();
-                break;
-            case 'join-success':
-                myPlayerId = payload.playerId; isHost = false;
-                elements.lobbyPinDisplay.textContent = payload.pin;
-                elements.joinModalOverlay.classList.add('hidden');
-                showScreen('lobby-screen');
-                break;
+            case 'game-created': myPlayerId = payload.playerId; isHost = true; elements.lobbyPinDisplay.textContent = payload.pin; showScreen('lobby-screen'); fetchAndDisplayDevices(); fetchAndDisplayPlaylists(); break;
+            case 'join-success': myPlayerId = payload.playerId; isHost = false; elements.lobbyPinDisplay.textContent = payload.pin; elements.joinModalOverlay.classList.add('hidden'); showScreen('lobby-screen'); break;
             case 'lobby-update': updateLobby(payload); break;
             case 'error': alert(`Fehler: ${payload.message}`); break;
             case 'round-countdown': showCountdown(payload); break;
-            case 'new-round':
-                updateLiveScoreboard(payload.scores);
-                startRoundUI(payload);
-                break;
-            case 'guess-received':
-                elements.submitGuessButton.disabled = true;
-                elements.submitGuessButton.textContent = "Warte...";
-                break;
-            case 'round-result':
-                updateLiveScoreboard(payload.scores);
-                showResultUI(payload);
-                break;
-            case 'game-over':
-                elements.liveScoreboard.classList.add('hidden');
-                alert("Spiel vorbei!");
-                showScreen('home-screen');
-                break;
+            case 'new-round': updateLiveScoreboard(payload.scores); startRoundUI(payload); break;
+            case 'guess-received': elements.submitGuessButton.disabled = true; elements.submitGuessButton.textContent = "Warte..."; break;
+            case 'round-result': updateLiveScoreboard(payload.scores); showResultUI(payload); break;
+            case 'game-over': elements.liveScoreboard.classList.add('hidden'); alert("Spiel vorbei!"); showScreen('home-screen'); break;
         }
     }
-
-    function showScreen(screenId) {
-        elements.screens.forEach(s => s.classList.toggle('active', s.id === screenId));
-    }
-
+    function showScreen(screenId) { elements.screens.forEach(s => s.classList.toggle('active', s.id === screenId)); }
     async function fetchAndDisplayDevices() {
         elements.deviceSelect.innerHTML = `<option>Suche Geräte...</option>`;
         try {
@@ -146,11 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 elements.deviceSelect.innerHTML = `<option value="">Keine aktiven Geräte. Öffne Spotify & klicke ↻.</option>`;
             }
             sendSettingsUpdate();
-        } catch (e) {
-            elements.deviceSelect.innerHTML = `<option value="">Geräte laden fehlgeschlagen</option>`;
-        }
+        } catch (e) { elements.deviceSelect.innerHTML = `<option value="">Geräte laden fehlgeschlagen</option>`; }
     }
-
     async function fetchAndDisplayPlaylists() {
         try {
             const response = await fetch('/api/playlists', { headers: { 'Authorization': `Bearer ${spotifyToken}` } });
@@ -161,17 +115,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 elements.playlistSelect.innerHTML = data.items.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
             }
             sendSettingsUpdate();
-        } catch (e) {
-            elements.playlistSelect.innerHTML = `<option value="">Playlists laden fehlgeschlagen</option>`;
-        }
+        } catch (e) { elements.playlistSelect.innerHTML = `<option value="">Playlists laden fehlgeschlagen</option>`; }
     }
-
     function updateLobby({ pin, players, hostId, settings }) {
         elements.lobbyPinDisplay.textContent = pin;
-        elements.playerList.innerHTML = players.map(p => {
-            const hostIcon = p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : '';
-            return `<li><span>${p.nickname}</span>${hostIcon}</li>`;
-        }).join('');
+        elements.playerList.innerHTML = players.map(p => { const hostIcon = p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''; return `<li><span>${p.nickname}</span>${hostIcon}</li>`; }).join('');
         elements.hostSettings.classList.toggle('hidden', !isHost);
         elements.guestWaitingMessage.classList.toggle('hidden', isHost);
         if (isHost && settings) {
@@ -181,19 +129,13 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.guessTime));
         }
     }
-
     function showCountdown({ round, totalRounds }) {
         elements.countdownRoundInfo.textContent = `Runde ${round} / ${totalRounds}`;
         showScreen('countdown-screen');
         let count = 5;
         elements.countdownTimer.textContent = count;
-        const interval = setInterval(() => {
-            count--;
-            elements.countdownTimer.textContent = count;
-            if (count <= 0) { clearInterval(interval); }
-        }, 1000);
+        const interval = setInterval(() => { count--; elements.countdownTimer.textContent = count; if (count <= 0) { clearInterval(interval); } }, 1000);
     }
-
     function startRoundUI({ round, totalRounds, guessTime }) {
         clearTimeout(clientRoundTimer);
         elements.roundInfo.textContent = `Runde ${round} / ${totalRounds}`;
@@ -202,92 +144,37 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.submitGuessButton.textContent = "Raten!";
         let time = guessTime;
         elements.timeLeft.textContent = time;
-        clientRoundTimer = setInterval(() => {
-            time--;
-            elements.timeLeft.textContent = time;
-            if (time <= 0) { clearInterval(clientRoundTimer); }
-        }, 1000);
+        clientRoundTimer = setInterval(() => { time--; elements.timeLeft.textContent = time; if (time <= 0) { clearInterval(clientRoundTimer); } }, 1000);
         showScreen('game-screen');
     }
-
     function showResultUI({ song, scores }) {
         clearTimeout(clientRoundTimer);
         elements.correctAnswerInfo.textContent = `${song.artist} - ${song.title} (${song.year})`;
         elements.scoreboardList.innerHTML = scores.map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('');
         showScreen('result-screen');
     }
-
-    function updateLiveScoreboard(players) {
-        elements.liveScoreboard.classList.remove('hidden');
-        elements.liveScoreboard.innerHTML = '<ul>' + players.sort((a, b) => b.score - a.score).map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('') + '</ul>';
-    }
-
-    function updatePinDisplay() {
-        elements.pinDisplayDigits.forEach((digit, index) => {
-            digit.textContent = currentPin[index] || '';
-            digit.classList.toggle('filled', currentPin.length > index);
-        });
-    }
-
+    function updateLiveScoreboard(players) { elements.liveScoreboard.classList.remove('hidden'); elements.liveScoreboard.innerHTML = '<ul>' + players.sort((a, b) => b.score - a.score).map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('') + '</ul>'; }
+    function updatePinDisplay() { elements.pinDisplayDigits.forEach((digit, index) => { digit.textContent = currentPin[index] || ''; digit.classList.toggle('filled', currentPin.length > index); }); }
     function sendSettingsUpdate() {
         if (!isHost) return;
         const songCount = document.querySelector('#song-count-options .option-btn.active').dataset.value;
         const guessTime = document.querySelector('#guess-time-options .option-btn.active').dataset.value;
-        sendMessage('update-settings', {
-            deviceId: elements.deviceSelect.value,
-            playlistId: elements.playlistSelect.value,
-            songCount: parseInt(songCount),
-            guessTime: parseInt(guessTime)
-        });
+        sendMessage('update-settings', { deviceId: elements.deviceSelect.value, playlistId: elements.playlistSelect.value, songCount: parseInt(songCount), guessTime: parseInt(guessTime) });
     }
-
-    elements.nicknameSubmitButton.addEventListener('click', () => {
-        myNickname = elements.nicknameInput.value.trim();
-        if (myNickname) { localStorage.setItem('nickname', myNickname); initializeApp(); }
-    });
-
-    elements.welcomeNickname.addEventListener('click', () => {
-        elements.nicknameInput.value = myNickname;
-        showScreen('nickname-screen');
-    });
-
-    elements.logoutButton.addEventListener('click', async () => {
-        await fetch('/logout', { method: 'POST' });
-        spotifyToken = null;
-        window.location.reload();
-    });
-
-    elements.showCreateButtonAction.addEventListener('click', () => {
-        connectToServer(() => {
-            sendMessage('create-game', { nickname: myNickname, token: spotifyToken });
-        });
-    });
-
-    elements.showJoinButton.addEventListener('click', () => {
-        currentPin = '';
-        updatePinDisplay();
-        elements.joinModalOverlay.classList.remove('hidden');
-    });
-
+    elements.nicknameSubmitButton.addEventListener('click', () => { myNickname = elements.nicknameInput.value.trim(); if (myNickname) { localStorage.setItem('nickname', myNickname); initializeApp(); } });
+    elements.welcomeNickname.addEventListener('click', () => { elements.nicknameInput.value = myNickname; showScreen('nickname-screen'); });
+    elements.logoutButton.addEventListener('click', async () => { await fetch('/logout', { method: 'POST' }); spotifyToken = null; window.location.reload(); });
+    elements.showCreateButtonAction.addEventListener('click', () => { connectToServer(() => { sendMessage('create-game', { nickname: myNickname, token: spotifyToken }); }); });
+    elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
     elements.closeModalButton.addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
-
     elements.numpadButtons.forEach(button => {
         button.addEventListener('click', () => {
             const action = button.dataset.action;
-            if (action === 'clear') { currentPin = ''; }
-            else if (action === 'backspace') { currentPin = currentPin.slice(0, -1); }
-            else if (currentPin.length < 4) { currentPin += button.textContent; }
+            if (action === 'clear') { currentPin = ''; } else if (action === 'backspace') { currentPin = currentPin.slice(0, -1); } else if (currentPin.length < 4) { currentPin += button.textContent; }
             updatePinDisplay();
         });
     });
-
-    elements.joinGameButton.addEventListener('click', () => {
-        myNickname = localStorage.getItem('nickname');
-        if (currentPin.length === 4 && myNickname) {
-            connectToServer(() => sendMessage('join-game', { pin: currentPin, nickname: myNickname }));
-        }
-    });
-
+    elements.joinGameButton.addEventListener('click', () => { myNickname = localStorage.getItem('nickname'); if (currentPin.length === 4 && myNickname) { connectToServer(() => sendMessage('join-game', { pin: currentPin, nickname: myNickname })); } });
     elements.refreshDevicesButton.addEventListener('click', fetchAndDisplayDevices);
     elements.deviceSelect.addEventListener('change', sendSettingsUpdate);
     elements.playlistSelect.addEventListener('change', sendSettingsUpdate);
@@ -305,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
             sendSettingsUpdate();
         }
     });
-
     elements.startGameButton.addEventListener('click', () => {
         if (!elements.deviceSelect.value) {
             alert("Bitte wähle zuerst ein Wiedergabegerät aus. Öffne Spotify auf einem Gerät und klicke auf den Aktualisieren-Button ↻.");
@@ -313,17 +199,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         sendMessage('start-game');
     });
-
     elements.submitGuessButton.addEventListener('click', () => {
-        const guess = {
-            artist: elements.artistGuess.value.trim(),
-            title: elements.titleGuess.value.trim(),
-            year: parseInt(elements.yearGuess.value, 10)
-        };
+        const guess = { artist: elements.artistGuess.value.trim(), title: elements.titleGuess.value.trim(), year: parseInt(elements.yearGuess.value, 10) };
         if (isNaN(guess.year)) { alert("Bitte gib eine gültige Jahreszahl ein."); return; }
         sendMessage('submit-guess', { guess });
     });
-
     elements.leaveButtons.forEach(button => {
         button.addEventListener('click', () => {
             if (ws.socket) { ws.socket.close(); ws.socket = null; }

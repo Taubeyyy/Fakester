@@ -1,12 +1,15 @@
-/* Grundlegende Stile und Variablen */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&display=swap');
+
 :root {
     --primary-color: #1DB954;
+    --accent-color: #FF4500;
     --background-color: #121212;
     --surface-color: #181818;
     --text-color: #FFFFFF;
     --text-muted-color: #B3B3B3;
     --dark-grey: #282828;
     --medium-grey: #535353;
+    --border-radius: 12px;
 }
 
 * {
@@ -16,7 +19,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: var(--background-color);
     color: var(--text-color);
     display: flex;
@@ -25,36 +28,50 @@ body {
     overflow: hidden;
 }
 
-/* NEU: Header-Styling */
+.app-background {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: radial-gradient(circle at top left, rgba(29, 185, 84, 0.2), transparent 40%),
+                radial-gradient(circle at bottom right, rgba(255, 69, 0, 0.15), transparent 50%);
+    z-index: -1;
+}
+
 .app-header {
     width: 100%;
     padding: 15px 20px;
-    background-color: var(--surface-color);
-    border-bottom: 1px solid var(--dark-grey);
+    background-color: rgba(18, 18, 18, 0.8);
+    backdrop-filter: blur(10px);
     text-align: center;
+    border-bottom: 1px solid var(--dark-grey);
+    z-index: 10;
 }
 
 .app-header h1 {
     font-size: 1.5rem;
     color: var(--primary-color);
     font-weight: 800;
-    letter-spacing: -1px;
+    letter-spacing: 2px;
 }
 
-/* Screen-Management */
 .screen {
     display: none;
-    flex-grow: 1; /* Wichtig für Flexbox-Layout */
+    flex-grow: 1;
     align-items: center;
     justify-content: center;
     padding: 20px;
     width: 100%;
     height: 100%;
     overflow-y: auto;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
 }
 
 .screen.active {
     display: flex;
+    flex-direction: column;
+    justify-content: center;
+    opacity: 1;
 }
 
 .container {
@@ -62,60 +79,94 @@ body {
     max-width: 500px;
     background-color: var(--surface-color);
     padding: 30px;
-    border-radius: 12px;
+    border-radius: var(--border-radius);
     text-align: center;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--dark-grey);
 }
 
-/* Buttons */
-.button-primary, .button-secondary, .button-start, .button-icon {
-    display: inline-block;
+h2 { font-size: 1.8rem; margin-bottom: 10px; font-weight: 800; }
+p { color: var(--text-muted-color); margin-bottom: 20px; }
+
+/* Komponenten */
+.button-primary, .button-secondary, .button-start, .button-icon, .option-btn, .num-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
     padding: 12px 24px;
-    border: none;
+    border: 1px solid transparent;
     border-radius: 50px;
     font-size: 1rem;
     font-weight: 700;
     cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
+    transition: all 0.2s;
     text-decoration: none;
-    color: var(--background-color);
 }
-.button-primary { background-color: var(--primary-color); }
-.button-primary:hover { background-color: #1ed760; }
-.button-secondary { background-color: var(--medium-grey); color: var(--text-color); }
-.button-secondary:hover { background-color: #777777; }
-.button-start { background-color: #ff4500; color: var(--text-color); }
-button:active { transform: scale(0.97); }
+.button-primary { background-color: var(--primary-color); color: #000; }
+.button-primary:hover { background-color: #fff; border-color: #fff; }
+.button-secondary { background-color: transparent; color: var(--text-color); border-color: var(--medium-grey); }
+.button-secondary:hover { background-color: var(--dark-grey); border-color: var(--text-muted-color); }
+.button-start { background-color: var(--accent-color); color: var(--text-color); }
+.button-start:hover { background-color: #ff6a33; }
+button:active, a:active { transform: scale(0.97); }
 
-/* Formularelemente */
-input[type="text"], input[type="number"], select {
+input, select {
     width: 100%;
-    padding: 12px;
+    padding: 12px 15px;
     margin-bottom: 20px;
     background-color: var(--dark-grey);
     border: 1px solid var(--medium-grey);
-    border-radius: 4px;
+    border-radius: 8px;
     color: var(--text-color);
     font-size: 1rem;
+    font-family: 'Montserrat', sans-serif;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
-select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right .7em top 50%; background-size: .9em auto; }
+input:focus, select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.3);
+}
+select { /* Custom dropdown arrow */ }
 
-/* Lobby-spezifische Stile */
-.lobby-container h2 { font-size: 1.8rem; margin-bottom: 20px; }
-.lobby-container h2 span { color: var(--primary-color); }
-#player-list { list-style: none; margin-bottom: 30px; }
-#player-list li { background-color: var(--dark-grey); padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 1.1rem; }
-.setting { margin-bottom: 20px; text-align: left; }
-.setting label { display: block; margin-bottom: 8px; color: var(--text-muted-color); }
-.setting-options { display: flex; justify-content: space-between; }
-.option-btn { flex: 1; margin: 0 5px; background-color: var(--dark-grey); color: var(--text-color); }
-.option-btn.active { background-color: var(--primary-color); color: var(--background-color); }
+.button-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+.setting { margin-bottom: 25px; text-align: left; }
+.setting label { display: block; margin-bottom: 10px; color: var(--text-muted-color); font-weight: 700; font-size: 0.9rem; }
+.setting-options { display: flex; justify-content: space-between; gap: 10px; }
+.option-btn { flex: 1; margin: 0; background-color: var(--dark-grey); color: var(--text-color); border: 1px solid var(--medium-grey); }
+.option-btn.active { background-color: var(--primary-color); color: #000; border-color: var(--primary-color); }
 .select-with-refresh { display: flex; align-items: center; gap: 10px; }
 .select-with-refresh select { flex-grow: 1; margin-bottom: 0; }
-.button-icon { padding: 10px 12px; font-size: 1rem; line-height: 1; }
+.button-icon { padding: 10px 12px; font-size: 1rem; line-height: 1; background-color: var(--dark-grey); color: var(--text-color); border-color: var(--medium-grey); }
+.button-icon:hover { background-color: var(--medium-grey); }
 
-/* Allgemein verfügbare Helferklassen */
+.button-leave {
+    position: absolute;
+    top: 80px; left: 20px;
+    background: none; border: none; font-size: 1.5rem; color: var(--text-muted-color); cursor: pointer;
+}
+
+/* Spezifische Screens */
+#home-screen #welcome-nickname { cursor: pointer; border-bottom: 2px dotted var(--primary-color); }
+.pin-display-large { margin-bottom: 20px; }
+.pin-display-large p { margin: 0; font-size: 1rem; color: var(--text-muted-color); }
+.pin-display-large span { font-size: 3.5rem; font-weight: 800; color: var(--primary-color); letter-spacing: 5px; }
+#player-list { list-style: none; margin-bottom: 30px; width: 100%; }
+#player-list li { display: flex; justify-content: space-between; align-items: center; background-color: var(--dark-grey); padding: 12px 15px; border-radius: 8px; margin-bottom: 8px; font-size: 1.1rem; }
+#player-list .fa-crown { color: #FFD700; }
+.game-header { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 30px; font-weight: 700; }
+.timer-display { font-size: 1.5rem; display: flex; align-items: center; gap: 8px; }
+.scoreboard { list-style: none; width: 100%; text-align: left; }
+.scoreboard li { display: flex; justify-content: space-between; padding: 10px; border-radius: 4px; }
+.scoreboard li:nth-child(odd) { background-color: var(--dark-grey); }
+
+/* Numpad im Modal */
+.numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
+.num-btn { padding: 20px; font-size: 1.5rem; background-color: var(--dark-grey); color: var(--text-color); border: 1px solid var(--medium-grey); }
+.num-btn.action-btn { background-color: var(--medium-grey); }
+.pin-display { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+.pin-digit { width: 50px; height: 60px; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
+.pin-digit.filled { border-color: var(--primary-color); color: var(--primary-color); }
+
 .hidden { display: none !important; }
-
-/* Hier könnten weitere Stile für Spiel, Ergebnisse, etc. folgen */
 
