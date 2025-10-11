@@ -18,64 +18,62 @@ app.use(express.static(__dirname));
 app.use(cookieParser());
 
 let games = {};
-// Wir speichern den Token des letzten eingeloggten Nutzers temporär
-let lastAccessToken = null;
 
 // HTTP ROUTEN
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/login', (req, res) => {
     const scopes = 'user-read-private user-read-email playlist-read-private streaming user-modify-playback-state';
-    res.redirect(`https://accounts.spotify.com/authorize?response_type=code&client_id=${CLIENT_ID}&scope=${encodeURIComponent(scopes)}&redirect_uri=${REDIRECT_URI}`);
+    res.redirect('https://accounts.spotify.com/authorize?' + new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, scope: scopes, redirect_uri: REDIRECT_URI }).toString());
 });
 
 app.get('/callback', async (req, res) => {
-    const code = req.query.code || null;
-    if (!code) return res.redirect('/#error=auth_failed');
+    const code = req.query.code || null; if (!code) return res.redirect('/#error=auth_failed');
     try {
         const response = await axios({ method: 'post', url: 'https://accounts.spotify.com/api/token', data: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }).toString(), headers: { 'Authorization': 'Basic ' + (Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')), 'Content-Type': 'application/x-www-form-urlencoded' } });
-        // Speichere den Token serverseitig und in einem Cookie
-        lastAccessToken = response.data.access_token;
-        res.cookie('spotify_auth_present', 'true', { maxAge: 3600000 }); // Ein einfacher Cookie, der nur anzeigt, dass wir eingeloggt sind
+        // KORREKTUR: Cookie ist NICHT mehr httpOnly, damit JavaScript ihn lesen kann
+        res.cookie('spotify_access_token', response.data.access_token, { maxAge: 3600000 });
         res.redirect('/');
     } catch (error) { res.redirect('/#error=token_failed'); }
 });
 
 app.get('/api/status', (req, res) => {
-    // Überprüft, ob der einfache Cookie da ist
-    if (req.cookies.spotify_auth_present && lastAccessToken) { res.json({ loggedIn: true }); } 
-    else { res.status(401).json({ loggedIn: false }); }
-});
-
-app.get('/api/playlists', async (req, res) => {
-    if (!lastAccessToken) return res.status(401).json({ message: "Nicht autorisiert" });
-    try {
-        const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${lastAccessToken}` } });
-        res.json(d.data);
-    } catch (e) {
-        console.error("Fehler bei Playlist-Abruf:", e.response ? e.response.data : e.message);
-        res.status(500).json({ message: "Fehler beim Abrufen der Playlists" });
+    const token = req.cookies.spotify_access_token;
+    if (token) {
+        // KORREKTUR: Wir schicken den Token an den Client, damit er ihn speichern kann
+        res.json({ loggedIn: true, token: token });
+    } else {
+        res.status(401).json({ loggedIn: false });
     }
 });
 
-// WEBSOCKET LOGIK (bleibt größtenteils gleich)
-// Der einzige Unterschied ist, dass wir den Token nicht mehr aus den Cookies holen müssen
-// ... (der Rest von server.js bleibt wie im vorherigen Code)
+// Diese Route ist jetzt einfacher, da der Token vom Client kommt
+app.get('/api/playlists', async (req, res) => {
+    const token = req.headers.authorization?.split(' ')[1]; // Holt Token aus "Bearer <token>"
+    if (!token) return res.status(401).json({ message: "Nicht autorisiert" });
+    try {
+        const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
+        res.json(d.data);
+    } catch (e) { res.status(500).json({ message: "Fehler beim Abrufen der Playlists" }); }
+});
+
+// WEBSOCKET LOGIK
 const wss = new WebSocket.Server({ server });
-wss.on('connection', (ws, req) => {
+wss.on('connection', ws => {
     const playerId = Date.now().toString(); ws.playerId = playerId;
     ws.on('message', message => { try { const data = JSON.parse(message); handleWebSocketMessage(ws, data); } catch (e) { console.error("Fehler:", e); } });
     ws.on('close', () => handlePlayerDisconnect(ws));
 });
+
 function handleWebSocketMessage(ws, { type, payload }) {
     const { playerId } = ws; const pin = ws.pin; const game = games[pin];
     switch (type) {
         case 'create-game':
             const newPin = generatePin(); ws.pin = newPin;
-            games[newPin] = { hostId: playerId, players: { [playerId]: { ws, nickname: payload.nickname, score: 0 } }, settings: { playlistId: null, songCount: 10, guessTime: 30 }, gameState: 'LOBBY' };
+            games[newPin] = { hostId: playerId, players: { [playerId]: { ws, nickname: payload.nickname, score: 0 } }, settings: { playlistId: null, songCount: 10, guessTime: 30 }, hostToken: payload.token, gameState: 'LOBBY' };
             ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId } }));
             broadcastLobbyUpdate(newPin);
             break;
-        case 'join-game':
+        case 'join-game': /* ... unverändert ... */
             const gameToJoin = games[payload.pin];
             if (gameToJoin && gameToJoin.gameState === 'LOBBY') {
                 ws.pin = payload.pin; gameToJoin.players[playerId] = { ws, nickname: payload.nickname, score: 0 };
@@ -83,38 +81,47 @@ function handleWebSocketMessage(ws, { type, payload }) {
                 broadcastLobbyUpdate(payload.pin);
             } else { ws.send(JSON.stringify({ type: 'error', payload: { message: 'Ungültiger PIN oder Spiel läuft bereits.' } })); }
             break;
-        case 'update-settings':
-            if (game && game.hostId === playerId) { game.settings = { ...game.settings, ...payload }; broadcastLobbyUpdate(pin); }
+        case 'update-settings': /* ... unverändert ... */
+             if (game && game.hostId === playerId) { game.settings = { ...game.settings, ...payload }; broadcastLobbyUpdate(pin); }
             break;
         case 'start-game':
             if (game && game.hostId === playerId && game.settings.playlistId) { startGame(pin); }
             break;
-        case 'submit-guess':
+        case 'submit-guess': /* ... unverändert ... */
             if (game && game.gameState === 'PLAYING') { if (!game.guesses) game.guesses = {}; game.guesses[playerId] = payload.guess; ws.send(JSON.stringify({ type: 'guess-received' })); }
             break;
-        case 'leave-game':
+        case 'leave-game': /* ... unverändert ... */
             handlePlayerDisconnect(ws);
             break;
         case 'play-track':
-            if (game && game.hostId === playerId && lastAccessToken) {
+            if (game && game.hostId === playerId) {
+                const token = game.hostToken; // Holt Token aus dem Spiel-Objekt
                 const { spotifyId, deviceId } = payload;
-                axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, 
-                    { uris: [`spotify:track:${spotifyId}`] },
-                    { headers: { 'Authorization': `Bearer ${lastAccessToken}`, 'Content-Type': 'application/json' } }
-                ).catch(err => console.error("Spotify Play API Fehler:", err.response ? err.response.data : err.message));
+                if (token && deviceId) {
+                    axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, 
+                        { uris: [`spotify:track:${spotifyId}`] },
+                        { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } }
+                    ).catch(err => console.error("Spotify Play API Fehler:", err.response ? err.response.data : err.message));
+                }
             }
             break;
     }
 }
+
 async function startGame(pin) {
-    const game = games[pin]; game.gameState = 'PLAYING'; game.currentRound = 0; Object.values(game.players).forEach(p => p.score = 0);
-    if(!lastAccessToken) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Host-Token nicht gefunden. Bitte neu anmelden.' } }); game.gameState = 'LOBBY'; return; }
-    const tracks = await getPlaylistTracks(game.settings.playlistId, lastAccessToken);
+    const game = games[pin];
+    const spotifyToken = game.hostToken;
+    // Rest der Funktion bleibt gleich...
+    game.gameState = 'PLAYING'; game.currentRound = 0; Object.values(game.players).forEach(p => p.score = 0);
+    if(!spotifyToken) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Host-Token nicht gefunden. Bitte neu anmelden.' } }); game.gameState = 'LOBBY'; return; }
+    const tracks = await getPlaylistTracks(game.settings.playlistId, spotifyToken);
     if (!tracks || tracks.length === 0) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer oder konnte nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
     const songCount = Math.min(game.settings.songCount, tracks.length);
     game.songList = tracks.sort(() => 0.5 - Math.random()).slice(0, songCount);
     startRoundCountdown(pin);
 }
+
+// Alle weiteren Helferfunktionen (startRoundCountdown, evaluateRound, etc.) bleiben unverändert.
 function startRoundCountdown(pin) { const game = games[pin]; if (!game || game.currentRound >= game.songList.length) { return endGame(pin); } broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound + 1, totalRounds: game.songList.length } }); setTimeout(() => { startNewRound(pin); }, 5000); }
 function startNewRound(pin) { const game = games[pin]; if (!game) return; game.currentRound++; game.guesses = {}; game.currentSong = game.songList[game.currentRound - 1]; broadcastToLobby(pin, { type: 'new-round', payload: { round: game.currentRound, totalRounds: game.songList.length, guessTime: game.settings.guessTime, song: { spotifyId: game.currentSong.spotifyId }, scores: getScores(pin) } }); game.roundTimer = setTimeout(() => evaluateRound(pin), game.settings.guessTime * 1000); }
 function evaluateRound(pin) { const game = games[pin]; if (!game) return; clearTimeout(game.roundTimer); const song = game.currentSong; Object.keys(game.players).forEach(pId => { const player = game.players[pId]; const guess = game.guesses[pId]; if (!guess) return; let roundScore = 0; if (guess.title && song.title.toLowerCase() === guess.title.toLowerCase()) roundScore += 75; if (guess.artist && song.artist.toLowerCase() === guess.artist.toLowerCase()) roundScore += 75; const yearDiff = Math.abs(guess.year - song.year); if (yearDiff === 0) { roundScore += 250; } else if (yearDiff <= 5) { roundScore += 100; } else if (yearDiff <= 10) { roundScore += 50; } player.score += roundScore; }); broadcastToLobby(pin, { type: 'round-result', payload: { song, scores: getScores(pin) } }); setTimeout(() => startRoundCountdown(pin), 8000); }
