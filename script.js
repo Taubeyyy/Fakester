@@ -2,11 +2,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Globale Variablen
     const ws = { socket: null };
     let myPlayerId = null, myNickname = '', isHost = false;
-    let spotifyToken = null; // Token wird jetzt hier gespeichert
+    let spotifyToken = null;
     let spotifyPlayer = null, spotifyDeviceId = null;
     let clientRoundTimer = null, currentPin = '';
 
-    // HTML-Elemente
     const elements = {
         screens: document.querySelectorAll('.screen'),
         nicknameInput: document.getElementById('nickname-input'),
@@ -42,20 +41,42 @@ document.addEventListener('DOMContentLoaded', () => {
         leaveButtons: document.querySelectorAll('.button-leave'),
     };
 
-    // APP INITIALISIERUNG & SPOTIFY PLAYER
-    window.onSpotifyWebPlaybackSDKReady = () => {};
-    
-    function initializeSpotifyPlayer(token) {
+    async function initializeSpotifyPlayer(token) {
         if (!token) return;
-        spotifyPlayer = new Spotify.Player({ 
-            name: 'Fakester Quiz', 
-            getOAuthToken: cb => { cb(token); }, 
-            volume: 0.5 
-        });
+        spotifyPlayer = new Spotify.Player({ name: 'Fakester Quiz', getOAuthToken: cb => { cb(token); }, volume: 0.5 });
         
-        spotifyPlayer.addListener('ready', ({ device_id }) => { console.log('Spotify Player bereit mit ID:', device_id); spotifyDeviceId = device_id; });
+        spotifyPlayer.addListener('ready', async ({ device_id }) => {
+            console.log('Spotify Player bereit mit ID:', device_id);
+            spotifyDeviceId = device_id;
+            
+            // NEU: Wiedergabe auf dieses Gerät übertragen, damit der Ton hier ankommt
+            try {
+                const response = await fetch('/api/transfer', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${spotifyToken}`
+                    },
+                    body: JSON.stringify({ deviceId: device_id })
+                });
+
+                if(response.ok) {
+                    console.log("Wiedergabe erfolgreich auf Browser übertragen.");
+                } else {
+                    console.error("Fehler bei der Wiedergabe-Übertragung.");
+                }
+
+            } catch (e) {
+                console.error("Netzwerkfehler bei der Wiedergabe-Übertragung:", e);
+            }
+
+            if (isHost) {
+                sendMessage('player-ready', { deviceId: device_id });
+            }
+        });
+
         spotifyPlayer.addListener('not_ready', ({ device_id }) => console.log('Gerät offline:', device_id));
-        spotifyPlayer.addListener('authentication_error', ({ message }) => console.error('Auth-Fehler:', message));
+        spotifyPlayer.addListener('authentication_error', ({ message }) => console.error(message));
         spotifyPlayer.addListener('account_error', ({ message }) => { alert("Spotify-Fehler: " + message); });
         spotifyPlayer.connect();
     }
@@ -72,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             elements.showCreateButtonLogin.classList.add('hidden');
             elements.showCreateButtonAction.classList.remove('hidden');
-            if (window.Spotify) { initializeSpotifyPlayer(spotifyToken); } else { window.onSpotifyWebPlaybackSDKReady = () => initializeSpotifyPlayer(spotifyToken); }
+            
             if (myNickname) {
                 elements.welcomeNickname.textContent = myNickname;
                 showScreen('home-screen');
@@ -92,22 +113,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     initializeApp();
 
-    // WEBSOCKET-KOMMUNIKATION
-    function connectToServer(onOpenCallback) { const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; ws.socket = new WebSocket(`${protocol}//${window.location.host}`); ws.socket.onopen = onOpenCallback; ws.socket.onmessage = handleServerMessage; }
+    function connectToServer(onOpenCallback) {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws.socket = new WebSocket(`${protocol}//${window.location.host}`);
+        ws.socket.onopen = onOpenCallback;
+        ws.socket.onmessage = handleServerMessage;
+    }
     function sendMessage(type, payload) { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type, payload })); } }
     function handleServerMessage(event) {
         const { type, payload } = JSON.parse(event.data);
         switch (type) {
             case 'game-created':
+                myPlayerId = payload.playerId;
+                isHost = true;
+                elements.lobbyPinDisplay.textContent = payload.pin;
+                elements.joinModalOverlay.classList.add('hidden');
+                showScreen('lobby-screen');
+                if (window.Spotify) { initializeSpotifyPlayer(spotifyToken); } else { window.onSpotifyWebPlaybackSDKReady = () => initializeSpotifyPlayer(spotifyToken); }
+                break;
             case 'join-success':
-                myPlayerId = payload.playerId; elements.lobbyPinDisplay.textContent = payload.pin;
-                elements.joinModalOverlay.classList.add('hidden'); showScreen('lobby-screen');
+                myPlayerId = payload.playerId;
+                isHost = false;
+                elements.lobbyPinDisplay.textContent = payload.pin;
+                elements.joinModalOverlay.classList.add('hidden');
+                showScreen('lobby-screen');
                 break;
             case 'lobby-update': updateLobby(payload); break;
             case 'error': alert(`Fehler: ${payload.message}`); break;
             case 'round-countdown': showCountdown(payload); break;
             case 'new-round':
-                updateLiveScoreboard(payload.scores); startRoundUI(payload);
+                updateLiveScoreboard(payload.scores);
+                startRoundUI(payload);
                 if (isHost) { playTrack(payload.song.spotifyId); }
                 break;
             case 'guess-received': elements.submitGuessButton.disabled = true; elements.submitGuessButton.textContent = "Warte..."; break;
@@ -116,32 +152,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // UI-UPDATE & HELFERFUNKTIONEN
     function showScreen(screenId) { elements.screens.forEach(screen => screen.classList.toggle('active', screen.id === screenId)); }
     async function fetchAndDisplayPlaylists() {
         if (!spotifyToken) { elements.playlistSelect.innerHTML = `<option>Fehler: Kein Token</option>`; return; }
         try {
-            const response = await fetch('/api/playlists', {
-                headers: { 'Authorization': `Bearer ${spotifyToken}` }
-            });
+            const response = await fetch('/api/playlists', { headers: { 'Authorization': `Bearer ${spotifyToken}` } });
             if (!response.ok) throw new Error('Antwort nicht ok');
             const data = await response.json();
-            if (data.items.length === 0) {
-                elements.playlistSelect.innerHTML = `<option>Keine Playlists gefunden</option>`;
-                return;
-            }
+            if (data.items.length === 0) { elements.playlistSelect.innerHTML = `<option>Keine Playlists gefunden</option>`; return; }
             elements.playlistSelect.innerHTML = data.items.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
             sendSettingsUpdate();
-        } catch (error) {
-            elements.playlistSelect.innerHTML = `<option>Laden fehlgeschlagen</option>`;
-        }
+        } catch (error) { elements.playlistSelect.innerHTML = `<option>Laden fehlgeschlagen</option>`; }
     }
     function playTrack(spotifyId) { 
-        if (!spotifyDeviceId) { alert("Fehler: Spotify Player ist nicht aktiv. Stelle sicher, dass du Spotify Premium hast."); return; }
+        if (!spotifyDeviceId) { alert("Fehler: Spotify Player ist nicht aktiv."); return; }
         sendMessage('play-track', { spotifyId, deviceId: spotifyDeviceId });
     }
     function updateLobby({ players, hostId, settings }) {
-        isHost = myPlayerId === hostId;
         elements.playerList.innerHTML = players.map(p => { const hostIcon = p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''; return `<li><span>${p.nickname}</span>${hostIcon}</li>`; }).join('');
         elements.hostSettings.classList.toggle('hidden', !isHost);
         elements.guestWaitingMessage.classList.toggle('hidden', isHost);
@@ -184,22 +211,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const guessTime = document.querySelector('#guess-time-options .option-btn.active').dataset.value;
         sendMessage('update-settings', { playlistId: elements.playlistSelect.value, songCount: parseInt(songCount), guessTime: parseInt(guessTime) });
     }
-
-    // EVENT LISTENERS
-    elements.nicknameSubmitButton.addEventListener('click', () => {
-        myNickname = elements.nicknameInput.value.trim();
-        if (myNickname) { localStorage.setItem('nickname', myNickname); initializeApp(); }
-    });
-    elements.welcomeNickname.addEventListener('click', () => {
-        elements.nicknameInput.value = myNickname;
-        showScreen('nickname-screen');
-    });
-    elements.showCreateButtonAction.addEventListener('click', () => {
-        connectToServer(() => {
-            sendMessage('create-game', { nickname: myNickname, token: spotifyToken });
-            fetchAndDisplayPlaylists();
-        });
-    });
+    elements.nicknameSubmitButton.addEventListener('click', () => { myNickname = elements.nicknameInput.value.trim(); if (myNickname) { localStorage.setItem('nickname', myNickname); initializeApp(); } });
+    elements.welcomeNickname.addEventListener('click', () => { elements.nicknameInput.value = myNickname; showScreen('nickname-screen'); });
+    elements.showCreateButtonAction.addEventListener('click', () => { connectToServer(() => { sendMessage('create-game', { nickname: myNickname, token: spotifyToken }); fetchAndDisplayPlaylists(); }); });
     elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
     elements.closeModalButton.addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
     elements.numpadButtons.forEach(button => { button.addEventListener('click', () => { const action = button.dataset.action; if (action === 'clear') { currentPin = ''; } else if (action === 'backspace') { currentPin = currentPin.slice(0, -1); } else if (currentPin.length < 4) { currentPin += button.textContent; } updatePinDisplay(); }); });
@@ -211,19 +225,10 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.submitGuessButton.addEventListener('click', () => { const guess = { artist: elements.artistGuess.value.trim(), title: elements.titleGuess.value.trim(), year: parseInt(elements.yearGuess.value, 10) }; if (isNaN(guess.year)) { alert("Bitte gib eine gültige Jahreszahl ein."); return; } sendMessage('submit-guess', { guess }); });
     elements.leaveButtons.forEach(button => {
         button.addEventListener('click', () => {
-            if (ws.socket) {
-                ws.socket.close();
-                ws.socket = null;
-            }
+            if (ws.socket) { ws.socket.close(); ws.socket = null; }
             myNickname = localStorage.getItem('nickname');
-            if (myNickname) {
-                elements.welcomeNickname.textContent = myNickname;
-                showScreen('home-screen');
-            } else {
-                showScreen('nickname-screen');
-            }
+            if (myNickname) { elements.welcomeNickname.textContent = myNickname; showScreen('home-screen'); } else { showScreen('nickname-screen'); }
             elements.liveScoreboard.classList.add('hidden');
         });
     });
 });
-
