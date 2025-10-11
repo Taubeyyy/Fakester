@@ -182,8 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.guestWaitingMessage.classList.toggle('hidden', isHost);
 
         if (isHost && settings) {
-            elements.deviceSelect.value = settings.deviceId;
-            elements.playlistSelect.value = settings.playlistId;
+            if(settings.deviceId) elements.deviceSelect.value = settings.deviceId;
+            if(settings.playlistId) elements.playlistSelect.value = settings.playlistId;
             document.querySelectorAll('#song-count-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.songCount));
             document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.guessTime));
         }
