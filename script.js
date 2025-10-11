@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         correctAnswerInfo: document.getElementById('correct-answer-info'),
         scoreboardList: document.getElementById('scoreboard-list'),
         liveScoreboard: document.getElementById('live-scoreboard'),
-        leaveButtons: document.querySelectorAll('.button-leave'),
+        leaveButton: document.querySelector('.button-leave'),
     };
     let currentPin = '';
     let clientRoundTimer = null;
@@ -91,7 +91,11 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'game-over': elements.liveScoreboard.classList.add('hidden'); alert("Spiel vorbei!"); showScreen('home-screen'); break;
         }
     }
-    function showScreen(screenId) { elements.screens.forEach(s => s.classList.toggle('active', s.id === screenId)); }
+    function showScreen(screenId) {
+        elements.screens.forEach(s => s.classList.toggle('active', s.id === screenId));
+        const showLeaveButton = ['lobby-screen', 'game-screen', 'result-screen', 'countdown-screen'].includes(screenId);
+        elements.leaveButton.classList.toggle('hidden', !showLeaveButton);
+    }
     async function fetchAndDisplayDevices() {
         elements.refreshDevicesButton.disabled = true;
         elements.deviceSelect.innerHTML = `<option>Suche Geräte...</option>`;
@@ -104,9 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 elements.deviceSelect.innerHTML = `<option value="">Keine aktiven Geräte. Öffne Spotify & klicke ↻.</option>`;
             }
-            sendSettingsUpdate();
         } catch (e) { elements.deviceSelect.innerHTML = `<option value="">Geräte laden fehlgeschlagen</option>`; }
-        finally { elements.refreshDevicesButton.disabled = false; }
+        finally { elements.refreshDevicesButton.disabled = false; sendSettingsUpdate(); }
     }
     async function fetchAndDisplayPlaylists() {
         try {
@@ -207,10 +210,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isNaN(guess.year)) { alert("Bitte gib eine gültige Jahreszahl ein."); return; }
         sendMessage('submit-guess', { guess });
     });
-    elements.leaveButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            if (ws.socket) { ws.socket.close(); ws.socket = null; }
-            initializeApp();
-        });
+    elements.leaveButton.addEventListener('click', () => {
+        if (ws.socket) { ws.socket.close(); ws.socket = null; }
+        initializeApp();
     });
 });
