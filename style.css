@@ -1,65 +1,121 @@
-/* Spotify Theme & Grund-Setup */
+/* Grundlegende Stile und Variablen */
 :root {
-    --bg-dark: #121212;
-    --surface-dark: #181818;
-    --text-light: #ffffff;
-    --text-grey: #b3b3b3;
-    --spotify-green: #1DB954;
-    --spotify-green-hover: #1ed760;
+    --primary-color: #1DB954;
+    --background-color: #121212;
+    --surface-color: #181818;
+    --text-color: #FFFFFF;
+    --text-muted-color: #B3B3B3;
+    --dark-grey: #282828;
+    --medium-grey: #535353;
 }
-* { box-sizing: border-box; }
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    margin: 0;
-    background-color: var(--bg-dark);
-    color: var(--text-light);
+    background-color: var(--background-color);
+    color: var(--text-color);
     display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
+    flex-direction: column;
+    height: 100vh;
     overflow: hidden;
 }
 
-/* Screen-Management & Animation */
-.screen { display: none; position: absolute; width: 100%; height: 100%; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.5s ease-in-out; }
-.screen.active { display: flex; opacity: 1; }
-.hidden { display: none !important; }
+/* NEU: Header-Styling */
+.app-header {
+    width: 100%;
+    padding: 15px 20px;
+    background-color: var(--surface-color);
+    border-bottom: 1px solid var(--dark-grey);
+    text-align: center;
+}
 
-/* Container & allgemeine Elemente */
-.container { background-color: var(--surface-dark); padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); width: 90%; max-width: 400px; text-align: center; }
-h1, h2 { color: var(--spotify-green); }
-p { color: var(--text-grey); }
-#welcome-nickname { cursor: pointer; text-decoration: underline; text-decoration-style: dotted; }
-input, select { width: 100%; padding: 14px; margin: 10px 0; border-radius: 8px; border: 1px solid #535353; background-color: #282828; color: var(--text-light); font-size: 1rem; }
-input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-input[type=number] { -moz-appearance: textfield; }
+.app-header h1 {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+    font-weight: 800;
+    letter-spacing: -1px;
+}
+
+/* Screen-Management */
+.screen {
+    display: none;
+    flex-grow: 1; /* Wichtig für Flexbox-Layout */
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.screen.active {
+    display: flex;
+}
+
+.container {
+    width: 100%;
+    max-width: 500px;
+    background-color: var(--surface-color);
+    padding: 30px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
 
 /* Buttons */
-button, a { width: 100%; padding: 14px; margin: 10px 0; border-radius: 500px; font-weight: bold; font-size: 1.1rem; cursor: pointer; text-decoration: none; display: inline-flex; justify-content: center; align-items: center; gap: 10px; transition: background-color 0.2s, transform 0.1s; border: none; }
-button:hover, a:hover { transform: scale(1.03); }
-.button-primary { background-color: var(--spotify-green); color: var(--bg-dark); }
-.button-primary:hover { background-color: var(--spotify-green-hover); }
-.button-start { background-color: white; color: black; margin-top: 1.5rem !important; }
-.button-secondary { background-color: transparent; border: 1px solid #535353; color: white; }
-.button-leave { position: absolute; top: 15px; left: 15px; z-index: 10; width: auto; padding: 8px 15px; font-size: 0.9rem; background-color: #535353; }
+.button-primary, .button-secondary, .button-start, .button-icon {
+    display: inline-block;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    text-decoration: none;
+    color: var(--background-color);
+}
+.button-primary { background-color: var(--primary-color); }
+.button-primary:hover { background-color: #1ed760; }
+.button-secondary { background-color: var(--medium-grey); color: var(--text-color); }
+.button-secondary:hover { background-color: #777777; }
+.button-start { background-color: #ff4500; color: var(--text-color); }
+button:active { transform: scale(0.97); }
 
-/* Modal & Numpad */
-#join-modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center; z-index: 100; }
-.pin-display { display: flex; justify-content: center; gap: 10px; margin-bottom: 1.5rem; }
-.pin-digit { width: 50px; height: 60px; border: 2px solid #535353; border-radius: 8px; display: flex; justify-content: center; align-items: center; font-size: 2rem; font-weight: bold; transition: border-color 0.2s; }
-.pin-digit.filled { border-color: var(--spotify-green); }
-.numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.numpad .num-btn { width: 100%; height: 60px; font-size: 1.5rem; background-color: #282828; border: none; border-radius: 8px; }
+/* Formularelemente */
+input[type="text"], input[type="number"], select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 20px;
+    background-color: var(--dark-grey);
+    border: 1px solid var(--medium-grey);
+    border-radius: 4px;
+    color: var(--text-color);
+    font-size: 1rem;
+}
+select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right .7em top 50%; background-size: .9em auto; }
 
-/* Lobby, Spiel & UI-Verbesserungen */
-.setting { text-align: left; margin: 1rem 0; }
-.setting label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
-.setting-options { display: flex; gap: 10px; }
-.option-btn { flex: 1; padding: 10px; margin: 0; font-size: 1rem; background-color: #282828; color: var(--text-grey); border: 1px solid #535353; }
-.option-btn.active { background-color: var(--text-light); color: var(--bg-dark); border-color: var(--text-light); }
-#player-list, #scoreboard-list { list-style: none; padding: 0; }
-#player-list li, #scoreboard-list li { background-color: #282828; padding: 10px 15px; margin: 5px 0; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
-.game-header { display: flex; justify-content: space-between; width: 100%; margin-bottom: 1rem; font-weight: bold; }
-#live-scoreboard { position: fixed; top: 20px; left: 20px; background-color: rgba(24, 24, 24, 0.8); backdrop-filter: blur(5px); padding: 1rem; border-radius: 8px; z-index: 5; }
-#live-scoreboard ul { list-style: none; margin: 0; padding: 0; text-align: left; }
-#live-scoreboard li { display: flex; justify-content: space-between; min-width: 150px; gap: 20px; }
+/* Lobby-spezifische Stile */
+.lobby-container h2 { font-size: 1.8rem; margin-bottom: 20px; }
+.lobby-container h2 span { color: var(--primary-color); }
+#player-list { list-style: none; margin-bottom: 30px; }
+#player-list li { background-color: var(--dark-grey); padding: 10px; border-radius: 4px; margin-bottom: 8px; font-size: 1.1rem; }
+.setting { margin-bottom: 20px; text-align: left; }
+.setting label { display: block; margin-bottom: 8px; color: var(--text-muted-color); }
+.setting-options { display: flex; justify-content: space-between; }
+.option-btn { flex: 1; margin: 0 5px; background-color: var(--dark-grey); color: var(--text-color); }
+.option-btn.active { background-color: var(--primary-color); color: var(--background-color); }
+.select-with-refresh { display: flex; align-items: center; gap: 10px; }
+.select-with-refresh select { flex-grow: 1; margin-bottom: 0; }
+.button-icon { padding: 10px 12px; font-size: 1rem; line-height: 1; }
+
+/* Allgemein verfügbare Helferklassen */
+.hidden { display: none !important; }
+
+/* Hier könnten weitere Stile für Spiel, Ergebnisse, etc. folgen */
+
