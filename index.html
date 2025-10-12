@@ -15,11 +15,11 @@
     <div class="app-background"></div>
     <header class="app-header">
         <button class="button-leave hidden" title="Verlassen"><i class="fa-solid fa-arrow-left"></i></button>
-        <h1>FAKESTER</h1>
-        <div id="live-header-scoreboard" class="live-header-scoreboard hidden"></div>
+        <div class="logo-container">
+            <h1>FAKESTER</h1>
+            <div id="live-header-scoreboard" class="live-header-scoreboard hidden"></div>
+        </div>
     </header>
-
-    <div id="live-scoreboard" class="hidden"></div>
 
     <main id="nickname-screen" class="screen active">
         <div class="container slide-in">
@@ -53,13 +53,13 @@
                 <div class="setting">
                     <label for="device-select">Wiedergabegerät</label>
                     <div class="select-with-refresh">
-                        <select id="device-select"><option>Öffne Spotify & klicke ↻</option></select>
+                        <select id="device-select"><option>Geräte werden geladen...</option></select>
                         <button id="refresh-devices-button" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
                     </div>
                 </div>
                 <div class="setting">
                     <label for="playlist-select">Playlist</label>
-                    <select id="playlist-select"><option>Lade Playlists...</option></select>
+                    <select id="playlist-select"><option>Playlists werden geladen...</option></select>
                 </div>
                 <div class="setting">
                     <label>Anzahl Songs</label>
@@ -116,7 +116,10 @@
     <main id="result-screen" class="screen">
         <div class="container">
             <h2>Richtige Antwort</h2>
-            <p id="correct-answer-info">Artist - Title (Year)</p>
+            <div class="correct-answer-display">
+                <p id="correct-answer-info">Artist - Title (Year)</p>
+                <div id="points-breakdown"></div>
+            </div>
             <h3>Punktestand</h3>
             <ul id="scoreboard-list" class="scoreboard"></ul>
         </div>
@@ -142,8 +145,6 @@
         </div>
     </div>
     
-    <div id="debug-console"></div>
-
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
     <script src="script.js"></script>
 </body>

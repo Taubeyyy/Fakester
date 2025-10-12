@@ -30,6 +30,7 @@ body {
         radial-gradient(ellipse 80% 50% at 5% 95%, rgba(29, 185, 84, 0.2), transparent),
         linear-gradient(to right, #0a0a0a, #121212);
     z-index: -1;
+    transition: background-image 0.5s ease-in-out;
 }
 .app-background::before {
     content: '';
@@ -44,11 +45,23 @@ body {
     background-color: rgba(12, 12, 12, 0.7);
     backdrop-filter: blur(10px);
     text-align: center; border-bottom: 1px solid var(--dark-grey);
-    z-index: 10; display: flex; align-items: center; justify-content: center;
+    z-index: 10; display: flex; align-items: center; justify-content: space-between;
     position: relative; flex-shrink: 0;
 }
-.app-header h1 { font-size: 1.5rem; color: var(--primary-color); font-weight: 800; letter-spacing: 2px; margin: 0; }
-.screen { display: none; flex-grow: 1; flex-direction: column; align-items: center; justify-content: center; padding: 30px 20px; width: 100%; overflow-y: auto; opacity: 0; transition: opacity 0.3s ease-in-out; }
+.logo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+.logo-container h1 { font-size: 1.5rem; color: var(--primary-color); font-weight: 800; letter-spacing: 2px; margin: 0; line-height: 1; }
+.live-header-scoreboard { color: var(--text-muted-color); font-size: 0.8rem; font-weight: 700; height: 15px; margin-top: 4px; }
+.live-header-scoreboard span { margin: 0 8px; }
+.live-header-scoreboard .fa-crown { color: #FFD700; }
+.button-leave { z-index: 2; }
+.screen { display: none; flex-grow: 1; flex-direction: column; align-items: center; justify-content: center; padding: 30px 20px; width: 100%; overflow-y: auto; opacity: 0; transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out; }
 .screen.active { display: flex; opacity: 1; }
 #lobby-screen { justify-content: flex-start; }
 .container { width: 100%; max-width: 500px; background-color: var(--surface-color); padding: 30px; border-radius: var(--border-radius); text-align: center; border: 1px solid var(--dark-grey); }
@@ -76,10 +89,6 @@ input:focus, select:focus { outline: none; border-color: var(--primary-color); b
 .button-icon:hover { background-color: var(--medium-grey); }
 .button-icon:disabled .fa-arrows-rotate { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.button-leave { position: absolute; left: 20px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 1.5rem; color: var(--text-muted-color); cursor: pointer; padding: 5px; }
-.live-header-scoreboard { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); color: var(--text-muted-color); font-size: 0.9rem; font-weight: 700; }
-.live-header-scoreboard span { margin-left: 15px; }
-.live-header-scoreboard .fa-crown { color: #FFD700; margin-left: 5px; }
 .pin-display-large { margin-bottom: 20px; }
 .pin-display-large p { margin: 0; font-size: 1rem; color: var(--text-muted-color); text-transform: uppercase; letter-spacing: 1px; }
 .pin-display-large span { font-size: 3.5rem; font-weight: 800; color: var(--primary-color); letter-spacing: 5px; }
@@ -103,27 +112,7 @@ input:focus, select:focus { outline: none; border-color: var(--primary-color); b
 .button-exit-modal { position: absolute; top: 25px; left: 20px; background: none; border: none; color: var(--text-muted-color); font-size: 1.8rem; cursor: pointer; z-index: 110; }
 #join-modal-overlay .numpad { margin-top: auto; }
 #close-modal-button { display: none; }
-
-/* Stile für die On-Screen Debug Konsole */
-#debug-console {
-    position: fixed;
-    bottom: 50px; /* Adjusted to not overlap browser UI */
-    left: 0;
-    width: 100%;
-    max-height: 25%;
-    background-color: rgba(0, 0, 0, 0.85);
-    backdrop-filter: blur(5px);
-    color: #ff4d4d;
-    font-family: monospace;
-    font-size: 12px;
-    padding: 10px;
-    overflow-y: auto;
-    z-index: 9999;
-    border-top: 1px solid var(--accent-color);
-    display: flex;
-    flex-direction: column-reverse;
-}
-#debug-console .error-entry {
-    padding: 5px;
-    border-bottom: 1px solid #333;
-}
+.correct-answer-display { margin-bottom: 30px; border-bottom: 1px solid var(--dark-grey); padding-bottom: 20px; }
+#points-breakdown { font-size: 0.9rem; color: var(--text-muted-color); margin-top: 15px; text-align: left; }
+#points-breakdown span { display: block; margin-bottom: 5px; }
+#points-breakdown .points { color: var(--primary-color); font-weight: 700; }
