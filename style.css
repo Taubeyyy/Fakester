@@ -24,7 +24,7 @@ body {
     color: var(--text-color);
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100dvh; /* Changed to dvh for better mobile viewport handling */
     overflow: hidden;
     -webkit-tap-highlight-color: transparent;
 }
@@ -49,6 +49,7 @@ body {
     align-items: center;
     justify-content: center;
     position: relative;
+    flex-shrink: 0; /* Prevents header from shrinking */
 }
 
 .app-header h1 {
@@ -58,11 +59,26 @@ body {
 }
 
 .screen {
-    display: none; flex-grow: 1; align-items: flex-start; justify-content: flex-start;
-    padding: 30px 20px; width: 100%;
-    overflow-y: auto; opacity: 0; transition: opacity 0.3s ease-in-out;
+    display: none;
+    flex-grow: 1;
+    flex-direction: column; /* Changed for consistency */
+    align-items: center; /* Changed for consistency */
+    justify-content: center; /* Vertically centers content */
+    padding: 30px 20px;
+    width: 100%;
+    overflow-y: auto;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
 }
-.screen.active { display: flex; flex-direction: column; align-items: center; opacity: 1; }
+.screen.active {
+    display: flex;
+    opacity: 1;
+}
+
+/* Specific alignment for lobby which can scroll */
+#lobby-screen {
+    justify-content: flex-start;
+}
 
 .container {
     width: 100%; max-width: 500px;
@@ -137,7 +153,7 @@ input:focus, select:focus {
 .scoreboard li { display: flex; justify-content: space-between; padding: 10px; border-radius: 4px; }
 .scoreboard li:nth-child(odd) { background-color: var(--dark-grey); }
 .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
-.num-btn { padding: 20px; font-size: 1.5rem; background-color: var(--dark-grey); color: var(--text-color); border: 1px solid var(--medium-grey); }
+.num-btn { padding: 20px; font-size: 1.5rem; background-color: var(--dark-grey); color: var(--text-color); border: 1px solid var(--medium-grey); border-radius: 50%; } /* Made buttons round */
 .num-btn.action-btn { background-color: var(--medium-grey); }
 .pin-display { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
 .pin-digit { width: 50px; height: 60px; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
@@ -152,26 +168,27 @@ input:focus, select:focus {
     top: 0;
     left: 0;
     width: 100%;
-    height: 100%;
+    height: 100dvh; /* Changed to dvh */
     background-color: var(--background-color);
     z-index: 100;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start; /* Inhalt startet oben */
+    justify-content: flex-start;
 }
 
 /* Den inneren Container anpassen */
 #join-modal-overlay .modal {
-    background-color: transparent; /* Hintergrund entfernen, da das Overlay schon die Farbe hat */
+    background-color: transparent;
     border: none;
     border-radius: 0;
     width: 100%;
     height: 100%;
     max-width: 100%;
-    padding: 80px 20px 40px 20px; /* Oben mehr Platz für den Exit-Button */
+    padding: 80px 20px 40px 20px;
     display: flex;
     flex-direction: column;
+    box-shadow: none; /* remove potential shadows */
 }
 
 /* Position für den neuen "Exit"-Button oben links */
@@ -184,14 +201,15 @@ input:focus, select:focus {
     color: var(--text-muted-color);
     font-size: 1.8rem;
     cursor: pointer;
+    z-index: 110;
 }
 
 /* Schiebt den Ziffernblock und die Buttons nach unten */
 #join-modal-overlay .numpad {
-    margin-top: auto; /* Magischer Trick, um den Block nach unten zu schieben */
+    margin-top: auto;
 }
 
-/* Optional: Den alten "Abbrechen"-Button ausblenden, da wir jetzt einen oben haben */
+/* Den alten "Abbrechen"-Button ausblenden */
 #close-modal-button {
     display: none;
 }

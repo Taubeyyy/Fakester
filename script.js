@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
         numpadButtons: document.querySelectorAll('#numpad .num-btn'),
         joinGameButton: document.getElementById('join-game-button'),
         closeModalButton: document.getElementById('close-modal-button'),
+        closeModalButtonExit: document.getElementById('close-modal-button-exit'), // New exit button
         countdownRoundInfo: document.getElementById('countdown-round-info'),
         countdownTimer: document.getElementById('countdown-timer'),
         roundInfo: document.getElementById('round-info'),
@@ -167,6 +168,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const guessTime = document.querySelector('#guess-time-options .option-btn.active').dataset.value;
         sendMessage('update-settings', { deviceId: elements.deviceSelect.value, playlistId: elements.playlistSelect.value, songCount: parseInt(songCount), guessTime: parseInt(guessTime) });
     }
+    
+    // --- EVENT LISTENERS ---
+    
     elements.nicknameSubmitButton.addEventListener('click', () => { myNickname = elements.nicknameInput.value.trim(); if (myNickname) { localStorage.setItem('nickname', myNickname); initializeApp(); } });
     elements.welcomeNickname.addEventListener('click', () => { elements.nicknameInput.value = myNickname; showScreen('nickname-screen'); });
     elements.logoutButton.addEventListener('click', async () => { await fetch('/logout', { method: 'POST' }); spotifyToken = null; window.location.reload(); });
@@ -174,8 +178,9 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
     
     // Event Listeners für das Schließen des Modals
-    elements.closeModalButton.addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
-    document.getElementById('close-modal-button-exit').addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
+    const closeModal = () => elements.joinModalOverlay.classList.add('hidden');
+    elements.closeModalButton.addEventListener('click', closeModal);
+    elements.closeModalButtonExit.addEventListener('click', closeModal);
 
     // Korrigierter Event Listener für das Numpad
     elements.numpadButtons.forEach(button => {
@@ -188,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (action === 'backspace') {
                 currentPin = currentPin.slice(0, -1);
             } else if (currentPin.length < 4 && !isNaN(parseInt(value))) {
-                // Fügt nur Zahlen hinzu und nur, wenn PIN nicht voll ist
                 currentPin += value;
             }
             
@@ -227,7 +231,12 @@ document.addEventListener('DOMContentLoaded', () => {
         sendMessage('submit-guess', { guess });
     });
     elements.leaveButton.addEventListener('click', () => {
-        if (ws.socket) { ws.socket.close(); ws.socket = null; }
-        initializeApp();
+        if (ws.socket) {
+            ws.socket.onclose = () => {}; // Prevent reconnection logic if any
+            ws.socket.close();
+            ws.socket = null;
+        }
+        // Directly go to home screen to avoid re-checking login status
+        showScreen('home-screen');
     });
 });
