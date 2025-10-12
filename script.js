@@ -1,3 +1,17 @@
+// --- On-Screen Debug Konsole ---
+window.onerror = function(message, source, lineno, colno, error) {
+    const consoleElement = document.getElementById('debug-console');
+    if (consoleElement) {
+        const errorElement = document.createElement('div');
+        errorElement.className = 'error-entry';
+        const fileName = source.split('/').pop();
+        errorElement.innerHTML = `<strong>Fehler:</strong> ${message}<br><strong>Datei:</strong> ${fileName} (Zeile ${lineno})`;
+        consoleElement.appendChild(errorElement);
+    }
+    return true;
+};
+// --- Ende der Debug Konsole ---
+
 document.addEventListener('DOMContentLoaded', () => {
     // Globale Variablen
     const ws = { socket: null };
@@ -89,14 +103,10 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'error': alert(`Fehler: ${payload.message}`); break;
             case 'round-countdown': showCountdown(payload); break;
             case 'new-round':
-                // Dieser Block ist jetzt sicherer.
                 try {
                     updateLiveScoreboard(payload.scores);
                     updateHeaderScoreboard(payload.scores, payload.hostId);
-                } catch (error) {
-                    console.error("Fehler beim Aktualisieren des Scoreboards:", error);
-                }
-                // Diese wichtige Funktion wird jetzt auf jeden Fall aufgerufen.
+                } catch (error) { console.error("Scoreboard update failed:", error); }
                 startRoundUI(payload);
                 break;
             case 'guess-received': elements.submitGuessButton.disabled = true; elements.submitGuessButton.textContent = "Warte..."; break;
@@ -104,12 +114,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     updateLiveScoreboard(payload.scores);
                     updateHeaderScoreboard(payload.scores, payload.hostId);
-                } catch(error) {
-                    console.error("Fehler beim Aktualisieren des Scoreboards nach der Runde:", error);
-                }
+                } catch(error) { console.error("Scoreboard update failed:", error); }
                 showResultUI(payload); 
                 break;
-            case 'game-over': elements.liveScoreboard.classList.add('hidden'); elements.headerScoreboard.classList.add('hidden'); alert("Spiel vorbei!"); showScreen('home-screen'); break;
+            case 'game-over': showScreen('home-screen'); alert("Spiel vorbei!"); break;
         }
     }
 
@@ -119,7 +127,10 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.leaveButton.classList.toggle('hidden', !showLeaveButton);
         const showHeaderScoreboard = ['game-screen', 'result-screen', 'countdown-screen'].includes(screenId);
         elements.headerScoreboard.classList.toggle('hidden', !showHeaderScoreboard);
+        // Explicitly hide the old live scoreboard element
+        elements.liveScoreboard.classList.add('hidden');
     }
+
     async function fetchAndDisplayDevices() {
         elements.refreshDevicesButton.disabled = true;
         elements.deviceSelect.innerHTML = `<option>Suche Geräte...</option>`;
@@ -168,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         countdownInterval = setInterval(() => {
             count--;
             elements.countdownTimer.textContent = count;
-            if (count < 0) { // Changed to < 0 to ensure it stays at 0 for a moment
+            if (count <= 0) { // Corrected timer stop condition
                 clearInterval(countdownInterval);
             }
         }, 1000);
