@@ -69,20 +69,23 @@ function handleWebSocketMessage(ws, { type, payload }) {
 async function startGame(pin) {
     const game = games[pin]; const token = game.hostToken; const deviceId = game.settings.deviceId;
     try {
-        await axios.put(`https://api.spotify.com/v1/playlists/[playlist_id]/tracks?device_id=$...`, { device_ids: [deviceId], play: false }, { headers: { 'Authorization': `Bearer ${token}` } });
+        await axios.put(`https://api.spotify.com/v1/me/player`, { device_ids: [deviceId], play: false }, { headers: { 'Authorization': `Bearer ${token}` } });
     } catch (e) {
-        let errorMessage = 'Ausgewähltes Gerät konnte nicht aktiviert werden.';
+        let shortMessage = 'Ausgewähltes Gerät konnte nicht aktiviert werden.';
+        let detailedMessage = e.message;
         if (e.response && e.response.data && e.response.data.error) {
-            const { status, message } = e.response.data.error;
-            errorMessage = `Spotify Fehler: ${message} (Status: ${status})`;
+            const { message, reason } = e.response.data.error;
+            detailedMessage = `Spotify sagt: "${message}" (Grund: ${reason})`;
+            if (reason === 'NO_ACTIVE_DEVICE') { shortMessage = 'Kein aktives Spotify-Gerät gefunden. Öffne Spotify auf dem Gerät.'; } 
+            else if (reason === 'PREMIUM_REQUIRED') { shortMessage = 'Für diese Funktion ist Spotify Premium nötig.'; }
         }
-        console.error("!!! Spotify /player API Transfer Fehler:", errorMessage);
-        broadcastToLobby(pin, { type: 'error', payload: { message: errorMessage } });
+        console.error("!!! Detaillierter Spotify API Fehler:", detailedMessage);
+        broadcastToLobby(pin, { type: 'error', payload: { message: shortMessage } });
         return;
     }
     game.gameState = 'PLAYING'; game.currentRound = 0; Object.values(game.players).forEach(p => p.score = 0);
     const tracks = await getPlaylistTracks(game.settings.playlistId, token);
-    if (!tracks || tracks.length === 0) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer.' } }); game.gameState = 'LOBBY'; return; }
+    if (!tracks || tracks.length === 0) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer oder Songs konnten nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
     game.songList = tracks.sort(() => 0.5 - Math.random()).slice(0, Math.min(game.settings.songCount, tracks.length));
     startRoundCountdown(pin);
 }
@@ -103,7 +106,9 @@ function evaluateRound(pin) {
         if (guess.title && song.title.toLowerCase() === guess.title.toLowerCase()) roundScore += 75;
         if (guess.artist && song.artist.toLowerCase() === guess.artist.toLowerCase()) roundScore += 75;
         const yearDiff = Math.abs(guess.year - song.year);
-        if (yearDiff === 0) { roundScore += 250; } else if (yearDiff <= 5) { roundScore += 100; } else if (yearDiff <= 10) { roundScore += 50; }
+        if (guess.year > 0) { // Only score year if a guess was made
+            if (yearDiff === 0) { roundScore += 250; } else if (yearDiff <= 5) { roundScore += 100; } else if (yearDiff <= 10) { roundScore += 50; }
+        }
         player.score += roundScore;
     });
     broadcastToLobby(pin, { type: 'round-result', payload: { song, scores: getScores(pin) } });
@@ -115,5 +120,19 @@ function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9
 function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws.readyState === WebSocket.OPEN) { player.ws.send(messageString); } }); }
 function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }
 function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws.playerId, nickname: p.nickname, score: p.score })).sort((a, b) => b.score - a.score); }
-async function getPlaylistTracks(playlistId, token) { try { const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, { headers: { 'Authorization': `Bearer ${token}` } }); return response.data.items.map(item => item.track).filter(track => track && track.id && track.name && track.artists[0] && track.artists[0].name && track.album && track.album.release_date).map(track => ({ spotifyId: track.id, title: track.name, artist: track.artists[0].name, year: parseInt(track.album.release_date.substring(0, 4)) })); } catch (error) { console.error("Fehler bei Playlist-Tracks:", error.message); return null; } }
+async function getPlaylistTracks(playlistId, token) {
+    try {
+        const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, { headers: { 'Authorization': `Bearer ${token}` } });
+        return response.data.items
+            .map(item => item.track)
+            .filter(track => track && track.id && track.name && track.artists && track.artists.length > 0)
+            .map(track => {
+                const year = (track.album && track.album.release_date) ? parseInt(track.album.release_date.substring(0, 4)) : 0;
+                return { spotifyId: track.id, title: track.name, artist: track.artists[0].name, year: year };
+            });
+    } catch (error) {
+        console.error("Fehler beim Abrufen der Playlist-Tracks:", error.response ? error.response.data : error.message);
+        return null;
+    }
+}
 server.listen(process.env.PORT || 8080, () => { console.log(`✅ Fakester-Server läuft auf Port ${process.env.PORT || 8080}`); });

@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
         numpadButtons: document.querySelectorAll('#numpad .num-btn'),
         joinGameButton: document.getElementById('join-game-button'),
         closeModalButton: document.getElementById('close-modal-button'),
-        closeModalButtonExit: document.getElementById('close-modal-button-exit'), // New exit button
+        closeModalButtonExit: document.getElementById('close-modal-button-exit'),
         countdownRoundInfo: document.getElementById('countdown-round-info'),
         countdownTimer: document.getElementById('countdown-timer'),
         roundInfo: document.getElementById('round-info'),
@@ -53,7 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (!data.loggedIn) throw new Error('Nicht eingeloggt');
             spotifyToken = data.token;
-            document.cookie = "spotify_access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
             elements.showCreateButtonLogin.classList.add('hidden');
             elements.showCreateButtonAction.classList.remove('hidden');
             elements.logoutButton.classList.remove('hidden');
@@ -177,17 +176,14 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.showCreateButtonAction.addEventListener('click', () => { connectToServer(() => { sendMessage('create-game', { nickname: myNickname, token: spotifyToken }); }); });
     elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
     
-    // Event Listeners für das Schließen des Modals
     const closeModal = () => elements.joinModalOverlay.classList.add('hidden');
     elements.closeModalButton.addEventListener('click', closeModal);
     elements.closeModalButtonExit.addEventListener('click', closeModal);
 
-    // Korrigierter Event Listener für das Numpad
     elements.numpadButtons.forEach(button => {
         button.addEventListener('click', () => {
             const action = button.dataset.action;
             const value = button.textContent.trim();
-    
             if (action === 'clear') {
                 currentPin = '';
             } else if (action === 'backspace') {
@@ -195,7 +191,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (currentPin.length < 4 && !isNaN(parseInt(value))) {
                 currentPin += value;
             }
-            
             updatePinDisplay();
         });
     });
@@ -232,11 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     elements.leaveButton.addEventListener('click', () => {
         if (ws.socket) {
-            ws.socket.onclose = () => {}; // Prevent reconnection logic if any
+            ws.socket.onclose = () => {};
             ws.socket.close();
             ws.socket = null;
         }
-        // Directly go to home screen to avoid re-checking login status
         showScreen('home-screen');
     });
 });
