@@ -42,6 +42,22 @@
         </div>
     </main>
 
+    <main id="mode-selection-screen" class="screen">
+        <div class="container">
+            <h2>Wähle einen Spielmodus</h2>
+            <div class="mode-selection-container">
+                <div class="mode-box" data-mode="quiz">
+                    <h3>Fakester Original</h3>
+                    <p>Errate Künstler, Titel und Jahr des Songs, um Punkte zu sammeln.</p>
+                </div>
+                <div class="mode-box" data-mode="timeline">
+                    <h3>Timeline Challenge</h3>
+                    <p>Platziere die Songs in der korrekten chronologischen Reihenfolge auf einer Zeitlinie.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
     <main id="lobby-screen" class="screen">
         <div class="container lobby-container">
             <div class="pin-display-large">
@@ -63,20 +79,20 @@
                 </div>
                 <div class="setting">
                     <label>Anzahl Songs</label>
-                    <div class="setting-options" id="song-count-options">
-                        <button class="option-btn" data-value="5">5</button>
+                    <div class="setting-grid" id="song-count-options">
                         <button class="option-btn active" data-value="10">10</button>
-                        <button class="option-btn" data-value="15">15</button>
                         <button class="option-btn" data-value="20">20</button>
+                        <button class="option-btn" data-value="-1">Alle</button>
+                        <button class="option-btn" data-action="custom" data-type="song-count">Custom</button>
                     </div>
                 </div>
                 <div class="setting">
                     <label>Ratezeit (Sek.)</label>
-                    <div class="setting-options" id="guess-time-options">
+                    <div class="setting-grid" id="guess-time-options">
+                        <button class="option-btn" data-value="10">10</button>
                         <button class="option-btn" data-value="20">20</button>
                         <button class="option-btn active" data-value="30">30</button>
-                        <button class="option-btn" data-value="45">45</button>
-                        <button class="option-btn" data-value="60">60</button>
+                        <button class="option-btn" data-action="custom" data-type="guess-time">Custom</button>
                     </div>
                 </div>
                 <button id="start-game-button" class="button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
@@ -108,7 +124,28 @@
                 <input type="text" id="artist-guess" placeholder="Künstler...">
                 <input type="text" id="title-guess" placeholder="Songtitel...">
                 <input type="number" id="year-guess" placeholder="Jahr...">
+                <div class="round-actions">
+                    <button id="ready-button" class="button-secondary">Ready</button>
+                    <span id="ready-status">0/1 Spieler bereit</span>
+                </div>
                 <button id="submit-guess-button" class="button-primary">Raten!</button>
+            </div>
+        </div>
+    </main>
+
+    <main id="timeline-screen" class="screen">
+        <div class="timeline-ui">
+            <div id="current-song-to-place">
+                <p>Platziere diesen Song:</p>
+                <div class="timeline-card current-song">
+                    <span class="song-info"><strong>Titel:</strong> <span id="timeline-current-title"></span></span>
+                    <span class="song-info"><strong>Künstler:</strong> <span id="timeline-current-artist"></span></span>
+                </div>
+            </div>
+            <p>...auf der Zeitlinie:</p>
+            <div id="timeline-container-wrapper">
+                <div id="timeline-container">
+                    </div>
             </div>
         </div>
     </main>
@@ -132,7 +169,7 @@
             <div class="pin-display">
                 <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
             </div>
-            <div id="numpad" class="numpad">
+            <div id="numpad-join" class="numpad">
                 <button class="num-btn">1</button> <button class="num-btn">2</button> <button class="num-btn">3</button>
                 <button class="num-btn">4</button> <button class="num-btn">5</button> <button class="num-btn">6</button>
                 <button class="num-btn">7</button> <button class="num-btn">8</button> <button class="num-btn">9</button>
@@ -145,6 +182,25 @@
         </div>
     </div>
     
+    <div id="custom-input-modal-overlay" class="hidden">
+        <div class="container modal">
+            <h2 id="custom-input-title">Eingabe</h2>
+            <div class="pin-display" id="custom-input-display">
+                <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
+            </div>
+            <div id="numpad-custom" class="numpad">
+                <button class="num-btn">1</button> <button class="num-btn">2</button> <button class="num-btn">3</button>
+                <button class="num-btn">4</button> <button class="num-btn">5</button> <button class="num-btn">6</button>
+                <button class="num-btn">7</button> <button class="num-btn">8</button> <button class="num-btn">9</button>
+                <button class="num-btn action-btn" data-action="clear"><i class="fa-solid fa-xmark"></i></button>
+                <button class="num-btn">0</button>
+                <button class="num-btn action-btn" data-action="backspace"><i class="fa-solid fa-delete-left"></i></button>
+            </div>
+            <button id="custom-input-submit" class="button-primary">Bestätigen</button>
+            <button id="custom-input-cancel" class="button-secondary">Abbrechen</button>
+        </div>
+    </div>
+
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
     <script src="script.js"></script>
 </body>
