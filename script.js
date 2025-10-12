@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Globale Variablen
     const ws = { socket: null };
     let myPlayerId = null, myNickname = '', isHost = false, spotifyToken = null;
     let countdownInterval = null, clientRoundTimer = null;
@@ -45,6 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPin = '';
 
     async function initializeApp() {
+        // *** NEUE REPARATUR-ZEILE ***
+        // Stellt sicher, dass das Modal beim Start immer versteckt ist.
+        elements.joinModalOverlay.classList.add('hidden');
+
         myNickname = localStorage.getItem('nickname');
         try {
             const response = await fetch('/api/status');
@@ -102,11 +107,70 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.headerScoreboard.classList.toggle('hidden', !showHeaderScoreboard);
     }
 
-    async function fetchAndDisplayDevices() { /* ... (Code ist identisch) ... */ }
-    async function fetchAndDisplayPlaylists() { /* ... (Code ist identisch) ... */ }
-    function updateLobby({ pin, players, hostId, settings }) { /* ... (Code ist identisch) ... */ }
-    function showCountdown({ round, totalRounds }) { /* ... (Code ist identisch) ... */ }
-    function startRoundUI({ round, totalRounds, guessTime }) { /* ... (Code ist identisch) ... */ }
+    async function fetchAndDisplayDevices() {
+        elements.refreshDevicesButton.disabled = true;
+        elements.deviceSelect.innerHTML = `<option>Suche Geräte...</option>`;
+        try {
+            const response = await fetch('/api/devices', { headers: { 'Authorization': `Bearer ${spotifyToken}` } });
+            if (!response.ok) throw new Error('Server-Antwort nicht ok');
+            const data = await response.json();
+            if (data.devices && data.devices.length > 0) {
+                elements.deviceSelect.innerHTML = data.devices.map(d => `<option value="${d.id}" ${d.is_active ? 'selected' : ''}>${d.name} (${d.type})</option>`).join('');
+            } else {
+                elements.deviceSelect.innerHTML = `<option value="">Keine aktiven Geräte. Öffne Spotify & klicke ↻.</option>`;
+            }
+        } catch (e) { elements.deviceSelect.innerHTML = `<option value="">Geräte laden fehlgeschlagen</option>`; }
+        finally { elements.refreshDevicesButton.disabled = false; sendSettingsUpdate(); }
+    }
+    async function fetchAndDisplayPlaylists() {
+        try {
+            const response = await fetch('/api/playlists', { headers: { 'Authorization': `Bearer ${spotifyToken}` } });
+            const data = await response.json();
+            if (data.items.length === 0) {
+                elements.playlistSelect.innerHTML = `<option value="">Keine Playlists gefunden</option>`;
+            } else {
+                elements.playlistSelect.innerHTML = data.items.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            }
+            sendSettingsUpdate();
+        } catch (e) { elements.playlistSelect.innerHTML = `<option value="">Playlists laden fehlgeschlagen</option>`; }
+    }
+    function updateLobby({ pin, players, hostId, settings }) {
+        elements.lobbyPinDisplay.textContent = pin;
+        elements.playerList.innerHTML = players.map(p => { const hostIcon = p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''; return `<li><span>${p.nickname}</span>${hostIcon}</li>`; }).join('');
+        elements.hostSettings.classList.toggle('hidden', !isHost);
+        elements.guestWaitingMessage.classList.toggle('hidden', isHost);
+        if (isHost && settings) {
+            if (settings.deviceId) elements.deviceSelect.value = settings.deviceId;
+            if (settings.playlistId) elements.playlistSelect.value = settings.playlistId;
+            document.querySelectorAll('#song-count-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.songCount));
+            document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.guessTime));
+        }
+    }
+    function showCountdown({ round, totalRounds }) {
+        clearInterval(countdownInterval);
+        elements.countdownRoundInfo.textContent = `Runde ${round} / ${totalRounds}`;
+        showScreen('countdown-screen');
+        let count = 5;
+        elements.countdownTimer.textContent = count;
+        countdownInterval = setInterval(() => {
+            count--;
+            elements.countdownTimer.textContent = count;
+            if (count <= 0) {
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
+    }
+    function startRoundUI({ round, totalRounds, guessTime }) {
+        clearInterval(clientRoundTimer);
+        elements.roundInfo.textContent = `Runde ${round} / ${totalRounds}`;
+        ['artist-guess', 'title-guess', 'year-guess'].forEach(id => document.getElementById(id).value = '');
+        elements.submitGuessButton.disabled = false;
+        elements.submitGuessButton.textContent = "Raten!";
+        let time = guessTime;
+        elements.timeLeft.textContent = time;
+        clientRoundTimer = setInterval(() => { time--; elements.timeLeft.textContent = time; if (time <= 0) { clearInterval(clientRoundTimer); } }, 1000);
+        showScreen('game-screen');
+    }
 
     function showResultUI({ song, scores }) {
         clearInterval(clientRoundTimer);
@@ -137,8 +201,54 @@ document.addEventListener('DOMContentLoaded', () => {
             .join('');
     }
     
-    function updatePinDisplay() { /* ... (Code ist identisch) ... */ }
-    function sendSettingsUpdate() { /* ... (Code ist identisch) ... */ }
+    function updatePinDisplay() { elements.pinDisplayDigits.forEach((digit, index) => { digit.textContent = currentPin[index] || ''; digit.classList.toggle('filled', currentPin.length > index); }); }
+    function sendSettingsUpdate() {
+        if (!isHost) return;
+        const songCount = document.querySelector('#song-count-options .option-btn.active').dataset.value;
+        const guessTime = document.querySelector('#guess-time-options .option-btn.active').dataset.value;
+        sendMessage('update-settings', { deviceId: elements.deviceSelect.value, playlistId: elements.playlistSelect.value, songCount: parseInt(songCount), guessTime: parseInt(guessTime) });
+    }
     
-    // ... Alle Event Listeners sind identisch geblieben ...
+    elements.nicknameSubmitButton.addEventListener('click', () => { myNickname = elements.nicknameInput.value.trim(); if (myNickname) { localStorage.setItem('nickname', myNickname); initializeApp(); } });
+    elements.welcomeNickname.addEventListener('click', () => { elements.nicknameInput.value = myNickname; showScreen('nickname-screen'); });
+    elements.logoutButton.addEventListener('click', async () => { await fetch('/logout', { method: 'POST' }); spotifyToken = null; window.location.reload(); });
+    elements.showCreateButtonAction.addEventListener('click', () => { connectToServer(() => { sendMessage('create-game', { nickname: myNickname, token: spotifyToken }); }); });
+    elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
+    
+    const closeModal = () => elements.joinModalOverlay.classList.add('hidden');
+    elements.closeModalButton.addEventListener('click', closeModal);
+    elements.closeModalButtonExit.addEventListener('click', closeModal);
+
+    elements.numpadButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const action = button.dataset.action;
+            const value = button.textContent.trim();
+            if (action === 'clear') { currentPin = ''; } 
+            else if (action === 'backspace') { currentPin = currentPin.slice(0, -1); } 
+            else if (currentPin.length < 4 && !isNaN(parseInt(value))) { currentPin += value; }
+            updatePinDisplay();
+        });
+    });
+
+    elements.joinGameButton.addEventListener('click', () => { myNickname = localStorage.getItem('nickname'); if (currentPin.length === 4 && myNickname) { connectToServer(() => sendMessage('join-game', { pin: currentPin, nickname: myNickname })); } });
+    elements.refreshDevicesButton.addEventListener('click', fetchAndDisplayDevices);
+    elements.deviceSelect.addEventListener('change', sendSettingsUpdate);
+    elements.playlistSelect.addEventListener('change', sendSettingsUpdate);
+    elements.songCountOptions.addEventListener('click', (e) => { if (e.target.classList.contains('option-btn')) { document.querySelectorAll('#song-count-options .option-btn').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); sendSettingsUpdate(); } });
+    elements.guessTimeOptions.addEventListener('click', (e) => { if (e.target.classList.contains('option-btn')) { document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); sendSettingsUpdate(); } });
+    
+    elements.startGameButton.addEventListener('click', () => {
+        if (!elements.deviceSelect.value) { alert("Bitte wähle zuerst ein Wiedergabegerät aus. Öffne Spotify auf einem Gerät und klicke auf den Aktualisieren-Button ↻."); return; }
+        sendMessage('start-game');
+    });
+
+    elements.submitGuessButton.addEventListener('click', () => {
+        const guess = { artist: elements.artistGuess.value.trim(), title: elements.titleGuess.value.trim(), year: parseInt(elements.yearGuess.value, 10) || 0 };
+        sendMessage('submit-guess', { guess });
+    });
+
+    elements.leaveButton.addEventListener('click', () => {
+        if (ws.socket) { ws.socket.onclose = () => {}; ws.socket.close(); ws.socket = null; }
+        showScreen('home-screen');
+    });
 });
