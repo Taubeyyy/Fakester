@@ -172,14 +172,30 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.logoutButton.addEventListener('click', async () => { await fetch('/logout', { method: 'POST' }); spotifyToken = null; window.location.reload(); });
     elements.showCreateButtonAction.addEventListener('click', () => { connectToServer(() => { sendMessage('create-game', { nickname: myNickname, token: spotifyToken }); }); });
     elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
+    
+    // Event Listeners für das Schließen des Modals
     elements.closeModalButton.addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
+    document.getElementById('close-modal-button-exit').addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
+
+    // Korrigierter Event Listener für das Numpad
     elements.numpadButtons.forEach(button => {
         button.addEventListener('click', () => {
             const action = button.dataset.action;
-            if (action === 'clear') { currentPin = ''; } else if (action === 'backspace') { currentPin = currentPin.slice(0, -1); } else if (action.length < 4) { currentPin += button.textContent; }
+            const value = button.textContent.trim();
+    
+            if (action === 'clear') {
+                currentPin = '';
+            } else if (action === 'backspace') {
+                currentPin = currentPin.slice(0, -1);
+            } else if (currentPin.length < 4 && !isNaN(parseInt(value))) {
+                // Fügt nur Zahlen hinzu und nur, wenn PIN nicht voll ist
+                currentPin += value;
+            }
+            
             updatePinDisplay();
         });
     });
+
     elements.joinGameButton.addEventListener('click', () => { myNickname = localStorage.getItem('nickname'); if (currentPin.length === 4 && myNickname) { connectToServer(() => sendMessage('join-game', { pin: currentPin, nickname: myNickname })); } });
     elements.refreshDevicesButton.addEventListener('click', fetchAndDisplayDevices);
     elements.deviceSelect.addEventListener('change', sendSettingsUpdate);
