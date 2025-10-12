@@ -79,6 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
     function connectToServer(onOpenCallback) { const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; ws.socket = new WebSocket(`${protocol}//${window.location.host}`); ws.socket.onopen = onOpenCallback; ws.socket.onmessage = handleServerMessage; }
     function sendMessage(type, payload) { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type, payload })); } }
+    
     function handleServerMessage(event) {
         const { type, payload } = JSON.parse(event.data);
         switch (type) {
@@ -87,12 +88,31 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'lobby-update': updateLobby(payload); break;
             case 'error': alert(`Fehler: ${payload.message}`); break;
             case 'round-countdown': showCountdown(payload); break;
-            case 'new-round': updateLiveScoreboard(payload.scores); updateHeaderScoreboard(payload.scores, payload.hostId); startRoundUI(payload); break;
+            case 'new-round':
+                // Dieser Block ist jetzt sicherer.
+                try {
+                    updateLiveScoreboard(payload.scores);
+                    updateHeaderScoreboard(payload.scores, payload.hostId);
+                } catch (error) {
+                    console.error("Fehler beim Aktualisieren des Scoreboards:", error);
+                }
+                // Diese wichtige Funktion wird jetzt auf jeden Fall aufgerufen.
+                startRoundUI(payload);
+                break;
             case 'guess-received': elements.submitGuessButton.disabled = true; elements.submitGuessButton.textContent = "Warte..."; break;
-            case 'round-result': updateLiveScoreboard(payload.scores); updateHeaderScoreboard(payload.scores, payload.hostId); showResultUI(payload); break;
+            case 'round-result': 
+                try {
+                    updateLiveScoreboard(payload.scores);
+                    updateHeaderScoreboard(payload.scores, payload.hostId);
+                } catch(error) {
+                    console.error("Fehler beim Aktualisieren des Scoreboards nach der Runde:", error);
+                }
+                showResultUI(payload); 
+                break;
             case 'game-over': elements.liveScoreboard.classList.add('hidden'); elements.headerScoreboard.classList.add('hidden'); alert("Spiel vorbei!"); showScreen('home-screen'); break;
         }
     }
+
     function showScreen(screenId) {
         elements.screens.forEach(s => s.classList.toggle('active', s.id === screenId));
         const showLeaveButton = ['lobby-screen', 'game-screen', 'result-screen', 'countdown-screen'].includes(screenId);
@@ -148,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         countdownInterval = setInterval(() => {
             count--;
             elements.countdownTimer.textContent = count;
-            if (count <= 0) {
+            if (count < 0) { // Changed to < 0 to ensure it stays at 0 for a moment
                 clearInterval(countdownInterval);
             }
         }, 1000);
@@ -170,8 +190,13 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.scoreboardList.innerHTML = scores.map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('');
         showScreen('result-screen');
     }
-    function updateLiveScoreboard(players) { elements.liveScoreboard.classList.remove('hidden'); elements.liveScoreboard.innerHTML = '<ul>' + players.sort((a, b) => b.score - a.score).map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('') + '</ul>'; }
+    function updateLiveScoreboard(players) {
+        if (!players || !Array.isArray(players)) return;
+        elements.liveScoreboard.classList.remove('hidden'); 
+        elements.liveScoreboard.innerHTML = '<ul>' + players.sort((a, b) => b.score - a.score).map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('') + '</ul>'; 
+    }
     function updateHeaderScoreboard(players, hostId) {
+        if (!players || !Array.isArray(players)) return;
         elements.headerScoreboard.innerHTML = players
             .sort((a, b) => b.score - a.score)
             .map(p => `<span>${p.nickname}: ${p.score}${p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''}</span>`)
