@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.numpadButtons.forEach(button => {
         button.addEventListener('click', () => {
             const action = button.dataset.action;
-            if (action === 'clear') { currentPin = ''; } else if (action === 'backspace') { currentPin = currentPin.slice(0, -1); } else if (currentPin.length < 4) { currentPin += button.textContent; }
+            if (action === 'clear') { currentPin = ''; } else if (action === 'backspace') { currentPin = currentPin.slice(0, -1); } else if (action.length < 4) { currentPin += button.textContent; }
             updatePinDisplay();
         });
     });

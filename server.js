@@ -40,22 +40,15 @@ app.get('/api/playlists', async (req, res) => {
     try {
         const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
         res.json(d.data);
-    } catch (e) {
-        console.error("Spotify /playlists API Fehler:", e.response ? JSON.stringify(e.response.data, null, 2) : e.message);
-        res.status(500).json({ message: "Fehler beim Abrufen der Playlists" });
-    }
+    } catch (e) { console.error("Spotify /playlists API Fehler:", e.response ? JSON.stringify(e.response.data, null, 2) : e.message); res.status(500).json({ message: "Fehler beim Abrufen der Playlists" }); }
 });
 app.get('/api/devices', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ message: "Nicht autorisiert" });
     try {
-        // HIER WAR DER FEHLER - JETZT KORRIGIERT
         const d = await axios.get('https://api.spotify.com/v1/me/player/devices', { headers: { 'Authorization': `Bearer ${token}` } });
         res.json(d.data);
-    } catch (e) {
-        console.error("!!! Spotify /devices API Fehler:", e.response ? JSON.stringify(e.response.data, null, 2) : e.message);
-        res.status(500).json({ message: "Fehler beim Abrufen der Geräte" });
-    }
+    } catch (e) { console.error("!!! Spotify /devices API Fehler:", e.response ? JSON.stringify(e.response.data, null, 2) : e.message); res.status(500).json({ message: "Fehler beim Abrufen der Geräte" }); }
 });
 const wss = new WebSocket.Server({ server });
 wss.on('connection', ws => {
@@ -75,7 +68,18 @@ function handleWebSocketMessage(ws, { type, payload }) {
 }
 async function startGame(pin) {
     const game = games[pin]; const token = game.hostToken; const deviceId = game.settings.deviceId;
-    try { await axios.put(`https://api.spotify.com/v1/playlists/[playlist_id]/tracks?device_id=$...`, { device_ids: [deviceId], play: false }, { headers: { 'Authorization': `Bearer ${token}` } }); } catch (e) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Ausgewähltes Gerät nicht aktiv.' } }); return; }
+    try {
+        await axios.put(`https://api.spotify.com/v1/playlists/[playlist_id]/tracks?device_id=$...`, { device_ids: [deviceId], play: false }, { headers: { 'Authorization': `Bearer ${token}` } });
+    } catch (e) {
+        let errorMessage = 'Ausgewähltes Gerät konnte nicht aktiviert werden.';
+        if (e.response && e.response.data && e.response.data.error) {
+            const { status, message } = e.response.data.error;
+            errorMessage = `Spotify Fehler: ${message} (Status: ${status})`;
+        }
+        console.error("!!! Spotify /player API Transfer Fehler:", errorMessage);
+        broadcastToLobby(pin, { type: 'error', payload: { message: errorMessage } });
+        return;
+    }
     game.gameState = 'PLAYING'; game.currentRound = 0; Object.values(game.players).forEach(p => p.score = 0);
     const tracks = await getPlaylistTracks(game.settings.playlistId, token);
     if (!tracks || tracks.length === 0) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer.' } }); game.gameState = 'LOBBY'; return; }
