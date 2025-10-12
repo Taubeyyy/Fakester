@@ -127,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.leaveButton.classList.toggle('hidden', !showLeaveButton);
         const showHeaderScoreboard = ['game-screen', 'result-screen', 'countdown-screen'].includes(screenId);
         elements.headerScoreboard.classList.toggle('hidden', !showHeaderScoreboard);
-        // Explicitly hide the old live scoreboard element
         elements.liveScoreboard.classList.add('hidden');
     }
 
@@ -179,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         countdownInterval = setInterval(() => {
             count--;
             elements.countdownTimer.textContent = count;
-            if (count <= 0) { // Corrected timer stop condition
+            if (count <= 0) {
                 clearInterval(countdownInterval);
             }
         }, 1000);
@@ -187,7 +186,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function startRoundUI({ round, totalRounds, guessTime }) {
         clearInterval(clientRoundTimer);
         elements.roundInfo.textContent = `Runde ${round} / ${totalRounds}`;
-        ['artistGuess', 'titleGuess', 'yearGuess'].forEach(id => document.getElementById(id).value = '');
+        // KORRIGIERTE ZEILE: Benutzt die korrekten IDs mit Bindestrich
+        ['artist-guess', 'title-guess', 'year-guess'].forEach(id => document.getElementById(id).value = '');
         elements.submitGuessButton.disabled = false;
         elements.submitGuessButton.textContent = "Raten!";
         let time = guessTime;
@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     elements.submitGuessButton.addEventListener('click', () => {
-        const guess = { artist: elements.artistGuess.value.trim(), title: elements.titleGuess.value.trim(), year: parseInt(elements.yearGuess.value, 10) || 0 };
+        const guess = { artist: document.getElementById('artist-guess').value.trim(), title: document.getElementById('title-guess').value.trim(), year: parseInt(document.getElementById('year-guess').value, 10) || 0 };
         sendMessage('submit-guess', { guess });
     });
 
