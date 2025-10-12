@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const ws = { socket: null };
     let myPlayerId = null, myNickname = '', isHost = false;
     let spotifyToken = null;
+    let countdownInterval = null;
+    let clientRoundTimer = null;
 
     // HTML-Elemente
     const elements = {
@@ -41,10 +43,10 @@ document.addEventListener('DOMContentLoaded', () => {
         correctAnswerInfo: document.getElementById('correct-answer-info'),
         scoreboardList: document.getElementById('scoreboard-list'),
         liveScoreboard: document.getElementById('live-scoreboard'),
+        headerScoreboard: document.getElementById('live-header-scoreboard'),
         leaveButton: document.querySelector('.button-leave'),
     };
     let currentPin = '';
-    let clientRoundTimer = null;
 
     async function initializeApp() {
         myNickname = localStorage.getItem('nickname');
@@ -85,16 +87,18 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'lobby-update': updateLobby(payload); break;
             case 'error': alert(`Fehler: ${payload.message}`); break;
             case 'round-countdown': showCountdown(payload); break;
-            case 'new-round': updateLiveScoreboard(payload.scores); startRoundUI(payload); break;
+            case 'new-round': updateLiveScoreboard(payload.scores); updateHeaderScoreboard(payload.scores, payload.hostId); startRoundUI(payload); break;
             case 'guess-received': elements.submitGuessButton.disabled = true; elements.submitGuessButton.textContent = "Warte..."; break;
-            case 'round-result': updateLiveScoreboard(payload.scores); showResultUI(payload); break;
-            case 'game-over': elements.liveScoreboard.classList.add('hidden'); alert("Spiel vorbei!"); showScreen('home-screen'); break;
+            case 'round-result': updateLiveScoreboard(payload.scores); updateHeaderScoreboard(payload.scores, payload.hostId); showResultUI(payload); break;
+            case 'game-over': elements.liveScoreboard.classList.add('hidden'); elements.headerScoreboard.classList.add('hidden'); alert("Spiel vorbei!"); showScreen('home-screen'); break;
         }
     }
     function showScreen(screenId) {
         elements.screens.forEach(s => s.classList.toggle('active', s.id === screenId));
         const showLeaveButton = ['lobby-screen', 'game-screen', 'result-screen', 'countdown-screen'].includes(screenId);
         elements.leaveButton.classList.toggle('hidden', !showLeaveButton);
+        const showHeaderScoreboard = ['game-screen', 'result-screen', 'countdown-screen'].includes(screenId);
+        elements.headerScoreboard.classList.toggle('hidden', !showHeaderScoreboard);
     }
     async function fetchAndDisplayDevices() {
         elements.refreshDevicesButton.disabled = true;
@@ -136,14 +140,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     function showCountdown({ round, totalRounds }) {
+        clearInterval(countdownInterval);
         elements.countdownRoundInfo.textContent = `Runde ${round} / ${totalRounds}`;
         showScreen('countdown-screen');
         let count = 5;
         elements.countdownTimer.textContent = count;
-        const interval = setInterval(() => { count--; elements.countdownTimer.textContent = count; if (count <= 0) { clearInterval(interval); } }, 1000);
+        countdownInterval = setInterval(() => {
+            count--;
+            elements.countdownTimer.textContent = count;
+            if (count <= 0) {
+                clearInterval(countdownInterval);
+            }
+        }, 1000);
     }
     function startRoundUI({ round, totalRounds, guessTime }) {
-        clearTimeout(clientRoundTimer);
+        clearInterval(clientRoundTimer);
         elements.roundInfo.textContent = `Runde ${round} / ${totalRounds}`;
         ['artistGuess', 'titleGuess', 'yearGuess'].forEach(id => document.getElementById(id).value = '');
         elements.submitGuessButton.disabled = false;
@@ -154,12 +165,18 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('game-screen');
     }
     function showResultUI({ song, scores }) {
-        clearTimeout(clientRoundTimer);
+        clearInterval(clientRoundTimer);
         elements.correctAnswerInfo.textContent = `${song.artist} - ${song.title} (${song.year})`;
         elements.scoreboardList.innerHTML = scores.map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('');
         showScreen('result-screen');
     }
     function updateLiveScoreboard(players) { elements.liveScoreboard.classList.remove('hidden'); elements.liveScoreboard.innerHTML = '<ul>' + players.sort((a, b) => b.score - a.score).map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('') + '</ul>'; }
+    function updateHeaderScoreboard(players, hostId) {
+        elements.headerScoreboard.innerHTML = players
+            .sort((a, b) => b.score - a.score)
+            .map(p => `<span>${p.nickname}: ${p.score}${p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''}</span>`)
+            .join('');
+    }
     function updatePinDisplay() { elements.pinDisplayDigits.forEach((digit, index) => { digit.textContent = currentPin[index] || ''; digit.classList.toggle('filled', currentPin.length > index); }); }
     function sendSettingsUpdate() {
         if (!isHost) return;
@@ -167,8 +184,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const guessTime = document.querySelector('#guess-time-options .option-btn.active').dataset.value;
         sendMessage('update-settings', { deviceId: elements.deviceSelect.value, playlistId: elements.playlistSelect.value, songCount: parseInt(songCount), guessTime: parseInt(guessTime) });
     }
-    
-    // --- EVENT LISTENERS ---
     
     elements.nicknameSubmitButton.addEventListener('click', () => { myNickname = elements.nicknameInput.value.trim(); if (myNickname) { localStorage.setItem('nickname', myNickname); initializeApp(); } });
     elements.welcomeNickname.addEventListener('click', () => { elements.nicknameInput.value = myNickname; showScreen('nickname-screen'); });
@@ -184,13 +199,9 @@ document.addEventListener('DOMContentLoaded', () => {
         button.addEventListener('click', () => {
             const action = button.dataset.action;
             const value = button.textContent.trim();
-            if (action === 'clear') {
-                currentPin = '';
-            } else if (action === 'backspace') {
-                currentPin = currentPin.slice(0, -1);
-            } else if (currentPin.length < 4 && !isNaN(parseInt(value))) {
-                currentPin += value;
-            }
+            if (action === 'clear') { currentPin = ''; } 
+            else if (action === 'backspace') { currentPin = currentPin.slice(0, -1); } 
+            else if (currentPin.length < 4 && !isNaN(parseInt(value))) { currentPin += value; }
             updatePinDisplay();
         });
     });
@@ -199,38 +210,21 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.refreshDevicesButton.addEventListener('click', fetchAndDisplayDevices);
     elements.deviceSelect.addEventListener('change', sendSettingsUpdate);
     elements.playlistSelect.addEventListener('change', sendSettingsUpdate);
-    elements.songCountOptions.addEventListener('click', (e) => {
-        if (e.target.classList.contains('option-btn')) {
-            document.querySelectorAll('#song-count-options .option-btn').forEach(btn => btn.classList.remove('active'));
-            e.target.classList.add('active');
-            sendSettingsUpdate();
-        }
-    });
-    elements.guessTimeOptions.addEventListener('click', (e) => {
-        if (e.target.classList.contains('option-btn')) {
-            document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.remove('active'));
-            e.target.classList.add('active');
-            sendSettingsUpdate();
-        }
-    });
+    elements.songCountOptions.addEventListener('click', (e) => { if (e.target.classList.contains('option-btn')) { document.querySelectorAll('#song-count-options .option-btn').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); sendSettingsUpdate(); } });
+    elements.guessTimeOptions.addEventListener('click', (e) => { if (e.target.classList.contains('option-btn')) { document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.remove('active')); e.target.classList.add('active'); sendSettingsUpdate(); } });
+    
     elements.startGameButton.addEventListener('click', () => {
-        if (!elements.deviceSelect.value) {
-            alert("Bitte wähle zuerst ein Wiedergabegerät aus. Öffne Spotify auf einem Gerät und klicke auf den Aktualisieren-Button ↻.");
-            return;
-        }
+        if (!elements.deviceSelect.value) { alert("Bitte wähle zuerst ein Wiedergabegerät aus. Öffne Spotify auf einem Gerät und klicke auf den Aktualisieren-Button ↻."); return; }
         sendMessage('start-game');
     });
+
     elements.submitGuessButton.addEventListener('click', () => {
-        const guess = { artist: elements.artistGuess.value.trim(), title: elements.titleGuess.value.trim(), year: parseInt(elements.yearGuess.value, 10) };
-        if (isNaN(guess.year)) { alert("Bitte gib eine gültige Jahreszahl ein."); return; }
+        const guess = { artist: elements.artistGuess.value.trim(), title: elements.titleGuess.value.trim(), year: parseInt(elements.yearGuess.value, 10) || 0 };
         sendMessage('submit-guess', { guess });
     });
+
     elements.leaveButton.addEventListener('click', () => {
-        if (ws.socket) {
-            ws.socket.onclose = () => {};
-            ws.socket.close();
-            ws.socket = null;
-        }
+        if (ws.socket) { ws.socket.onclose = () => {}; ws.socket.close(); ws.socket = null; }
         showScreen('home-screen');
     });
 });

@@ -94,7 +94,7 @@ function startNewRound(pin) {
     const game = games[pin]; if (!game) return;
     game.currentRound++; game.guesses = {}; game.currentSong = game.songList[game.currentRound - 1];
     axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response ? err.response.data : err.message));
-    broadcastToLobby(pin, { type: 'new-round', payload: { round: game.currentRound, totalRounds: game.songList.length, guessTime: game.settings.guessTime, scores: getScores(pin) } });
+    broadcastToLobby(pin, { type: 'new-round', payload: { round: game.currentRound, totalRounds: game.songList.length, guessTime: game.settings.guessTime, scores: getScores(pin), hostId: game.hostId } });
     game.roundTimer = setTimeout(() => evaluateRound(pin), game.settings.guessTime * 1000);
 }
 function evaluateRound(pin) {
@@ -105,13 +105,13 @@ function evaluateRound(pin) {
         let roundScore = 0;
         if (guess.title && song.title.toLowerCase() === guess.title.toLowerCase()) roundScore += 75;
         if (guess.artist && song.artist.toLowerCase() === guess.artist.toLowerCase()) roundScore += 75;
-        const yearDiff = Math.abs(guess.year - song.year);
-        if (guess.year > 0) { // Only score year if a guess was made
+        if (guess.year > 0) {
+            const yearDiff = Math.abs(guess.year - song.year);
             if (yearDiff === 0) { roundScore += 250; } else if (yearDiff <= 5) { roundScore += 100; } else if (yearDiff <= 10) { roundScore += 50; }
         }
         player.score += roundScore;
     });
-    broadcastToLobby(pin, { type: 'round-result', payload: { song, scores: getScores(pin) } });
+    broadcastToLobby(pin, { type: 'round-result', payload: { song, scores: getScores(pin), hostId: game.hostId } });
     setTimeout(() => startRoundCountdown(pin), 8000);
 }
 function endGame(pin) { const game = games[pin]; if (!game) return; game.gameState = 'FINISHED'; broadcastToLobby(pin, { type: 'game-over', payload: { scores: getScores(pin) } }); }
