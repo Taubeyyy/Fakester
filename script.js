@@ -128,12 +128,18 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function sendMessage(type, payload) { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type, payload })); } }
     
-    function handleServerMessage(event) {
+    async function handleServerMessage(event) {
         const { type, payload } = JSON.parse(event.data);
         debugLog(`Nachricht vom Server empfangen: Typ = ${type}`);
-
         switch (type) {
-            case 'game-created': myPlayerId = payload.playerId; isHost = true; elements.lobbyPinDisplay.textContent = payload.pin; showScreen('lobby-screen'); fetchAndDisplayDevices(); fetchAndDisplayPlaylists(); break;
+            case 'game-created': 
+                myPlayerId = payload.playerId; isHost = true; 
+                elements.lobbyPinDisplay.textContent = payload.pin; 
+                showScreen('lobby-screen'); 
+                debugLog("Status: Host. Lade Geräte und Playlists...");
+                await fetchAndDisplayDevices();
+                await fetchAndDisplayPlaylists();
+                break;
             case 'join-success': myPlayerId = payload.playerId; isHost = false; elements.lobbyPinDisplay.textContent = payload.pin; elements.joinModalOverlay.classList.add('hidden'); showScreen('lobby-screen'); break;
             case 'lobby-update': debugLog("Verarbeite 'lobby-update'..."); updateLobby(payload); debugLog("'lobby-update' Verarbeitung abgeschlossen."); break;
             case 'ready-update': elements.readyStatus.textContent = `${payload.readyCount}/${payload.totalPlayers} Spieler bereit`; break;
@@ -160,26 +166,76 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.headerScoreboard.classList.toggle('hidden', !showHeaderScoreboard);
     }
     
-    async function fetchAndDisplayDevices() { /* ... (Code ist identisch) ... */ }
-    async function fetchAndDisplayPlaylists() { /* ... (Code ist identisch) ... */ }
+    async function fetchAndDisplayDevices() {
+        debugLog("Starte fetchAndDisplayDevices...");
+        elements.refreshDevicesButton.disabled = true;
+        elements.deviceSelect.innerHTML = `<option>Suche Geräte...</option>`;
+        try {
+            const response = await fetch('/api/devices', { headers: { 'Authorization': `Bearer ${spotifyToken}` } });
+            if (!response.ok) { throw new Error(`Server-Antwort nicht ok: ${response.status}`); }
+            const data = await response.json();
+            if (data.devices && data.devices.length > 0) {
+                elements.deviceSelect.innerHTML = data.devices.map(d => `<option value="${d.id}" ${d.is_active ? 'selected' : ''}>${d.name} (${d.type})</option>`).join('');
+            } else {
+                elements.deviceSelect.innerHTML = `<option value="">Keine aktiven Geräte. Öffne Spotify & klicke ↻.</option>`;
+            }
+            debugLog("Geräte erfolgreich geladen und angezeigt.");
+        } catch (e) { 
+            debugLog(`Fehler in fetchAndDisplayDevices: ${e.message}`);
+            elements.deviceSelect.innerHTML = `<option value="">Geräte laden fehlgeschlagen</option>`; 
+        } finally { 
+            elements.refreshDevicesButton.disabled = false; 
+            sendSettingsUpdate(); 
+        }
+    }
+
+    async function fetchAndDisplayPlaylists() {
+        debugLog("Starte fetchAndDisplayPlaylists...");
+        try {
+            const response = await fetch('/api/playlists', { headers: { 'Authorization': `Bearer ${spotifyToken}` } });
+            if (!response.ok) { throw new Error(`Server-Antwort nicht ok: ${response.status}`); }
+            const data = await response.json();
+            if (data.items.length === 0) {
+                elements.playlistSelect.innerHTML = `<option value="">Keine Playlists gefunden</option>`;
+            } else {
+                elements.playlistSelect.innerHTML = data.items.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            }
+            debugLog("Playlists erfolgreich geladen und angezeigt.");
+        } catch (e) { 
+            debugLog(`Fehler in fetchAndDisplayPlaylists: ${e.message}`);
+            elements.playlistSelect.innerHTML = `<option value="">Playlists laden fehlgeschlagen</option>`; 
+        }
+    }
     
     function updateLobby({ pin, players, hostId, settings }) {
         debugLog("Funktion 'updateLobby' wird ausgeführt...");
         elements.lobbyPinDisplay.textContent = pin;
         elements.playerList.innerHTML = players.map(p => { const hostIcon = p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''; return `<li><span>${p.nickname}</span>${hostIcon}</li>`; }).join('');
-        
         debugLog(`isHost Status: ${isHost}`);
         elements.hostSettings.classList.toggle('hidden', !isHost);
         elements.guestWaitingMessage.classList.toggle('hidden', isHost);
-
         if (isHost && settings) {
             debugLog("Host-Einstellungen werden angewendet...");
-            // ... (Rest der Funktion bleibt unverändert)
+            if (settings.deviceId) elements.deviceSelect.value = settings.deviceId;
+            if (settings.playlistId) elements.playlistSelect.value = settings.playlistId;
+            document.querySelectorAll('#song-count-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.songCount));
+            document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.guessTime));
         }
         debugLog("UI-Elemente für Lobby aktualisiert.");
     }
 
-    function showCountdown({ round, totalRounds }) { /* ... (Code ist identisch) ... */ }
+    function showCountdown({ round, totalRounds }) {
+        clearInterval(countdownInterval);
+        elements.countdownRoundInfo.textContent = `Runde ${round} / ${totalRounds}`;
+        showScreen('countdown-screen');
+        let count = 5;
+        elements.countdownTimer.textContent = count;
+        countdownInterval = setInterval(() => {
+            count--;
+            elements.countdownTimer.textContent = count;
+            if (count <= 0) { clearInterval(countdownInterval); }
+        }, 1000);
+    }
 
     function startRoundUI({ round, totalRounds, guessTime, totalPlayers }) {
         clearInterval(clientRoundTimer);
@@ -228,7 +284,6 @@ document.addEventListener('DOMContentLoaded', () => {
         clearInterval(clientRoundTimer);
         showScreen('result-screen');
         elements.scoreboardList.innerHTML = scores.map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('');
-
         if (gameMode === 'timeline') {
             elements.correctAnswerInfo.textContent = `Der Song war "${song.title}" aus dem Jahr ${song.year}.`;
             let breakdownHtml = wasCorrect ? '<span><span class="points">Richtig platziert!</span></span>' : '<span>Leider falsch platziert.</span>';
@@ -250,17 +305,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function updateHeaderScoreboard(players, hostId) { /* ... (Code ist identisch) ... */ }
-    function updatePinDisplay() { /* ... (Code ist identisch) ... */ }
-    function updateCustomInputDisplay() { /* ... (Code ist identisch) ... */ }
-    function sendSettingsUpdate() { /* ... (Code ist identisch) ... */ }
+    function updateHeaderScoreboard(players, hostId) {
+        if (!players || !Array.isArray(players)) return;
+        elements.headerScoreboard.innerHTML = players.sort((a,b) => b.score - a.score).map(p => `<span>${p.nickname}: ${p.score}${p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''}</span>`).join('');
+    }
+    
+    function updatePinDisplay() { elements.pinDisplayDigits.forEach((digit, index) => { digit.textContent = currentPin[index] || ''; digit.classList.toggle('filled', currentPin.length > index); }); }
+    
+    function updateCustomInputDisplay() {
+        elements.customInputDisplayDigits.forEach((digit, index) => {
+            digit.textContent = currentCustomInput.value[index] || '';
+            digit.classList.toggle('filled', currentCustomInput.value.length > index);
+        });
+    }
+
+    function sendSettingsUpdate() {
+        if (!isHost) return;
+        const songCountBtn = document.querySelector('#song-count-options .option-btn.active');
+        const guessTimeBtn = document.querySelector('#guess-time-options .option-btn.active');
+        sendMessage('update-settings', { 
+            deviceId: elements.deviceSelect.value, 
+            playlistId: elements.playlistSelect.value, 
+            songCount: parseInt(songCountBtn.dataset.value), 
+            guessTime: parseInt(guessTimeBtn.dataset.value) 
+        });
+    }
     
     // --- EVENT LISTENERS ---
-    elements.nicknameSubmitButton.addEventListener('click', () => { /* ... (Code ist identisch) ... */ });
-    elements.welcomeNickname.addEventListener('click', () => { /* ... (Code ist identisch) ... */ });
-    elements.logoutButton.addEventListener('click', async () => { /* ... (Code ist identisch) ... */ });
+    elements.nicknameSubmitButton.addEventListener('click', () => { myNickname = elements.nicknameInput.value.trim(); if (myNickname) { localStorage.setItem('nickname', myNickname); initializeApp(); } });
+    elements.welcomeNickname.addEventListener('click', () => { elements.nicknameInput.value = myNickname; showScreen('nickname-screen'); });
+    elements.logoutButton.addEventListener('click', async () => { await fetch('/logout', { method: 'POST' }); spotifyToken = null; window.location.reload(); });
     elements.showCreateButtonAction.addEventListener('click', () => showScreen('mode-selection-screen'));
-    elements.showJoinButton.addEventListener('click', () => { /* ... (Code ist identisch) ... */ });
+    elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
     
     elements.modeBoxes.forEach(box => {
         box.addEventListener('click', () => {
@@ -280,19 +356,86 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModal = () => elements.joinModalOverlay.classList.add('hidden');
     elements.closeModalButtonExit.addEventListener('click', closeModal);
 
-    elements.numpadJoin.forEach(button => { /* ... (Code ist identisch) ... */ });
-    elements.joinGameButton.addEventListener('click', () => { /* ... (Code ist identisch) ... */ });
-    elements.songCountOptions.addEventListener('click', (e) => { /* ... (Code ist identisch) ... */ });
-    elements.guessTimeOptions.addEventListener('click', (e) => { /* ... (Code ist identisch) ... */ });
-    function openCustomInputDialog(title, type, target) { /* ... (Code ist identisch) ... */ }
-    elements.numpadCustom.forEach(button => { /* ... (Code ist identisch) ... */ });
-    elements.customInputSubmit.addEventListener('click', () => { /* ... (Code ist identisch) ... */ });
+    elements.numpadJoin.forEach(button => {
+        button.addEventListener('click', () => {
+            const action = button.dataset.action;
+            const value = button.textContent.trim();
+            if (action === 'clear') { currentPin = ''; } 
+            else if (action === 'backspace') { currentPin = currentPin.slice(0, -1); } 
+            else if (currentPin.length < 4 && !isNaN(parseInt(value))) { currentPin += value; }
+            updatePinDisplay();
+        });
+    });
+
+    elements.joinGameButton.addEventListener('click', () => { myNickname = localStorage.getItem('nickname'); if (currentPin.length === 4 && myNickname) { connectToServer(() => sendMessage('join-game', { pin: currentPin, nickname: myNickname })); } });
+    
+    elements.songCountOptions.addEventListener('click', (e) => {
+        const target = e.target.closest('.option-btn');
+        if (!target) return;
+        if (target.dataset.action === 'custom') { openCustomInputDialog('Anzahl Songs', 'song-count', target); } 
+        else { document.querySelectorAll('#song-count-options .option-btn').forEach(btn => btn.classList.remove('active')); target.classList.add('active'); sendSettingsUpdate(); }
+    });
+
+    elements.guessTimeOptions.addEventListener('click', (e) => {
+        const target = e.target.closest('.option-btn');
+        if (!target) return;
+        if (target.dataset.action === 'custom') { openCustomInputDialog('Ratezeit (Sek.)', 'guess-time', target); } 
+        else { document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.remove('active')); target.classList.add('active'); sendSettingsUpdate(); }
+    });
+
+    function openCustomInputDialog(title, type, target) {
+        currentCustomInput = { value: '', type, target };
+        elements.customInputTitle.textContent = title;
+        updateCustomInputDisplay();
+        elements.customInputModalOverlay.classList.remove('hidden');
+    }
+
+    elements.numpadCustom.forEach(button => {
+        button.addEventListener('click', () => {
+            const action = button.dataset.action;
+            const value = button.textContent.trim();
+            if (action === 'clear') { currentCustomInput.value = ''; } 
+            else if (action === 'backspace') { currentCustomInput.value = currentCustomInput.value.slice(0, -1); } 
+            else if (currentCustomInput.value.length < 3 && !isNaN(parseInt(value))) { currentCustomInput.value += value; }
+            updateCustomInputDisplay();
+        });
+    });
+
+    elements.customInputSubmit.addEventListener('click', () => {
+        if (!currentCustomInput.value) return;
+        const { target, value, type } = currentCustomInput;
+        const parentSelector = `#${type}-options`;
+        document.querySelectorAll(`${parentSelector} .option-btn`).forEach(btn => btn.classList.remove('active'));
+        target.classList.add('active');
+        target.textContent = value;
+        target.dataset.value = value;
+        sendSettingsUpdate();
+        elements.customInputModalOverlay.classList.add('hidden');
+    });
+
     elements.customInputCancel.addEventListener('click', () => elements.customInputModalOverlay.classList.add('hidden'));
+
     elements.refreshDevicesButton.addEventListener('click', fetchAndDisplayDevices);
     elements.deviceSelect.addEventListener('change', sendSettingsUpdate);
     elements.playlistSelect.addEventListener('change', sendSettingsUpdate);
-    elements.startGameButton.addEventListener('click', () => { /* ... (Code ist identisch) ... */ });
-    elements.submitGuessButton.addEventListener('click', () => { /* ... (Code ist identisch) ... */ });
-    elements.readyButton.addEventListener('click', () => { /* ... (Code ist identisch) ... */ });
-    elements.leaveButton.addEventListener('click', () => { /* ... (Code ist identisch) ... */ });
+    
+    elements.startGameButton.addEventListener('click', () => {
+        if (!elements.deviceSelect.value) { alert("Bitte wähle zuerst ein Wiedergabegerät aus."); return; }
+        sendMessage('start-game');
+    });
+
+    elements.submitGuessButton.addEventListener('click', () => {
+        const guess = { artist: elements.artistGuess.value.trim(), title: elements.titleGuess.value.trim(), year: parseInt(elements.yearGuess.value, 10) || 0 };
+        sendMessage('submit-guess', { guess });
+    });
+
+    elements.readyButton.addEventListener('click', () => {
+        sendMessage('player-ready');
+        elements.readyButton.disabled = true;
+    });
+
+    elements.leaveButton.addEventListener('click', () => {
+        if (ws.socket) { ws.socket.onclose = () => {}; ws.socket.close(); ws.socket = null; }
+        showScreen('home-screen');
+    });
 });

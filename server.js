@@ -6,6 +6,14 @@ const axios = require('axios');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
+process.on('uncaughtException', (err, origin) => {
+    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+    console.error('!! UNERWARTETER FEHLER (UNCAUGHT EXCEPTION) !!');
+    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+    console.error(`Fehler: ${err.stack}`);
+    console.error(`Ursprung: ${origin}`);
+});
+
 const app = express();
 const server = http.createServer(app);
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
@@ -44,10 +52,12 @@ function normalizeString(str) {
 }
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
 app.get('/login', (req, res) => {
     const scopes = 'user-read-private user-read-email playlist-read-private streaming user-modify-playback-state user-read-playback-state';
     res.redirect('https://accounts.spotify.com/authorize?' + new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, scope: scopes, redirect_uri: REDIRECT_URI }).toString());
 });
+
 app.get('/callback', async (req, res) => {
     const code = req.query.code || null;
     if (!code) return res.redirect('/#error=auth_failed');
@@ -57,26 +67,48 @@ app.get('/callback', async (req, res) => {
         res.redirect('/');
     } catch (error) { res.redirect('/#error=token_failed'); }
 });
+
 app.post('/logout', (req, res) => { res.clearCookie('spotify_access_token'); res.status(200).json({ message: 'Erfolgreich ausgeloggt' }); });
+
 app.get('/api/status', (req, res) => {
     const token = req.cookies.spotify_access_token;
     if (token) { res.json({ loggedIn: true, token: token }); } else { res.status(401).json({ loggedIn: false }); }
 });
+
 app.get('/api/playlists', async (req, res) => {
+    console.log("Anfrage an /api/playlists erhalten.");
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: "Nicht autorisiert" });
+    if (!token) {
+        console.error("/api/playlists: Kein Token gefunden.");
+        return res.status(401).json({ message: "Nicht autorisiert" });
+    }
     try {
+        console.log("/api/playlists: Rufe Spotify API ab...");
         const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
+        console.log("/api/playlists: Erfolgreiche Antwort von Spotify erhalten.");
         res.json(d.data);
-    } catch (e) { console.error("Spotify /playlists API Fehler:", e.response ? JSON.stringify(e.response.data, null, 2) : e.message); res.status(500).json({ message: "Fehler beim Abrufen der Playlists" }); }
+    } catch (e) { 
+        console.error("!!! Spotify /playlists API Fehler:", e.response ? JSON.stringify(e.response.data, null, 2) : e.message); 
+        res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Playlists" }); 
+    }
 });
+
 app.get('/api/devices', async (req, res) => {
+    console.log("Anfrage an /api/devices erhalten.");
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).json({ message: "Nicht autorisiert" });
+    if (!token) {
+        console.error("/api/devices: Kein Token gefunden.");
+        return res.status(401).json({ message: "Nicht autorisiert" });
+    }
     try {
+        console.log("/api/devices: Rufe Spotify API ab...");
         const d = await axios.get('https://api.spotify.com/v1/me/player/devices', { headers: { 'Authorization': `Bearer ${token}` } });
+        console.log("/api/devices: Erfolgreiche Antwort von Spotify erhalten.");
         res.json(d.data);
-    } catch (e) { console.error("!!! Spotify /devices API Fehler:", e.response ? JSON.stringify(e.response.data, null, 2) : e.message); res.status(500).json({ message: "Fehler beim Abrufen der Geräte" }); }
+    } catch (e) { 
+        console.error("!!! Spotify /devices API Fehler:", e.response ? JSON.stringify(e.response.data, null, 2) : e.message); 
+        res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Geräte" }); 
+    }
 });
 
 const wss = new WebSocket.Server({ server });
@@ -192,7 +224,10 @@ function evaluateRound(pin) {
         Object.keys(game.players).forEach(pId => {
             const player = game.players[pId];
             const guess = game.guesses[pId];
-            if (guess === undefined) return;
+            if (guess === undefined) {
+                player.lastGuess = { wasCorrect: false };
+                return
+            };
             const correctIndex = game.timeline.findIndex(card => card.year > song.year);
             const finalIndex = correctIndex === -1 ? game.timeline.length : correctIndex;
             const wasCorrect = finalIndex === guess.index;
