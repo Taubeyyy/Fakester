@@ -1,3 +1,26 @@
+// --- On-Screen Debug Konsole ---
+window.onerror = function(message, source, lineno, colno, error) {
+    const consoleElement = document.getElementById('debug-console');
+    if (consoleElement) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry error';
+        const fileName = source.split('/').pop();
+        entry.innerHTML = `<strong>Fehler:</strong> ${message}<br><strong>Datei:</strong> ${fileName} (Zeile ${lineno})`;
+        consoleElement.appendChild(entry);
+    }
+    return true;
+};
+function debugLog(message) {
+    const consoleElement = document.getElementById('debug-console');
+    if (consoleElement) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry info';
+        entry.textContent = `LOG: ${message}`;
+        consoleElement.appendChild(entry);
+    }
+}
+// --- Ende der Debug Konsole ---
+
 document.addEventListener('DOMContentLoaded', () => {
     const ws = { socket: null };
     let myPlayerId = null, myNickname = '', isHost = false, spotifyToken = null;
@@ -89,7 +112,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     initializeApp();
-    function connectToServer(onOpenCallback) { const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; ws.socket = new WebSocket(`${protocol}//${window.location.host}`); ws.socket.onopen = onOpenCallback; ws.socket.onmessage = handleServerMessage; }
+
+    function connectToServer(onOpenCallback) {
+        debugLog('Versuche, eine WebSocket-Verbindung aufzubauen...');
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws.socket = new WebSocket(`${protocol}//${window.location.host}`);
+        ws.socket.onopen = () => {
+            debugLog('WebSocket-Verbindung erfolgreich geöffnet.');
+            onOpenCallback();
+        };
+        ws.socket.onmessage = handleServerMessage;
+        ws.socket.onerror = (event) => { window.onerror('WebSocket Fehler.', 'script.js', 0, 0, event); };
+        ws.socket.onclose = (event) => { debugLog(`WebSocket geschlossen. Code: ${event.code}`); };
+    }
+    
     function sendMessage(type, payload) { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type, payload })); } }
     
     function handleServerMessage(event) {
@@ -235,11 +271,15 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.modeBoxes.forEach(box => {
         box.addEventListener('click', () => {
             const mode = box.dataset.mode;
+            debugLog(`Spielmodus-Box geklickt: "${mode}"`);
             if (box.classList.contains('disabled')) {
                 alert('Dieser Spielmodus ist noch nicht verfügbar.');
                 return;
             }
-            connectToServer(() => { sendMessage('create-game', { nickname: myNickname, token: spotifyToken, gameMode: mode }); });
+            connectToServer(() => {
+                debugLog(`Sende 'create-game' Nachricht für Modus: ${mode}`);
+                sendMessage('create-game', { nickname: myNickname, token: spotifyToken, gameMode: mode });
+            });
         });
     });
 
