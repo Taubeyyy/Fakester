@@ -3,6 +3,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let myPlayerId = null, myNickname = '', isHost = false, spotifyToken = null;
     let countdownInterval = null, clientRoundTimer = null;
     let currentCustomInput = { value: '', type: null, target: null };
+    let clientSideGuess = { artist: '', title: '', year: '' };
+    let hasSubmittedGuess = false;
 
     const elements = {
         screens: document.querySelectorAll('.screen'),
@@ -43,7 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
         artistGuess: document.getElementById('artist-guess'),
         titleGuess: document.getElementById('title-guess'),
         yearGuess: document.getElementById('year-guess'),
-        submitGuessButton: document.getElementById('submit-guess-button'),
         readyButton: document.getElementById('ready-button'),
         readyStatus: document.getElementById('ready-status'),
         timelineScreen: document.getElementById('timeline-screen'),
@@ -129,8 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateHeaderScoreboard(payload.scores, payload.hostId); 
                 break;
             case 'guess-received': 
-                if (elements.submitGuessButton) { elements.submitGuessButton.disabled = true; } 
-                // No longer disabling timeline zones here, selection is handled visually
                 break;
             case 'round-result': updateHeaderScoreboard(payload.scores, payload.hostId); showResultUI(payload); break;
             case 'game-over': elements.headerScoreboard.classList.add('hidden'); alert("Spiel vorbei!"); showScreen('home-screen'); break;
@@ -209,25 +208,44 @@ document.addEventListener('DOMContentLoaded', () => {
             if (count <= 0) { clearInterval(countdownInterval); }
         }, 1000);
     }
-    
-    function startTimer(duration, displayElement) {
+
+    function startTimer(duration, displayElement, onEndCallback) {
         clearInterval(clientRoundTimer);
         let time = duration;
         displayElement.textContent = time;
         clientRoundTimer = setInterval(() => { 
             time--; 
             displayElement.textContent = time; 
-            if (time <= 0) { clearInterval(clientRoundTimer); } 
+            if (time <= 0) { 
+                clearInterval(clientRoundTimer);
+                if (onEndCallback) onEndCallback();
+            } 
         }, 1000);
     }
 
     function startRoundUI({ round, totalRounds, guessTime, totalPlayers }) {
+        hasSubmittedGuess = false;
+        clientSideGuess = { artist: '', title: '', year: '' };
+
         elements.roundInfo.textContent = `Runde ${round} / ${totalRounds}`;
-        ['artist-guess', 'title-guess', 'year-guess'].forEach(id => document.getElementById(id).value = '');
-        elements.submitGuessButton.disabled = false;
+        
+        const inputs = [elements.artistGuess, elements.titleGuess, elements.yearGuess];
+        inputs.forEach(input => {
+            input.value = '';
+            input.disabled = false;
+        });
+
         elements.readyButton.disabled = false;
         elements.readyStatus.textContent = `0/${totalPlayers} Spieler bereit`;
-        startTimer(guessTime, elements.timeLeft);
+        
+        startTimer(guessTime, elements.timeLeft, () => {
+            if (!hasSubmittedGuess) {
+                sendMessage('submit-guess', { guess: clientSideGuess });
+                hasSubmittedGuess = true;
+                inputs.forEach(input => input.disabled = true);
+                elements.readyButton.disabled = true;
+            }
+        });
         showScreen('game-screen');
     }
 
@@ -265,7 +283,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleDropZoneClick(event) {
         const clickedZone = event.currentTarget;
-        // FIX: Remove 'selected' from all other zones and add it to the clicked one
         document.querySelectorAll('.drop-zone').forEach(zone => zone.classList.remove('selected'));
         clickedZone.classList.add('selected');
 
@@ -273,28 +290,40 @@ document.addEventListener('DOMContentLoaded', () => {
         sendMessage('submit-guess', { index: parseInt(index) });
     }
 
-    function showResultUI({ song, scores, gameMode }) {
+    function showResultUI({ song, scores, gameMode, hostId }) {
         clearInterval(clientRoundTimer);
         showScreen('result-screen');
-        elements.scoreboardList.innerHTML = scores.map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('');
+        
+        elements.scoreboardList.innerHTML = scores.map((p, index) => {
+            const rank = index + 1;
+            const isMeClass = p.id === myPlayerId ? 'is-me' : '';
+            const hostIcon = p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : '';
+            return `<li class="${isMeClass}">
+                        <span class="scoreboard-rank">${rank}</span>
+                        <span class="scoreboard-nickname">${p.nickname}${hostIcon}</span>
+                        <span class="scoreboard-score">${p.score}</span>
+                    </li>`;
+        }).join('');
+
         if (gameMode === 'timeline') {
             const myResult = scores.find(p => p.id === myPlayerId);
             const correctPlacement = myResult?.lastGuess?.wasCorrect;
+            document.getElementById('result-title').textContent = "Rundenende";
             elements.correctAnswerInfo.textContent = `Der Song war "${song.title}" aus dem Jahr ${song.year}.`;
-            let breakdownHtml = correctPlacement ? '<span><span class="points">Richtig platziert!</span></span>' : '<span>Leider falsch platziert.</span>';
+            let breakdownHtml = correctPlacement ? '<span>Richtig platziert! <span class="points">+100</span></span>' : '<span>Leider falsch platziert.</span>';
             elements.pointsBreakdown.innerHTML = breakdownHtml;
         } else {
+            document.getElementById('result-title').textContent = "Richtige Antwort";
             elements.correctAnswerInfo.textContent = `${song.artist} - ${song.title} (${song.year})`;
             const myResult = scores.find(p => p.id === myPlayerId);
             let breakdownHtml = '';
             if (myResult && myResult.pointsBreakdown) {
                 const breakdown = myResult.pointsBreakdown;
-                if(breakdown.artist > 0) breakdownHtml += `<span>Künstler: <span class="points">+${breakdown.artist}</span></span>`;
-                if(breakdown.title > 0) breakdownHtml += `<span>Titel: <span class="points">+${breakdown.title}</span></span>`;
-                if(breakdown.year > 0) breakdownHtml += `<span>Jahr: <span class="points">+${breakdown.year}</span></span>`;
-                if (breakdown.artist === 0 && breakdown.title === 0 && breakdown.year === 0) {
-                    breakdownHtml = '<span>Leider keine Punkte in dieser Runde.</span>';
-                }
+                breakdownHtml += `<span>Künstler <span class="points">+${breakdown.artist || 0}</span></span>`;
+                breakdownHtml += `<span>Titel <span class="points">+${breakdown.title || 0}</span></span>`;
+                breakdownHtml += `<span>Jahr <span class="points">+${breakdown.year || 0}</span></span>`;
+            } else {
+                 breakdownHtml = '<span>Keine Punkte in dieser Runde.</span>';
             }
             elements.pointsBreakdown.innerHTML = breakdownHtml;
         }
@@ -302,7 +331,21 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function updateHeaderScoreboard(players, hostId) {
         if (!players || !Array.isArray(players)) return;
-        elements.headerScoreboard.innerHTML = players.sort((a,b) => b.score - a.score).map(p => `<span>${p.nickname}: ${p.score}${p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''}</span>`).join('');
+
+        const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+        const topPlayers = sortedPlayers.slice(0, 3);
+        const medals = ['🥇', '🥈', '🥉'];
+
+        elements.headerScoreboard.innerHTML = topPlayers.map((p, index) => {
+            const medal = medals[index] || '';
+            const hostIcon = p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : '';
+
+            return `<div class="header-player">
+                        <span class="header-player-medal">${medal}</span>
+                        <span class="header-player-name">${p.nickname}${hostIcon}</span>
+                        <span class="header-player-score">${p.score}</span>
+                    </div>`;
+        }).join('');
     }
     
     function updatePinDisplay() { elements.pinDisplayDigits.forEach((digit, index) => { digit.textContent = currentPin[index] || ''; digit.classList.toggle('filled', currentPin.length > index); }); }
@@ -417,19 +460,29 @@ document.addEventListener('DOMContentLoaded', () => {
         sendMessage('start-game');
     });
 
-    elements.submitGuessButton.addEventListener('click', () => {
-        const guess = { artist: elements.artistGuess.value.trim(), title: elements.titleGuess.value.trim(), year: parseInt(elements.yearGuess.value, 10) || 0 };
-        sendMessage('submit-guess', { guess });
+    [elements.artistGuess, elements.titleGuess, elements.yearGuess].forEach(input => {
+        input.addEventListener('input', () => {
+            clientSideGuess.artist = elements.artistGuess.value.trim();
+            clientSideGuess.title = elements.titleGuess.value.trim();
+            clientSideGuess.year = parseInt(elements.yearGuess.value, 10) || 0;
+        });
     });
 
     elements.readyButton.addEventListener('click', () => {
+        if (hasSubmittedGuess) return;
+        sendMessage('submit-guess', { guess: clientSideGuess });
         sendMessage('player-ready');
+        hasSubmittedGuess = true;
         elements.readyButton.disabled = true;
+        [elements.artistGuess, elements.titleGuess, elements.yearGuess].forEach(input => input.disabled = true);
     });
     
     elements.timelineReadyButton.addEventListener('click', () => {
         sendMessage('player-ready');
         elements.timelineReadyButton.disabled = true;
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.style.pointerEvents = 'none';
+        });
     });
 
     elements.leaveButton.addEventListener('click', () => {

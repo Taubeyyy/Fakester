@@ -139,9 +139,8 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'start-game': if (game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
         case 'submit-guess':
             if (game.gameState === 'PLAYING') {
-                if (!game.guesses) game.guesses = {};
-                // FIX: Only accept the first guess from a player per round
-                if (game.guesses[playerId] === undefined) {
+                if (!game.readyPlayers.includes(playerId)) {
+                    if (!game.guesses) game.guesses = {};
                     game.guesses[playerId] = payload.guess || payload;
                     ws.send(JSON.stringify({ type: 'guess-received' }));
                 }
@@ -151,7 +150,6 @@ function handleWebSocketMessage(ws, { type, payload }) {
             if (game && !game.readyPlayers.includes(playerId)) {
                 game.readyPlayers.push(playerId);
                 broadcastToLobby(pin, { type: 'ready-update', payload: { readyCount: game.readyPlayers.length, totalPlayers: Object.keys(game.players).length } });
-                // FIX: Also evaluate round early if all players are ready in timeline mode
                 if (game.readyPlayers.length === Object.keys(game.players).length) {
                     clearTimeout(game.roundTimer);
                     evaluateRound(pin);
@@ -190,7 +188,6 @@ async function startGame(pin) {
         if (startCard) game.timeline.push(startCard);
     }
     
-    // FIX: Correctly handle "All" songs option (-1)
     if (game.settings.songCount > 0) {
         game.songList = game.songList.slice(0, Math.min(game.settings.songCount, game.songList.length));
     }
@@ -206,7 +203,6 @@ function startRoundCountdown(pin) {
 function startNewRound(pin) {
     const game = games[pin]; if (!game) return;
     
-    // FIX: Ensure correct song is selected before incrementing round counter
     game.currentSong = game.songList[game.currentRound];
     game.currentRound++;
 
