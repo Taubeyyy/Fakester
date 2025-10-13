@@ -52,7 +52,11 @@
                 </div>
                 <div class="mode-box" data-mode="timeline">
                     <h3>Timeline Challenge</h3>
-                    <p>Platziere die Songs in der korrekten chronologischen Reihenfolge auf einer Zeitlinie.</p>
+                    <p>Platziere die Songs in der korrekten chronologischen Reihenfolge.</p>
+                </div>
+                <div class="mode-box" data-mode="popularity">
+                    <h3>Popularity Duell</h3>
+                    <p>Errate, ob der nächste Song populärer oder weniger populär ist als der vorherige.</p>
                 </div>
             </div>
         </div>
@@ -61,24 +65,24 @@
     <main id="lobby-screen" class="screen">
         <div class="container lobby-container">
             <div class="pin-display-large">
-                <p>Lobby PIN</p>
+                <p>Lobby PIN <button class="button-help" data-topic="pin" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></p>
                 <span id="lobby-pin">----</span>
             </div>
             <ul id="player-list"></ul>
             <div id="host-settings" class="hidden">
                 <div class="setting">
-                    <label for="device-select">Wiedergabegerät</label>
+                    <label for="device-select">Wiedergabegerät <button class="button-help" data-topic="device" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></label>
                     <div class="select-with-refresh">
                         <select id="device-select"><option>Geräte werden geladen...</option></select>
                         <button id="refresh-devices-button" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
                     </div>
                 </div>
                 <div class="setting">
-                    <label for="playlist-select">Playlist</label>
+                    <label for="playlist-select">Playlist <button class="button-help" data-topic="playlist" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></label>
                     <select id="playlist-select"><option>Playlists werden geladen...</option></select>
                 </div>
                 <div class="setting">
-                    <label>Anzahl Songs</label>
+                    <label>Anzahl Songs <button class="button-help" data-topic="song-count" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></label>
                     <div class="setting-grid" id="song-count-options">
                         <button class="option-btn active" data-value="10">10</button>
                         <button class="option-btn" data-value="20">20</button>
@@ -87,7 +91,7 @@
                     </div>
                 </div>
                 <div class="setting">
-                    <label>Ratezeit (Sek.)</label>
+                    <label>Ratezeit (Sek.) <button class="button-help" data-topic="guess-time" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></label>
                     <div class="setting-grid" id="guess-time-options">
                         <button class="option-btn" data-value="10">10</button>
                         <button class="option-btn" data-value="20">20</button>
@@ -150,12 +154,49 @@
             </div>
             <p>...auf der Zeitlinie:</p>
             <div id="timeline-container-wrapper">
-                <div id="timeline-container">
-                    </div>
+                <div id="timeline-container"></div>
             </div>
             <div class="round-actions" id="timeline-actions">
                 <button id="timeline-ready-button" class="button-secondary">Ready</button>
                 <span id="timeline-ready-status">0/1 Spieler bereit</span>
+            </div>
+        </div>
+    </main>
+
+    <main id="popularity-screen" class="screen">
+        <div class="container popularity-container">
+            <div class="game-header" id="popularity-header">
+                <span id="popularity-round-info">Runde 2 / 10</span>
+                <div class="timer-display">
+                    <i class="fa-regular fa-clock"></i>
+                    <span id="popularity-time-left">30</span>
+                </div>
+            </div>
+            <div class="popularity-comparison">
+                <div class="song-card previous-song">
+                    <p class="card-label">Vorheriger Song</p>
+                    <strong id="prev-song-title">Song Title</strong>
+                    <span id="prev-song-artist">Artist</span>
+                    <div class="popularity-display">
+                        <p>Popularität</p>
+                        <span id="prev-song-popularity">--</span>
+                    </div>
+                </div>
+                <div class="vs-divider">VS</div>
+                <div class="song-card current-song-guess">
+                    <p class="card-label">Nächster Song</p>
+                    <strong id="current-song-title">???</strong>
+                    <span id="current-song-artist">???</span>
+                     <div class="popularity-display">
+                        <p>Popularität</p>
+                        <span>??</span>
+                    </div>
+                </div>
+            </div>
+            <p id="popularity-instruction">Ist der nächste Song populärer oder weniger populär?</p>
+            <div class="popularity-buttons">
+                <button class="button-primary" id="guess-higher-button">Populärer ▲</button>
+                <button class="button-secondary" id="guess-lower-button">Weniger Populär ▼</button>
             </div>
         </div>
     </main>
@@ -207,6 +248,14 @@
             </div>
             <button id="custom-input-submit" class="button-primary">Bestätigen</button>
             <button id="custom-input-cancel" class="button-secondary">Abbrechen</button>
+        </div>
+    </div>
+
+    <div id="help-modal-overlay" class="hidden">
+        <div class="container modal">
+            <button id="help-modal-close" class="button-exit-modal" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
+            <h2 id="help-modal-title">Hilfe</h2>
+            <p id="help-modal-text"></p>
         </div>
     </div>
 
