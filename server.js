@@ -162,7 +162,7 @@ function startNewRound(pin) {
     if (!game.currentSong) return endGame(pin);
     axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response?.data || err.message));
     let payload = { round: game.currentRound, totalRounds: game.songList.length, scores: getScores(pin), hostId: game.hostId, totalPlayers: Object.keys(game.players).length, gameMode: game.gameMode, guessTime: game.settings.guessTime };
-    if (isPopularityMode) { payload.isFirstRound = game.currentRound === 1; payload.previousSong = game.previousSong; payload.currentSong = { title: game.currentSong.title, artist: game.currentSong.artist }; }
+    if (isPopularityMode) { payload.isFirstRound = game.currentRound === 1; payload.previousSong = game.previousSong; payload.currentSong = { title: game.currentSong.title, artist: game.currentSong.artist, popularity: game.currentSong.popularity }; }
     else if (game.gameMode === 'timeline') { payload.timeline = game.timeline; payload.currentSong = { title: game.currentSong.title, artist: game.currentSong.artist }; }
     broadcastToLobby(pin, { type: 'new-round', payload });
     game.roundTimer = setTimeout(() => evaluateRound(pin), (game.settings.guessTime || 30) * 1000);
@@ -177,9 +177,20 @@ function evaluateRound(pin) {
             player.lastPointsBreakdown = { artist: 0, title: 0, year: 0 }; if (!guess) return;
             const normTitle = normalizeString(song.title), normArtist = normalizeString(song.artist), normGuessTitle = normalizeString(guess.title), normGuessArtist = normalizeString(guess.artist);
             const artistDist = levenshteinDistance(normArtist, normGuessArtist), titleDist = levenshteinDistance(normTitle, normGuessTitle);
-            if (artistDist === 0) player.lastPointsBreakdown.artist = 75; else if (artistDist <= 2) player.lastPointsBreakdown.artist = 40;
-            if (titleDist === 0) player.lastPointsBreakdown.title = 75; else if (titleDist <= 3) player.lastPointsBreakdown.title = 40;
-            if (guess.year > 1000) { const yearDiff = Math.abs(guess.year - song.year); if (yearDiff === 0) player.lastPointsBreakdown.year = 100; else if (yearDiff <= 2) player.lastPointsBreakdown.year = 50; else if (yearDiff <= 5) player.lastPointsBreakdown.year = 25; }
+            
+            if (artistDist <= 2) player.lastPointsBreakdown.artist = 50; 
+            else if (artistDist <= 4) player.lastPointsBreakdown.artist = 25;
+            
+            if (titleDist <= 2) player.lastPointsBreakdown.title = 75;
+            else if (titleDist <= 4) player.lastPointsBreakdown.title = 40;
+
+            if (guess.year > 1000) { 
+                const yearDiff = Math.abs(guess.year - song.year); 
+                if (yearDiff === 0) player.lastPointsBreakdown.year = 100; 
+                else if (yearDiff <= 5) player.lastPointsBreakdown.year = 75; 
+                else if (yearDiff <= 15) player.lastPointsBreakdown.year = 50; 
+                else if (yearDiff <= 25) player.lastPointsBreakdown.year = 25; 
+            }
             player.score += player.lastPointsBreakdown.artist + player.lastPointsBreakdown.title + player.lastPointsBreakdown.year;
         } else if (game.gameMode === 'timeline') {
             if (guess === undefined) { player.lastGuess = { wasCorrect: false }; return; };
