@@ -135,6 +135,13 @@
 
     <main id="timeline-screen" class="screen">
         <div class="timeline-ui">
+             <div class="game-header" id="timeline-header">
+                <span id="timeline-round-info">Runde 1 / 10</span>
+                <div class="timer-display">
+                    <i class="fa-regular fa-clock"></i>
+                    <span id="timeline-time-left">30</span>
+                </div>
+            </div>
             <div id="current-song-to-place">
                 <p>Platziere diesen Song:</p>
                 <div class="timeline-card current-song">
@@ -146,6 +153,10 @@
             <div id="timeline-container-wrapper">
                 <div id="timeline-container">
                     </div>
+            </div>
+            <div class="round-actions" id="timeline-actions">
+                <button id="timeline-ready-button" class="button-secondary">Ready</button>
+                <span id="timeline-ready-status">0/1 Spieler bereit</span>
             </div>
         </div>
     </main>

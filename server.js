@@ -137,12 +137,22 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'join-game': const gameToJoin = games[payload.pin]; if (gameToJoin && gameToJoin.gameState === 'LOBBY') { ws.pin = payload.pin; gameToJoin.players[playerId] = { ws, nickname: payload.nickname, score: 0 }; ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId } })); broadcastLobbyUpdate(payload.pin); } else { ws.send(JSON.stringify({ type: 'error', payload: { message: 'Ungültiger PIN oder Spiel läuft bereits.' } })); } break;
         case 'update-settings': if (game.hostId === playerId) { game.settings = { ...game.settings, ...payload }; broadcastLobbyUpdate(pin); } break;
         case 'start-game': if (game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
-        case 'submit-guess': if (game.gameState === 'PLAYING') { if (!game.guesses) game.guesses = {}; game.guesses[playerId] = payload.guess || payload; ws.send(JSON.stringify({ type: 'guess-received' })); } break;
+        case 'submit-guess':
+            if (game.gameState === 'PLAYING') {
+                if (!game.guesses) game.guesses = {};
+                // FIX: Only accept the first guess from a player per round
+                if (game.guesses[playerId] === undefined) {
+                    game.guesses[playerId] = payload.guess || payload;
+                    ws.send(JSON.stringify({ type: 'guess-received' }));
+                }
+            }
+            break;
         case 'player-ready':
             if (game && !game.readyPlayers.includes(playerId)) {
                 game.readyPlayers.push(playerId);
                 broadcastToLobby(pin, { type: 'ready-update', payload: { readyCount: game.readyPlayers.length, totalPlayers: Object.keys(game.players).length } });
-                if (game.gameMode === 'quiz' && game.readyPlayers.length === Object.keys(game.players).length) {
+                // FIX: Also evaluate round early if all players are ready in timeline mode
+                if (game.readyPlayers.length === Object.keys(game.players).length) {
                     clearTimeout(game.roundTimer);
                     evaluateRound(pin);
                 }
@@ -178,11 +188,13 @@ async function startGame(pin) {
         game.timeline = [];
         const startCard = game.songList.shift();
         if (startCard) game.timeline.push(startCard);
-    } else {
-        if (game.settings.songCount > 0) {
-            game.songList = game.songList.slice(0, Math.min(game.settings.songCount, game.songList.length));
-        }
     }
+    
+    // FIX: Correctly handle "All" songs option (-1)
+    if (game.settings.songCount > 0) {
+        game.songList = game.songList.slice(0, Math.min(game.settings.songCount, game.songList.length));
+    }
+    
     startRoundCountdown(pin);
 }
 function startRoundCountdown(pin) {
@@ -193,25 +205,32 @@ function startRoundCountdown(pin) {
 }
 function startNewRound(pin) {
     const game = games[pin]; if (!game) return;
+    
+    // FIX: Ensure correct song is selected before incrementing round counter
+    game.currentSong = game.songList[game.currentRound];
     game.currentRound++;
+
     game.guesses = {};
     game.readyPlayers = [];
-    game.currentSong = game.songList[game.currentRound - 1];
+    
     if (!game.currentSong) return endGame(pin);
+
     axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } })
         .catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response ? err.response.data : err.message));
+        
     const totalPlayers = Object.keys(game.players).length;
     let payload = { 
         round: game.currentRound, totalRounds: game.songList.length, 
         scores: getScores(pin), hostId: game.hostId,
-        totalPlayers: totalPlayers, gameMode: game.gameMode
+        totalPlayers: totalPlayers, gameMode: game.gameMode,
+        guessTime: game.settings.guessTime
     };
+
     if (game.gameMode === 'timeline') {
         payload.timeline = game.timeline;
         payload.currentSong = { title: game.currentSong.title, artist: game.currentSong.artist };
-    } else {
-        payload.guessTime = game.settings.guessTime;
     }
+    
     broadcastToLobby(pin, { type: 'new-round', payload });
     game.roundTimer = setTimeout(() => evaluateRound(pin), (game.settings.guessTime || 30) * 1000);
 }

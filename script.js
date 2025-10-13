@@ -50,6 +50,10 @@ document.addEventListener('DOMContentLoaded', () => {
         timelineContainer: document.getElementById('timeline-container'),
         timelineCurrentTitle: document.getElementById('timeline-current-title'),
         timelineCurrentArtist: document.getElementById('timeline-current-artist'),
+        timelineRoundInfo: document.getElementById('timeline-round-info'),
+        timelineTimeLeft: document.getElementById('timeline-time-left'),
+        timelineReadyButton: document.getElementById('timeline-ready-button'),
+        timelineReadyStatus: document.getElementById('timeline-ready-status'),
         correctAnswerInfo: document.getElementById('correct-answer-info'),
         pointsBreakdown: document.getElementById('points-breakdown'),
         scoreboardList: document.getElementById('scoreboard-list'),
@@ -93,9 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function connectToServer(onOpenCallback) {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws.socket = new WebSocket(`${protocol}//${window.location.host}`);
-        ws.socket.onopen = () => {
-            onOpenCallback();
-        };
+        ws.socket.onopen = onOpenCallback;
         ws.socket.onmessage = handleServerMessage;
         ws.socket.onerror = (event) => { console.error('WebSocket Fehler:', event); };
         ws.socket.onclose = (event) => { console.log(`WebSocket geschlossen. Code: ${event.code}`); };
@@ -115,7 +117,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'join-success': myPlayerId = payload.playerId; isHost = false; elements.lobbyPinDisplay.textContent = payload.pin; elements.joinModalOverlay.classList.add('hidden'); showScreen('lobby-screen'); break;
             case 'lobby-update': updateLobby(payload); break;
-            case 'ready-update': elements.readyStatus.textContent = `${payload.readyCount}/${payload.totalPlayers} Spieler bereit`; break;
+            case 'ready-update': 
+                elements.readyStatus.textContent = `${payload.readyCount}/${payload.totalPlayers} Spieler bereit`; 
+                elements.timelineReadyStatus.textContent = `${payload.readyCount}/${payload.totalPlayers} Spieler bereit`; 
+                break;
             case 'error': alert(`Fehler: ${payload.message}`); break;
             case 'round-countdown': showCountdown(payload); break;
             case 'new-round': 
@@ -123,7 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 else { startRoundUI(payload); }
                 updateHeaderScoreboard(payload.scores, payload.hostId); 
                 break;
-            case 'guess-received': if(elements.submitGuessButton) { elements.submitGuessButton.disabled = true; } break;
+            case 'guess-received': 
+                if (elements.submitGuessButton) { elements.submitGuessButton.disabled = true; } 
+                // No longer disabling timeline zones here, selection is handled visually
+                break;
             case 'round-result': updateHeaderScoreboard(payload.scores, payload.hostId); showResultUI(payload); break;
             case 'game-over': elements.headerScoreboard.classList.add('hidden'); alert("Spiel vorbei!"); showScreen('home-screen'); break;
         }
@@ -189,9 +197,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showCountdown({ round, totalRounds }) {
+    function showCountdown({ round }) {
         clearInterval(countdownInterval);
-        elements.countdownRoundInfo.textContent = `Runde ${round} / ${totalRounds}`;
+        elements.countdownRoundInfo.textContent = `Runde ${round}`;
         showScreen('countdown-screen');
         let count = 5;
         elements.countdownTimer.textContent = count;
@@ -201,27 +209,41 @@ document.addEventListener('DOMContentLoaded', () => {
             if (count <= 0) { clearInterval(countdownInterval); }
         }, 1000);
     }
+    
+    function startTimer(duration, displayElement) {
+        clearInterval(clientRoundTimer);
+        let time = duration;
+        displayElement.textContent = time;
+        clientRoundTimer = setInterval(() => { 
+            time--; 
+            displayElement.textContent = time; 
+            if (time <= 0) { clearInterval(clientRoundTimer); } 
+        }, 1000);
+    }
 
     function startRoundUI({ round, totalRounds, guessTime, totalPlayers }) {
-        clearInterval(clientRoundTimer);
         elements.roundInfo.textContent = `Runde ${round} / ${totalRounds}`;
         ['artist-guess', 'title-guess', 'year-guess'].forEach(id => document.getElementById(id).value = '');
         elements.submitGuessButton.disabled = false;
         elements.readyButton.disabled = false;
         elements.readyStatus.textContent = `0/${totalPlayers} Spieler bereit`;
-        let time = guessTime;
-        elements.timeLeft.textContent = time;
-        clientRoundTimer = setInterval(() => { time--; elements.timeLeft.textContent = time; if (time <= 0) { clearInterval(clientRoundTimer); } }, 1000);
+        startTimer(guessTime, elements.timeLeft);
         showScreen('game-screen');
     }
 
-    function startTimelineRound({ timeline, currentSong }) {
+    function startTimelineRound({ round, totalRounds, guessTime, totalPlayers, timeline, currentSong }) {
+        elements.timelineRoundInfo.textContent = `Runde ${round} / ${totalRounds}`;
+        elements.timelineReadyButton.disabled = false;
+        elements.timelineReadyStatus.textContent = `0/${totalPlayers} Spieler bereit`;
+        startTimer(guessTime, elements.timelineTimeLeft);
+
         elements.timelineContainer.innerHTML = '';
         let firstDropZone = document.createElement('div');
         firstDropZone.className = 'drop-zone';
         firstDropZone.dataset.index = 0;
         firstDropZone.innerHTML = '<i class="fa-solid fa-plus"></i>';
         elements.timelineContainer.appendChild(firstDropZone);
+
         timeline.forEach((card, index) => {
             let cardElement = document.createElement('div');
             cardElement.className = 'timeline-card';
@@ -235,23 +257,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         elements.timelineCurrentTitle.textContent = currentSong.title;
         elements.timelineCurrentArtist.textContent = currentSong.artist;
-        document.querySelectorAll('.drop-zone').forEach(zone => { zone.addEventListener('click', handleDropZoneClick, { once: true }); });
+        document.querySelectorAll('.drop-zone').forEach(zone => { 
+            zone.addEventListener('click', handleDropZoneClick); 
+        });
         showScreen('timeline-screen');
     }
 
     function handleDropZoneClick(event) {
-        const index = event.currentTarget.dataset.index;
+        const clickedZone = event.currentTarget;
+        // FIX: Remove 'selected' from all other zones and add it to the clicked one
+        document.querySelectorAll('.drop-zone').forEach(zone => zone.classList.remove('selected'));
+        clickedZone.classList.add('selected');
+
+        const index = clickedZone.dataset.index;
         sendMessage('submit-guess', { index: parseInt(index) });
-        document.querySelectorAll('.drop-zone').forEach(zone => { zone.style.pointerEvents = 'none'; zone.style.opacity = '0.5'; });
     }
 
-    function showResultUI({ song, scores, gameMode, timeline, myGuess, wasCorrect }) {
+    function showResultUI({ song, scores, gameMode }) {
         clearInterval(clientRoundTimer);
         showScreen('result-screen');
         elements.scoreboardList.innerHTML = scores.map(p => `<li><span>${p.nickname}</span><span>${p.score}</span></li>`).join('');
         if (gameMode === 'timeline') {
+            const myResult = scores.find(p => p.id === myPlayerId);
+            const correctPlacement = myResult?.lastGuess?.wasCorrect;
             elements.correctAnswerInfo.textContent = `Der Song war "${song.title}" aus dem Jahr ${song.year}.`;
-            let breakdownHtml = wasCorrect ? '<span><span class="points">Richtig platziert!</span></span>' : '<span>Leider falsch platziert.</span>';
+            let breakdownHtml = correctPlacement ? '<span><span class="points">Richtig platziert!</span></span>' : '<span>Leider falsch platziert.</span>';
             elements.pointsBreakdown.innerHTML = breakdownHtml;
         } else {
             elements.correctAnswerInfo.textContent = `${song.artist} - ${song.title} (${song.year})`;
@@ -396,9 +426,14 @@ document.addEventListener('DOMContentLoaded', () => {
         sendMessage('player-ready');
         elements.readyButton.disabled = true;
     });
+    
+    elements.timelineReadyButton.addEventListener('click', () => {
+        sendMessage('player-ready');
+        elements.timelineReadyButton.disabled = true;
+    });
 
     elements.leaveButton.addEventListener('click', () => {
         if (ws.socket) { ws.socket.onclose = () => {}; ws.socket.close(); ws.socket = null; }
-        showScreen('home-screen');
+        window.location.reload();
     });
 });
