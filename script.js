@@ -1,26 +1,3 @@
-// --- On-Screen Debug Konsole ---
-window.onerror = function(message, source, lineno, colno, error) {
-    const consoleElement = document.getElementById('debug-console');
-    if (consoleElement) {
-        const entry = document.createElement('div');
-        entry.className = 'log-entry error';
-        const fileName = source.split('/').pop();
-        entry.innerHTML = `<strong>Fehler:</strong> ${message}<br><strong>Datei:</strong> ${fileName} (Zeile ${lineno})`;
-        consoleElement.appendChild(entry);
-    }
-    return true;
-};
-function debugLog(message) {
-    const consoleElement = document.getElementById('debug-console');
-    if (consoleElement) {
-        const entry = document.createElement('div');
-        entry.className = 'log-entry info';
-        entry.textContent = `LOG: ${message}`;
-        consoleElement.appendChild(entry);
-    }
-}
-// --- Ende der Debug Konsole ---
-
 document.addEventListener('DOMContentLoaded', () => {
     const ws = { socket: null };
     let myPlayerId = null, myNickname = '', isHost = false, spotifyToken = null;
@@ -114,34 +91,30 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
 
     function connectToServer(onOpenCallback) {
-        debugLog('Versuche, eine WebSocket-Verbindung aufzubauen...');
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws.socket = new WebSocket(`${protocol}//${window.location.host}`);
         ws.socket.onopen = () => {
-            debugLog('WebSocket-Verbindung erfolgreich geöffnet.');
             onOpenCallback();
         };
         ws.socket.onmessage = handleServerMessage;
-        ws.socket.onerror = (event) => { window.onerror('WebSocket Fehler.', 'script.js', 0, 0, event); };
-        ws.socket.onclose = (event) => { debugLog(`WebSocket geschlossen. Code: ${event.code}`); };
+        ws.socket.onerror = (event) => { console.error('WebSocket Fehler:', event); };
+        ws.socket.onclose = (event) => { console.log(`WebSocket geschlossen. Code: ${event.code}`); };
     }
     
     function sendMessage(type, payload) { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type, payload })); } }
     
     async function handleServerMessage(event) {
         const { type, payload } = JSON.parse(event.data);
-        debugLog(`Nachricht vom Server empfangen: Typ = ${type}`);
         switch (type) {
             case 'game-created': 
                 myPlayerId = payload.playerId; isHost = true; 
                 elements.lobbyPinDisplay.textContent = payload.pin; 
                 showScreen('lobby-screen'); 
-                debugLog("Status: Host. Lade Geräte und Playlists...");
                 await fetchAndDisplayDevices();
                 await fetchAndDisplayPlaylists();
                 break;
             case 'join-success': myPlayerId = payload.playerId; isHost = false; elements.lobbyPinDisplay.textContent = payload.pin; elements.joinModalOverlay.classList.add('hidden'); showScreen('lobby-screen'); break;
-            case 'lobby-update': debugLog("Verarbeite 'lobby-update'..."); updateLobby(payload); debugLog("'lobby-update' Verarbeitung abgeschlossen."); break;
+            case 'lobby-update': updateLobby(payload); break;
             case 'ready-update': elements.readyStatus.textContent = `${payload.readyCount}/${payload.totalPlayers} Spieler bereit`; break;
             case 'error': alert(`Fehler: ${payload.message}`); break;
             case 'round-countdown': showCountdown(payload); break;
@@ -167,7 +140,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function fetchAndDisplayDevices() {
-        debugLog("Starte fetchAndDisplayDevices...");
         elements.refreshDevicesButton.disabled = true;
         elements.deviceSelect.innerHTML = `<option>Suche Geräte...</option>`;
         try {
@@ -179,9 +151,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 elements.deviceSelect.innerHTML = `<option value="">Keine aktiven Geräte. Öffne Spotify & klicke ↻.</option>`;
             }
-            debugLog("Geräte erfolgreich geladen und angezeigt.");
         } catch (e) { 
-            debugLog(`Fehler in fetchAndDisplayDevices: ${e.message}`);
+            console.error(`Fehler in fetchAndDisplayDevices: ${e.message}`);
             elements.deviceSelect.innerHTML = `<option value="">Geräte laden fehlgeschlagen</option>`; 
         } finally { 
             elements.refreshDevicesButton.disabled = false; 
@@ -190,7 +161,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function fetchAndDisplayPlaylists() {
-        debugLog("Starte fetchAndDisplayPlaylists...");
         try {
             const response = await fetch('/api/playlists', { headers: { 'Authorization': `Bearer ${spotifyToken}` } });
             if (!response.ok) { throw new Error(`Server-Antwort nicht ok: ${response.status}`); }
@@ -200,28 +170,23 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 elements.playlistSelect.innerHTML = data.items.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
             }
-            debugLog("Playlists erfolgreich geladen und angezeigt.");
         } catch (e) { 
-            debugLog(`Fehler in fetchAndDisplayPlaylists: ${e.message}`);
+            console.error(`Fehler in fetchAndDisplayPlaylists: ${e.message}`);
             elements.playlistSelect.innerHTML = `<option value="">Playlists laden fehlgeschlagen</option>`; 
         }
     }
     
     function updateLobby({ pin, players, hostId, settings }) {
-        debugLog("Funktion 'updateLobby' wird ausgeführt...");
         elements.lobbyPinDisplay.textContent = pin;
         elements.playerList.innerHTML = players.map(p => { const hostIcon = p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''; return `<li><span>${p.nickname}</span>${hostIcon}</li>`; }).join('');
-        debugLog(`isHost Status: ${isHost}`);
         elements.hostSettings.classList.toggle('hidden', !isHost);
         elements.guestWaitingMessage.classList.toggle('hidden', isHost);
         if (isHost && settings) {
-            debugLog("Host-Einstellungen werden angewendet...");
             if (settings.deviceId) elements.deviceSelect.value = settings.deviceId;
             if (settings.playlistId) elements.playlistSelect.value = settings.playlistId;
             document.querySelectorAll('#song-count-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.songCount));
             document.querySelectorAll('#guess-time-options .option-btn').forEach(btn => btn.classList.toggle('active', parseInt(btn.dataset.value) === settings.guessTime));
         }
-        debugLog("UI-Elemente für Lobby aktualisiert.");
     }
 
     function showCountdown({ round, totalRounds }) {
@@ -341,13 +306,11 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.modeBoxes.forEach(box => {
         box.addEventListener('click', () => {
             const mode = box.dataset.mode;
-            debugLog(`Spielmodus-Box geklickt: "${mode}"`);
             if (box.classList.contains('disabled')) {
                 alert('Dieser Spielmodus ist noch nicht verfügbar.');
                 return;
             }
             connectToServer(() => {
-                debugLog(`Sende 'create-game' Nachricht für Modus: ${mode}`);
                 sendMessage('create-game', { nickname: myNickname, token: spotifyToken, gameMode: mode });
             });
         });
