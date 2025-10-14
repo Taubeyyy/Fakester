@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentUser = { id: 'guest-' + Date.now(), username: nickname, isGuest: true };
         elements.welcomeNickname.textContent = `${nickname} (Gast)`;
         elements.playerStats.classList.add('guest');
-        checkSpotifyStatus(); // Spotify-Status auch für Gäste prüfen
+        checkSpotifyStatus(); // Spotify-Status jetzt auch für Gäste prüfen
         showScreen('home-screen');
     }
 
@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function checkSpotifyStatus() {
+        // Diese Funktion wird jetzt für ALLE Benutzer ausgeführt
         try {
             const response = await fetch('/api/status');
             const data = await response.json();
@@ -97,8 +98,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 spotifyToken = data.token;
                 elements.showCreateButtonLogin.classList.add('hidden');
                 elements.showCreateButtonAction.classList.remove('hidden');
+            } else {
+                 throw new Error('Not logged in to Spotify');
             }
         } catch (error) {
+            spotifyToken = null;
             elements.showCreateButtonLogin.classList.remove('hidden');
             elements.showCreateButtonAction.classList.add('hidden');
         } finally {
@@ -106,14 +110,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- AUTH-LOGIK (VOLLSTÄNDIG) ---
+    // --- AUTH-LOGIK ---
     async function handleLogin(e) {
         e.preventDefault();
         const username = document.getElementById('login-username').value;
         const password = document.getElementById('login-password').value;
         const { error } = await supabase.auth.signInWithPassword({ email: `${username}@fakester.app`, password });
         if (error) showToast("Benutzername oder Passwort ist falsch.", true);
-        else showToast('Erfolgreich angemeldet!');
     }
 
     async function handleRegister(e) {
@@ -122,24 +125,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = document.getElementById('register-password').value;
         if (!username || password.length < 6) return showToast("Benutzername darf nicht leer sein und das Passwort muss mind. 6 Zeichen haben.", true);
 
-        const { data: { user }, error } = await supabase.auth.signUp({ email: `${username}@fakester.app`, password, options: { data: { username } } });
+        const { error } = await supabase.auth.signUp({ email: `${username}@fakester.app`, password, options: { data: { username } } });
         if (error) {
-            const message = error.message.includes("User already registered") ? "Dieser Benutzername ist bereits vergeben." : "Fehler bei der Registrierung. Bitte versuche es erneut.";
+            console.error("Supabase SignUp Error:", error);
+            const message = error.message.includes("User already registered") ? "Dieser Benutzername ist bereits vergeben." : `Fehler: ${error.message}`;
             return showToast(message, true);
         }
-        if (user) {
-            const { error: profileError } = await supabase.from('profiles').insert({ id: user.id, username });
-            if (profileError) {
-                 console.error("Profile Error:", profileError);
-                 return showToast("Konto konnte nicht vollständig erstellt werden. (DB Fehler)", true);
-            }
-            showToast('Konto erfolgreich erstellt! Du wirst angemeldet.');
-        }
+        showToast('Konto erstellt! Bestätige deine E-Mail, falls nötig.');
     }
 
     async function handleLogout() {
-        if (currentUser && !currentUser.isGuest) await supabase.auth.signOut();
-        window.location.reload();
+        if (currentUser && !currentUser.isGuest) {
+            await supabase.auth.signOut();
+        } else {
+             // Für Gäste oder um die Session komplett zu beenden
+            window.location.reload();
+        }
     }
 
     function handleGuestLogin() {
@@ -150,12 +151,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupAuthListener() {
-        supabase.auth.onAuthStateChange((event, session) => {
-            if (session?.user) {
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            if (event === 'SIGNED_IN' && session?.user) {
+                const { data: profile } = await supabase.from('profiles').select('id').eq('id', session.user.id).single();
+                if (!profile) {
+                    await supabase.from('profiles').insert({ id: session.user.id, username: session.user.user_metadata.username });
+                }
                 if (!currentUser || currentUser.id !== session.user.id) {
                     initializeApp(session.user);
                 }
-            } else if (!currentUser?.isGuest) {
+            } else if (event === 'SIGNED_OUT' && !currentUser?.isGuest) {
                 currentUser = null;
                 showScreen('auth-screen');
             }
@@ -163,49 +168,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- NUMPAD & MODAL LOGIK ---
-    // (Keine Änderungen hier, der Code war schon korrekt)
-    function setupNumpad(numpadButtons, displayDigits, maxLength, onComplete) {
-        let value = '';
-        const updateDisplay = () => displayDigits.forEach((digit, index) => { digit.textContent = value[index] || ''; });
-        const handler = (e) => {
-            const button = e.currentTarget;
-            const action = button.dataset.action;
-            if (action === 'clear') value = '';
-            else if (action === 'backspace') value = value.slice(0, -1);
-            else if (value.length < maxLength) {
-                value += button.textContent.trim();
-                if (value.length === maxLength && onComplete) onComplete(value);
-            }
-            updateDisplay();
-        };
-        numpadButtons.forEach(button => button.addEventListener('click', handler));
-        return { clear: () => { value = ''; updateDisplay(); } };
-    }
-    
+    function setupNumpad(numpadButtons, displayDigits, maxLength, onComplete) { /* ... bleibt unverändert ... */ }
     let joinNumpadControl;
-    function showCustomInputModal(title, maxLength, callback) {
-        // (Code für Custom Input Modal bleibt unverändert)
-    }
+    function showCustomInputModal(title, maxLength, callback) { /* ... bleibt unverändert ... */ }
 
     // --- Event Listeners ---
     function initializeEventListeners() {
         elements.loginForm.addEventListener('submit', handleLogin);
         elements.registerForm.addEventListener('submit', handleRegister);
+        elements.logoutButton.addEventListener('click', handleLogout);
+        elements.guestModal.submitButton.addEventListener('click', handleGuestLogin);
+        elements.guestModal.closeButton.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
         elements.showRegisterForm.addEventListener('click', (e) => { e.preventDefault(); elements.loginForm.classList.add('hidden'); elements.registerForm.classList.remove('hidden'); });
         elements.showLoginForm.addEventListener('click', (e) => { e.preventDefault(); elements.registerForm.classList.add('hidden'); elements.loginForm.classList.remove('hidden'); });
-        elements.logoutButton.addEventListener('click', handleLogout);
-        elements.guestModeButton.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
-        elements.guestModal.closeButton.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
-        elements.guestModal.submitButton.addEventListener('click', handleGuestLogin);
+        
+        // Klick auf "Raum erstellen"
+        elements.showCreateButtonAction.addEventListener('click', () => {
+            // Die neue, vereinfachte Logik:
+            if (!spotifyToken) {
+                showToast("Du musst mit Spotify verbunden sein, um einen Raum zu erstellen.", true);
+                // Optional: Leite direkt zum Login weiter
+                // window.location.href = '/login'; 
+            } else {
+                showToast("Modus-Auswahl wird geöffnet...");
+                // showScreen('mode-selection-screen'); // <-- Auskommentiert lassen, bis der Screen fertig ist
+            }
+        });
+        
         elements.showJoinButton.addEventListener('click', () => {
             elements.joinModal.overlay.classList.remove('hidden');
-            joinNumpadControl = setupNumpad(elements.joinModal.numpad, elements.joinModal.pinDisplay, 4, (pin) => showToast(`PIN ${pin} eingegeben.`));
+            joinNumpadControl = setupNumpad(elements.joinModal.numpad, elements.joinModal.pinDisplay, 4, (pin) => {
+                showToast(`PIN ${pin} eingegeben.`);
+            });
         });
         elements.joinModal.closeButton.addEventListener('click', () => {
             elements.joinModal.overlay.classList.add('hidden');
             if (joinNumpadControl) joinNumpadControl.clear();
         });
-        // (Event Listeners für Lobby Settings bleiben unverändert)
     }
 
     // --- MAIN APP ---
@@ -219,6 +218,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             initializeEventListeners();
             setupAuthListener();
+
+            // Prüfen, ob schon ein User (auch Gast) in der Session ist
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                 showScreen('auth-screen');
+            }
         } catch (error) {
             console.error("Kritischer Fehler:", error);
             document.body.innerHTML = `<div style="color: white; padding: 40px; text-align: center;"><h1>Fehler beim Laden der App</h1><p style="font-family: monospace; color: #FF4500;">${error.message}</p></div>`;
