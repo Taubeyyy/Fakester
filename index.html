@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
 </head>
 <body>
 
@@ -70,16 +71,33 @@
             </div>
             <ul id="player-list"></ul>
             <div id="host-settings" class="hidden">
-                <div class="setting">
-                    <label for="device-select">Wiedergabegerät <button class="button-help" data-topic="device" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></label>
+                 <div class="setting">
+                    <label>Wiedergabegerät <button class="button-help" data-topic="device" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></label>
                     <div class="select-with-refresh">
-                        <select id="device-select"><option>Geräte werden geladen...</option></select>
+                        <div class="custom-select-wrapper" id="device-select-wrapper">
+                            <div class="custom-select" data-type="deviceId">
+                                <div class="custom-select-trigger"><span>Geräte werden geladen...</span><i class="fa-solid fa-chevron-down"></i></div>
+                                <div class="custom-options"></div>
+                            </div>
+                        </div>
                         <button id="refresh-devices-button" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
                     </div>
                 </div>
                 <div class="setting">
-                    <label for="playlist-select">Playlist <button class="button-help" data-topic="playlist" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></label>
-                    <select id="playlist-select"><option>Playlists werden geladen...</option></select>
+                    <label>Playlist <button class="button-help" data-topic="playlist" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></label>
+                    <div class="custom-select-wrapper" id="playlist-select-wrapper">
+                        <div class="custom-select" data-type="playlistId">
+                            <div class="custom-select-trigger"><span>Playlists werden geladen...</span><i class="fa-solid fa-chevron-down"></i></div>
+                            <div class="custom-options"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="setting" id="quiz-type-setting" style="display: none;">
+                    <label>Antwort-Modus</label>
+                    <div class="setting-grid" id="quiz-type-options">
+                        <button class="option-btn active" data-value="free">Freitext</button>
+                        <button class="option-btn" data-value="mc">Multiple Choice</button>
+                    </div>
                 </div>
                 <div class="setting">
                     <label>Anzahl Songs <button class="button-help" data-topic="song-count" title="Hilfe"><i class="fa-solid fa-question-circle"></i></button></label>
@@ -106,7 +124,7 @@
             </div>
         </div>
     </main>
-    
+
     <main id="countdown-screen" class="screen">
         <div class="container">
             <h2 id="countdown-round-info"></h2>
@@ -125,9 +143,25 @@
                 </div>
             </div>
             <div class="guess-form">
-                <input type="text" id="artist-guess" placeholder="Künstler...">
-                <input type="text" id="title-guess" placeholder="Songtitel...">
-                <input type="number" id="year-guess" placeholder="Jahr...">
+                <div id="free-text-inputs">
+                    <input type="text" id="artist-guess" placeholder="Künstler...">
+                    <input type="text" id="title-guess" placeholder="Songtitel...">
+                    <input type="number" id="year-guess" placeholder="Jahr...">
+                </div>
+                <div id="multiple-choice-inputs" class="hidden">
+                    <div class="mc-category">
+                        <label>Künstler</label>
+                        <div class="mc-options-grid" id="mc-artist-options"></div>
+                    </div>
+                    <div class="mc-category">
+                        <label>Songtitel</label>
+                        <div class="mc-options-grid" id="mc-title-options"></div>
+                    </div>
+                    <div class="mc-category">
+                        <label>Jahr</label>
+                        <div class="mc-options-grid" id="mc-year-options"></div>
+                    </div>
+                </div>
                 <div class="round-actions">
                     <button id="ready-button" class="button-primary">Ready</button>
                     <span id="ready-status">0/1 Spieler bereit</span>
@@ -212,6 +246,39 @@
             <ul id="scoreboard-list" class="scoreboard"></ul>
         </div>
     </main>
+    
+    <main id="end-screen" class="screen">
+        <div class="end-container">
+            <h2>Spiel beendet!</h2>
+            <div class="podium">
+                <div class="podium-place second">
+                    <div class="podium-rank">2</div>
+                    <div class="podium-player" id="podium-player-2">
+                        <p class="podium-nickname">Warte...</p>
+                        <p class="podium-score"></p>
+                    </div>
+                    <div class="podium-base"></div>
+                </div>
+                <div class="podium-place first">
+                    <div class="podium-rank"><i class="fa-solid fa-crown"></i></div>
+                     <div class="podium-player" id="podium-player-1">
+                        <p class="podium-nickname">Warte...</p>
+                        <p class="podium-score"></p>
+                    </div>
+                    <div class="podium-base"></div>
+                </div>
+                <div class="podium-place third">
+                    <div class="podium-rank">3</div>
+                     <div class="podium-player" id="podium-player-3">
+                        <p class="podium-nickname">Warte...</p>
+                        <p class="podium-score"></p>
+                    </div>
+                    <div class="podium-base"></div>
+                </div>
+            </div>
+            <button id="back-to-home-button" class="button-primary">Zurück zur Startseite</button>
+        </div>
+    </main>
 
     <div id="join-modal-overlay" class="hidden">
         <div class="container modal">
@@ -260,6 +327,7 @@
     </div>
 
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script src="script.js"></script>
 </body>
 </html>

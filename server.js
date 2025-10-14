@@ -51,6 +51,14 @@ function normalizeString(str) {
     return str.toLowerCase().replace(/\(.*\)|\[.*\]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9\s]/g, '').trim();
 }
 
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 app.get('/login', (req, res) => {
@@ -107,7 +115,7 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'create-game':
             const newPin = generatePin();
             ws.pin = newPin;
-            games[newPin] = { hostId: playerId, players: { [playerId]: { ws, nickname: payload.nickname, score: 0 } }, settings: { deviceId: null, playlistId: null, songCount: 10, guessTime: 30 }, hostToken: payload.token, gameState: 'LOBBY', gameMode: payload.gameMode || 'quiz', readyPlayers: [], timeline: [], };
+            games[newPin] = { hostId: playerId, players: { [playerId]: { ws, nickname: payload.nickname, score: 0 } }, settings: { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, quizType: 'free' }, hostToken: payload.token, gameState: 'LOBBY', gameMode: payload.gameMode || 'quiz', readyPlayers: [], timeline: [], };
             ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId } }));
             broadcastLobbyUpdate(newPin);
             break;
@@ -141,7 +149,7 @@ async function startGame(pin) {
     }
     game.gameState = 'PLAYING'; game.currentRound = 0; Object.values(game.players).forEach(p => { p.score = 0; });
     const tracks = await getPlaylistTracks(game.settings.playlistId, game.hostToken);
-    if (!tracks || tracks.length === 0) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer oder Songs konnten nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
+    if (!tracks || tracks.length < 4) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer oder hat zu wenig Songs (min. 4 benötigt).' } }); game.gameState = 'LOBBY'; return; }
     game.songList = tracks.sort(() => 0.5 - Math.random());
     if (['timeline', 'popularity'].includes(game.gameMode)) { game.timeline = []; const startCard = game.songList.shift(); if (startCard) game.timeline.push(startCard); }
     if (game.settings.songCount > 0) game.songList = game.songList.slice(0, Math.min(game.settings.songCount, game.songList.length));
@@ -161,12 +169,46 @@ function startNewRound(pin) {
     game.currentRound++; game.guesses = {}; game.readyPlayers = [];
     if (!game.currentSong) return endGame(pin);
     axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response?.data || err.message));
-    let payload = { round: game.currentRound, totalRounds: game.songList.length, scores: getScores(pin), hostId: game.hostId, totalPlayers: Object.keys(game.players).length, gameMode: game.gameMode, guessTime: game.settings.guessTime };
+    let payload = { round: game.currentRound, totalRounds: game.songList.length, scores: getScores(pin), hostId: game.hostId, totalPlayers: Object.keys(game.players).length, gameMode: game.gameMode, guessTime: game.settings.guessTime, quizType: game.settings.quizType };
+    
+    if (game.gameMode === 'quiz' && game.settings.quizType === 'mc') {
+        payload.mcOptions = generateMcOptions(game.songList, game.currentSong);
+    }
+    
     if (isPopularityMode) { payload.isFirstRound = game.currentRound === 1; payload.previousSong = game.previousSong; payload.currentSong = { title: game.currentSong.title, artist: game.currentSong.artist, popularity: game.currentSong.popularity }; }
     else if (game.gameMode === 'timeline') { payload.timeline = game.timeline; payload.currentSong = { title: game.currentSong.title, artist: game.currentSong.artist }; }
     broadcastToLobby(pin, { type: 'new-round', payload });
     game.roundTimer = setTimeout(() => evaluateRound(pin), (game.settings.guessTime || 30) * 1000);
 }
+
+function generateMcOptions(songList, currentSong) {
+    const options = { artist: new Set(), title: new Set(), year: new Set() };
+    options.artist.add(currentSong.artist);
+    options.title.add(currentSong.title);
+    options.year.add(currentSong.year);
+
+    let otherSongs = songList.filter(s => s.spotifyId !== currentSong.spotifyId);
+    shuffleArray(otherSongs);
+    for (const song of otherSongs) {
+        if (options.artist.size < 4) options.artist.add(song.artist);
+        if (options.title.size < 4) options.title.add(song.title);
+        if (options.artist.size === 4 && options.title.size === 4) break;
+    }
+    
+    while (options.year.size < 4) {
+        const yearOffset = Math.floor(Math.random() * 20) - 10;
+        if (yearOffset !== 0) {
+            options.year.add(currentSong.year + yearOffset);
+        }
+    }
+    
+    return {
+        artist: shuffleArray(Array.from(options.artist)),
+        title: shuffleArray(Array.from(options.title)),
+        year: shuffleArray(Array.from(options.year).sort((a,b) => a - b))
+    };
+}
+
 function evaluateRound(pin) {
     const game = games[pin]; if (!game) return;
     clearTimeout(game.roundTimer);
@@ -175,23 +217,31 @@ function evaluateRound(pin) {
         const player = game.players[pId]; const guess = game.guesses[pId];
         if (game.gameMode === 'quiz') {
             player.lastPointsBreakdown = { artist: 0, title: 0, year: 0 }; if (!guess) return;
-            const normTitle = normalizeString(song.title), normArtist = normalizeString(song.artist), normGuessTitle = normalizeString(guess.title), normGuessArtist = normalizeString(guess.artist);
-            const artistDist = levenshteinDistance(normArtist, normGuessArtist), titleDist = levenshteinDistance(normTitle, normGuessTitle);
-            
-            if (artistDist <= 2) player.lastPointsBreakdown.artist = 50; 
-            else if (artistDist <= 4) player.lastPointsBreakdown.artist = 25;
-            
-            if (titleDist <= 2) player.lastPointsBreakdown.title = 75;
-            else if (titleDist <= 4) player.lastPointsBreakdown.title = 40;
 
-            if (guess.year > 1000) { 
-                const yearDiff = Math.abs(guess.year - song.year); 
-                if (yearDiff === 0) player.lastPointsBreakdown.year = 100; 
-                else if (yearDiff <= 5) player.lastPointsBreakdown.year = 75; 
-                else if (yearDiff <= 15) player.lastPointsBreakdown.year = 50; 
-                else if (yearDiff <= 25) player.lastPointsBreakdown.year = 25; 
+            if (game.settings.quizType === 'mc') {
+                if (guess.artist === song.artist) player.lastPointsBreakdown.artist = 50;
+                if (guess.title === song.title) player.lastPointsBreakdown.title = 75;
+                if (parseInt(guess.year) === song.year) player.lastPointsBreakdown.year = 100;
+            } else {
+                const normTitle = normalizeString(song.title), normArtist = normalizeString(song.artist), normGuessTitle = normalizeString(guess.title), normGuessArtist = normalizeString(guess.artist);
+                const artistDist = levenshteinDistance(normArtist, normGuessArtist), titleDist = levenshteinDistance(normTitle, normGuessTitle);
+                
+                if (artistDist <= 2) player.lastPointsBreakdown.artist = 50; 
+                else if (artistDist <= 4) player.lastPointsBreakdown.artist = 25;
+                
+                if (titleDist <= 2) player.lastPointsBreakdown.title = 75;
+                else if (titleDist <= 4) player.lastPointsBreakdown.title = 40;
+
+                if (guess.year > 1000) { 
+                    const yearDiff = Math.abs(guess.year - song.year); 
+                    if (yearDiff === 0) player.lastPointsBreakdown.year = 100; 
+                    else if (yearDiff <= 5) player.lastPointsBreakdown.year = 75; 
+                    else if (yearDiff <= 15) player.lastPointsBreakdown.year = 50; 
+                    else if (yearDiff <= 25) player.lastPointsBreakdown.year = 25; 
+                }
             }
             player.score += player.lastPointsBreakdown.artist + player.lastPointsBreakdown.title + player.lastPointsBreakdown.year;
+
         } else if (game.gameMode === 'timeline') {
             if (guess === undefined) { player.lastGuess = { wasCorrect: false }; return; };
             const correctIndex = game.timeline.findIndex(card => card.year > song.year); const finalIndex = correctIndex === -1 ? game.timeline.length : correctIndex;
@@ -205,11 +255,19 @@ function evaluateRound(pin) {
     resultsPayload.scores = getScores(pin); broadcastToLobby(pin, { type: 'round-result', payload: resultsPayload });
     setTimeout(() => startRoundCountdown(pin), 10000);
 }
-function endGame(pin) { const game = games[pin]; if (!game) return; game.gameState = 'FINISHED'; broadcastToLobby(pin, { type: 'game-over' }); }
+
+// GEÄNDERT: Sendet jetzt die finale Punkteliste mit
+function endGame(pin) { 
+    const game = games[pin]; 
+    if (!game) return; 
+    game.gameState = 'FINISHED'; 
+    broadcastToLobby(pin, { type: 'game-over', payload: { scores: getScores(pin) } }); 
+}
+
 function handlePlayerDisconnect(ws) { const pin = ws.pin; const game = games[pin]; if (!game) return; delete game.players[ws.playerId]; if (Object.keys(game.players).length === 0) { delete games[pin]; } else { if (ws.playerId === game.hostId) { game.hostId = Object.keys(game.players)[0]; } broadcastLobbyUpdate(pin); } }
 function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]); return pin; }
 function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws.readyState === WebSocket.OPEN) { player.ws.send(messageString); } }); }
-function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }
+function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings, gameMode: game.gameMode }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }
 function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws.playerId, nickname: p.nickname, score: p.score, pointsBreakdown: p.lastPointsBreakdown, lastGuess: p.lastGuess, })).sort((a, b) => b.score - a.score); }
 async function getPlaylistTracks(playlistId, token) {
     try {
