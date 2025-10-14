@@ -20,6 +20,11 @@ const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
 
+// NEU: Supabase Umgebungsvariablen vom Server holen
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+
 app.use(express.static(__dirname));
 app.use(cookieParser());
 app.use(express.json());
@@ -60,6 +65,14 @@ function shuffleArray(array) {
 }
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
+// NEU: API-Endpunkt, um die Konfiguration sicher an den Client zu senden
+app.get('/api/config', (req, res) => {
+    res.json({
+        supabaseUrl: SUPABASE_URL,
+        supabaseAnonKey: SUPABASE_ANON_KEY
+    });
+});
 
 app.get('/login', (req, res) => {
     const scopes = 'user-read-private user-read-email playlist-read-private streaming user-modify-playback-state user-read-playback-state';
@@ -103,23 +116,36 @@ app.get('/api/devices', async (req, res) => {
 
 const wss = new WebSocket.Server({ server });
 wss.on('connection', ws => {
-    const playerId = Date.now().toString(); ws.playerId = playerId;
     ws.on('message', message => { try { const data = JSON.parse(message); handleWebSocketMessage(ws, data); } catch (e) { console.error("Fehler bei WebSocket-Nachricht:", e); } });
     ws.on('close', () => handlePlayerDisconnect(ws));
 });
 
 function handleWebSocketMessage(ws, { type, payload }) {
-    const { playerId } = ws; const pin = ws.pin; const game = games[pin];
+    const { pin, playerId } = ws; 
+    const game = games[pin];
     if (!game && type !== 'create-game' && type !== 'join-game') return;
+
     switch (type) {
         case 'create-game':
             const newPin = generatePin();
             ws.pin = newPin;
-            games[newPin] = { hostId: playerId, players: { [playerId]: { ws, nickname: payload.nickname, score: 0 } }, settings: { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, quizType: 'free' }, hostToken: payload.token, gameState: 'LOBBY', gameMode: payload.gameMode || 'quiz', readyPlayers: [], timeline: [], };
-            ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId } }));
+            ws.playerId = payload.user.id; 
+            games[newPin] = { hostId: payload.user.id, players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0 } }, settings: { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, quizType: 'free' }, hostToken: payload.token, gameState: 'LOBBY', gameMode: payload.gameMode || 'quiz', readyPlayers: [], timeline: [], };
+            ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId: payload.user.id } }));
             broadcastLobbyUpdate(newPin);
             break;
-        case 'join-game': const gameToJoin = games[payload.pin]; if (gameToJoin && gameToJoin.gameState === 'LOBBY') { ws.pin = payload.pin; gameToJoin.players[playerId] = { ws, nickname: payload.nickname, score: 0 }; ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId } })); broadcastLobbyUpdate(payload.pin); } else { ws.send(JSON.stringify({ type: 'error', payload: { message: 'Ungültiger PIN oder Spiel läuft bereits.' } })); } break;
+        case 'join-game': 
+            const gameToJoin = games[payload.pin]; 
+            if (gameToJoin && gameToJoin.gameState === 'LOBBY') { 
+                ws.pin = payload.pin; 
+                ws.playerId = payload.user.id;
+                gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0 }; 
+                ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId: payload.user.id } })); 
+                broadcastLobbyUpdate(payload.pin); 
+            } else { 
+                ws.send(JSON.stringify({ type: 'error', payload: { message: 'Ungültiger PIN oder Spiel läuft bereits.' } })); 
+            } 
+            break;
         case 'update-settings': if (game.hostId === playerId) { game.settings = { ...game.settings, ...payload }; broadcastLobbyUpdate(pin); } break;
         case 'start-game': if (game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
         case 'submit-guess':
@@ -256,7 +282,6 @@ function evaluateRound(pin) {
     setTimeout(() => startRoundCountdown(pin), 10000);
 }
 
-// GEÄNDERT: Sendet jetzt die finale Punkteliste mit
 function endGame(pin) { 
     const game = games[pin]; 
     if (!game) return; 
@@ -264,7 +289,22 @@ function endGame(pin) {
     broadcastToLobby(pin, { type: 'game-over', payload: { scores: getScores(pin) } }); 
 }
 
-function handlePlayerDisconnect(ws) { const pin = ws.pin; const game = games[pin]; if (!game) return; delete game.players[ws.playerId]; if (Object.keys(game.players).length === 0) { delete games[pin]; } else { if (ws.playerId === game.hostId) { game.hostId = Object.keys(game.players)[0]; } broadcastLobbyUpdate(pin); } }
+function handlePlayerDisconnect(ws) { 
+    const {pin, playerId} = ws; 
+    const game = games[pin]; 
+    if (!game || !game.players[playerId]) return; 
+
+    delete game.players[playerId]; 
+    
+    if (Object.keys(game.players).length === 0) { 
+        delete games[pin]; 
+    } else { 
+        if (playerId === game.hostId) { 
+            game.hostId = Object.keys(game.players)[0]; 
+        } 
+        broadcastLobbyUpdate(pin); 
+    } 
+}
 function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]); return pin; }
 function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws.readyState === WebSocket.OPEN) { player.ws.send(messageString); } }); }
 function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings, gameMode: game.gameMode }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }

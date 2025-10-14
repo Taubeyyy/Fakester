@@ -1,23 +1,49 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // --- NEU: Supabase Konfiguration wird vom Server geladen ---
+    let supabase;
+
+    async function initializeSupabase() {
+        try {
+            const response = await fetch('/api/config');
+            if (!response.ok) {
+                throw new Error('Konfiguration konnte nicht geladen werden.');
+            }
+            const config = await response.json();
+            
+            // Initialisiere den Supabase Client mit den vom Server erhaltenen Keys
+            const { createClient } = supabase;
+            supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
+            
+            // Starte den Auth State Listener, nachdem Supabase initialisiert ist
+            setupAuthListener();
+        } catch (error) {
+            console.error("Fehler bei der Initialisierung von Supabase:", error);
+            document.body.innerHTML = '<h1>Fehler: Anwendung konnte nicht geladen werden. Bitte versuche es später erneut.</h1>';
+        }
+    }
+
+    // --- Globale Variablen ---
     const ws = { socket: null };
-    let myPlayerId = null, myNickname = '', isHost = false, spotifyToken = null;
+    let myPlayerId = null, myNickname = '', isHost = false, spotifyToken = null, currentUser = null;
     let countdownInterval = null, clientRoundTimer = null;
     let currentCustomInput = { value: '', type: null, target: null };
     let clientSideGuess = { artist: '', title: '', year: '' };
     let hasSubmittedGuess = false;
-    // NEU: Hält den aktuellen Wert der Custom Selects
     let hostSettingsState = { deviceId: null, playlistId: null };
 
+    // --- DOM Elemente ---
     const elements = {
         screens: document.querySelectorAll('.screen'),
-        nicknameInput: document.getElementById('nickname-input'),
-        nicknameSubmitButton: document.getElementById('nickname-submit-button'),
-        welcomeNickname: document.getElementById('welcome-nickname'),
+        authScreen: document.getElementById('auth-screen'),
+        loginForm: document.getElementById('login-form'),
+        registerForm: document.getElementById('register-form'),
+        showRegisterForm: document.getElementById('show-register-form'),
+        showLoginForm: document.getElementById('show-login-form'),
         logoutButton: document.getElementById('logout-button'),
+        welcomeNickname: document.getElementById('welcome-nickname'),
         showCreateButtonLogin: document.getElementById('show-create-button-login'),
         showCreateButtonAction: document.getElementById('show-create-button-action'),
         showJoinButton: document.getElementById('show-join-button'),
-        modeSelectionScreen: document.getElementById('mode-selection-screen'),
         modeBoxes: document.querySelectorAll('.mode-box'),
         lobbyPinDisplay: document.getElementById('lobby-pin'),
         playerList: document.getElementById('player-list'),
@@ -59,7 +85,6 @@ document.addEventListener('DOMContentLoaded', () => {
         mcYearOptions: document.getElementById('mc-year-options'),
         readyButton: document.getElementById('ready-button'),
         readyStatus: document.getElementById('ready-status'),
-        timelineScreen: document.getElementById('timeline-screen'),
         timelineContainer: document.getElementById('timeline-container'),
         timelineCurrentTitle: document.getElementById('timeline-current-title'),
         timelineCurrentArtist: document.getElementById('timeline-current-artist'),
@@ -67,7 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
         timelineTimeLeft: document.getElementById('timeline-time-left'),
         timelineReadyButton: document.getElementById('timeline-ready-button'),
         timelineReadyStatus: document.getElementById('timeline-ready-status'),
-        popularityScreen: document.getElementById('popularity-screen'),
         popularityRoundInfo: document.getElementById('popularity-round-info'),
         popularityTimeLeft: document.getElementById('popularity-time-left'),
         prevSongTitle: document.getElementById('prev-song-title'),
@@ -84,42 +108,84 @@ document.addEventListener('DOMContentLoaded', () => {
         headerScoreboard: document.getElementById('live-header-scoreboard'),
         leaveButton: document.querySelector('.button-leave'),
         backToHomeButton: document.getElementById('back-to-home-button'),
+        statGamesPlayed: document.getElementById('stat-games-played'),
+        statHighscore: document.getElementById('stat-highscore'),
     };
     let currentPin = '';
 
-    const helpTexts = {
-        pin: { title: "Lobby PIN", text: "Dies ist der vierstellige Code für deine Lobby. Andere Spieler können diesen Code eingeben, um deinem Spiel beizutreiten, solange es noch nicht gestartet wurde." },
-        device: { title: "Wiedergabegerät", text: "Wähle hier aus, auf welchem deiner Spotify-Geräte die Musik abgespielt werden soll. Stelle sicher, dass Spotify auf dem gewünschten Gerät (z.B. PC, Handy, Lautsprecher) geöffnet und aktiv ist. Wenn kein Gerät erscheint, öffne Spotify und klicke auf den Aktualisieren-Button (↻)." },
-        playlist: { title: "Playlist", text: "Wähle die Playlist aus, aus der die Songs für das Quiz zufällig ausgewählt werden sollen. Es werden nur deine eigenen und von dir abonnierten Playlists angezeigt." },
-        'song-count': { title: "Anzahl Songs", text: "Lege fest, wie viele Runden das Spiel dauern soll. 'Custom' erlaubt eine benutzerdefinierte Anzahl." },
-        'guess-time': { title: "Ratezeit", text: "Stelle ein, wie viele Sekunden die Spieler in jeder Runde Zeit haben, um ihre Antwort einzugeben. 'Custom' erlaubt eine benutzerdefinierte Zeit." }
-    };
+    const helpTexts = { pin: { title: "Lobby PIN", text: "Dies ist der vierstellige Code für deine Lobby. Andere Spieler können diesen Code eingeben, um deinem Spiel beizutreiten, solange es noch nicht gestartet wurde." }, device: { title: "Wiedergabegerät", text: "Wähle hier aus, auf welchem deiner Spotify-Geräte die Musik abgespielt werden soll. Stelle sicher, dass Spotify auf dem gewünschten Gerät (z.B. PC, Handy, Lautsprecher) geöffnet und aktiv ist. Wenn kein Gerät erscheint, öffne Spotify und klicke auf den Aktualisieren-Button (↻)." }, playlist: { title: "Playlist", text: "Wähle die Playlist aus, aus der die Songs für das Quiz zufällig ausgewählt werden sollen. Es werden nur deine eigenen und von dir abonnierten Playlists angezeigt." }, 'song-count': { title: "Anzahl Songs", text: "Lege fest, wie viele Runden das Spiel dauern soll. 'Custom' erlaubt eine benutzerdefinierte Anzahl." }, 'guess-time': { title: "Ratezeit", text: "Stelle ein, wie viele Sekunden die Spieler in jeder Runde Zeit haben, um ihre Antwort einzugeben. 'Custom' erlaubt eine benutzerdefinierte Zeit." } };
 
-    function showToast(message, isError = false) {
-        Toastify({
-            text: message,
-            duration: 3000,
-            close: true,
-            gravity: "top", 
-            position: "center", 
-            stopOnFocus: true, 
-            style: {
-                background: isError ? "linear-gradient(to right, #FF4500, #FF6347)" : "linear-gradient(to right, #00b09b, #96c93d)",
-            },
-        }).showToast();
+    // --- Hilfsfunktionen ---
+    function showToast(message, isError = false) { Toastify({ text: message, duration: 3000, close: true, gravity: "top", position: "center", stopOnFocus: true, style: { background: isError ? "linear-gradient(to right, #FF4500, #FF6347)" : "linear-gradient(to right, #00b09b, #96c93d)" } }).showToast(); }
+    function showHelpModal(topic) { if (!helpTexts[topic]) return; elements.helpModalTitle.textContent = helpTexts[topic].title; elements.helpModalText.textContent = helpTexts[topic].text; elements.helpModalOverlay.classList.remove('hidden'); }
+
+    // --- Auth-Logik ---
+    async function handleLogin(e) {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value;
+        const password = document.getElementById('login-password').value;
+        const { error } = await supabase.auth.signInWithPassword({ email: `${username}@fakester.app`, password });
+        if (error) showToast(error.message, true);
+        else { showToast('Erfolgreich angemeldet!'); elements.loginForm.reset(); }
     }
 
-    function showHelpModal(topic) {
-        if (!helpTexts[topic]) return;
-        elements.helpModalTitle.textContent = helpTexts[topic].title;
-        elements.helpModalText.textContent = helpTexts[topic].text;
-        elements.helpModalOverlay.classList.remove('hidden');
+    async function handleRegister(e) {
+        e.preventDefault();
+        const username = document.getElementById('register-username').value;
+        const password = document.getElementById('register-password').value;
+        
+        const { data: { user }, error } = await supabase.auth.signUp({
+            email: `${username}@fakester.app`,
+            password,
+            options: { data: { username: username } }
+        });
+
+        if (error) showToast(error.message, true);
+        else if (user) {
+            const { error: profileError } = await supabase.from('profiles').insert({ id: user.id, username: username });
+            if (profileError) showToast(profileError.message, true);
+            else showToast('Konto erfolgreich erstellt!');
+        }
     }
 
-    async function initializeApp() {
-        elements.joinModalOverlay.classList.add('hidden');
-        elements.customInputModalOverlay.classList.add('hidden');
-        myNickname = localStorage.getItem('nickname');
+    async function handleLogout() {
+        await supabase.auth.signOut();
+        await fetch('/logout', { method: 'POST' });
+        spotifyToken = null;
+        window.location.reload();
+    }
+    
+    // --- Session- und App-Initialisierung ---
+    async function initializeApp(user) {
+        currentUser = {
+            id: user.id,
+            username: user.user_metadata.username
+        };
+        myPlayerId = currentUser.id;
+        myNickname = currentUser.username;
+        
+        await updateHomeScreenStats();
+        await checkSpotifyStatus();
+        
+        elements.welcomeNickname.textContent = myNickname;
+        showScreen('home-screen');
+    }
+
+    async function updateHomeScreenStats() {
+        if (!currentUser) return;
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('games_played, highscore')
+            .eq('id', currentUser.id)
+            .single();
+
+        if (data) {
+            elements.statGamesPlayed.textContent = data.games_played || 0;
+            elements.statHighscore.textContent = data.highscore || 0;
+        }
+    }
+
+    async function checkSpotifyStatus() {
         try {
             const response = await fetch('/api/status');
             const data = await response.json();
@@ -128,26 +194,25 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.showCreateButtonLogin.classList.add('hidden');
             elements.showCreateButtonAction.classList.remove('hidden');
             elements.logoutButton.classList.remove('hidden');
-            if (myNickname) {
-                elements.welcomeNickname.textContent = myNickname;
-                showScreen('home-screen');
-            } else {
-                showScreen('nickname-screen');
-            }
         } catch (error) {
             elements.showCreateButtonLogin.classList.remove('hidden');
             elements.showCreateButtonAction.classList.add('hidden');
-            elements.logoutButton.classList.add('hidden');
-            if (myNickname) {
-                elements.welcomeNickname.textContent = myNickname;
-                showScreen('home-screen');
-            } else {
-                showScreen('nickname-screen');
-            }
+            elements.logoutButton.classList.remove('hidden');
         }
     }
 
-    // NEU: Logik für Custom Selects
+    // --- Auth State Listener ---
+    function setupAuthListener() {
+        supabase.auth.onAuthStateChange(async (event, session) => {
+            if (session && session.user) {
+                initializeApp(session.user);
+            } else {
+                currentUser = null;
+                showScreen('auth-screen');
+            }
+        });
+    }
+
     function setupCustomSelects() {
         document.querySelectorAll('.custom-select').forEach(select => {
             const trigger = select.querySelector('.custom-select-trigger');
@@ -182,11 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    function closeAllSelects() {
-        document.querySelectorAll('.custom-select.open').forEach(select => {
-            select.classList.remove('open');
-        });
-    }
+    function closeAllSelects() { document.querySelectorAll('.custom-select.open').forEach(select => select.classList.remove('open')); }
     
     function populateCustomSelect(type, data, defaultText, selectedValue) {
         const wrapper = document.getElementById(`${type}-select-wrapper`);
@@ -214,10 +275,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else {
             triggerSpan.textContent = defaultText;
+            hostSettingsState[type] = null;
         }
     }
 
-    initializeApp();
     setupCustomSelects();
 
     function connectToServer(onOpenCallback) {
@@ -486,23 +547,19 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.headerScoreboard.innerHTML = topPlayers.map((p, index) => `<div class="header-player"><span class="header-player-medal">${medals[index] || ''}</span><span class="header-player-name">${p.nickname}${p.id === hostId ? ' <i class="fa-solid fa-crown"></i>' : ''}</span><span class="header-player-score">${p.score}</span></div>`).join('');
     }
     
-    // NEU: Logik für das Podium
-    function showEndScreen(scores) {
+    async function showEndScreen(scores) {
         showScreen('end-screen');
-        const [first, second, third] = scores;
-
-        const podiumElements = {
-            1: document.getElementById('podium-player-1'),
-            2: document.getElementById('podium-player-2'),
-            3: document.getElementById('podium-player-3'),
-        };
+        const myFinalScore = scores.find(p => p.id === myPlayerId)?.score || 0;
         
-        // Reset podium
-        Object.values(podiumElements).forEach(el => {
-            el.classList.remove('revealed');
-            el.querySelector('.podium-nickname').textContent = '...';
-            el.querySelector('.podium-score').textContent = '';
-        });
+        const { data } = await supabase.from('profiles').select('games_played, highscore').eq('id', currentUser.id).single();
+        const newGamesPlayed = (data.games_played || 0) + 1;
+        const newHighscore = Math.max(data.highscore || 0, myFinalScore);
+        await supabase.from('profiles').update({ games_played: newGamesPlayed, highscore: newHighscore }).eq('id', currentUser.id);
+
+        const [first, second, third] = scores;
+        const podiumElements = { 1: document.getElementById('podium-player-1'), 2: document.getElementById('podium-player-2'), 3: document.getElementById('podium-player-3') };
+        
+        Object.values(podiumElements).forEach(el => { el.classList.remove('revealed'); el.querySelector('.podium-nickname').textContent = '...'; el.querySelector('.podium-score').textContent = ''; });
 
         const revealPlayer = (rank, player) => {
             if (player) {
@@ -513,7 +570,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         
-        // Reveal animation
         setTimeout(() => revealPlayer(3, third), 500);
         setTimeout(() => revealPlayer(2, second), 1500);
         setTimeout(() => revealPlayer(1, first), 2500);
@@ -532,19 +588,23 @@ document.addEventListener('DOMContentLoaded', () => {
             playlistId: hostSettingsState.playlistId, 
             songCount: parseInt(songCountBtn.dataset.value), 
             guessTime: parseInt(guessTimeBtn.dataset.value),
-            quizType: quizTypeBtn.dataset.value
+            quizType: quizTypeBtn ? quizTypeBtn.dataset.value : 'free'
         });
     }
     
-    elements.nicknameSubmitButton.addEventListener('click', () => { myNickname = elements.nicknameInput.value.trim(); if (myNickname) { localStorage.setItem('nickname', myNickname); initializeApp(); } });
-    elements.welcomeNickname.addEventListener('click', () => { elements.nicknameInput.value = myNickname; showScreen('nickname-screen'); });
-    elements.logoutButton.addEventListener('click', async () => { await fetch('/logout', { method: 'POST' }); spotifyToken = null; window.location.reload(); });
+    // --- Event Listeners ---
+    elements.loginForm.addEventListener('submit', handleLogin);
+    elements.registerForm.addEventListener('submit', handleRegister);
+    elements.showRegisterForm.addEventListener('click', (e) => { e.preventDefault(); elements.loginForm.classList.add('hidden'); elements.registerForm.classList.remove('hidden'); });
+    elements.showLoginForm.addEventListener('click', (e) => { e.preventDefault(); elements.registerForm.classList.add('hidden'); elements.loginForm.classList.remove('hidden'); });
+    elements.logoutButton.addEventListener('click', handleLogout);
+    
     elements.showCreateButtonAction.addEventListener('click', () => showScreen('mode-selection-screen'));
     elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
-    elements.modeBoxes.forEach(box => box.addEventListener('click', () => { const mode = box.dataset.mode; if (box.classList.contains('disabled')) return; connectToServer(() => sendMessage('create-game', { nickname: myNickname, token: spotifyToken, gameMode: mode })); }));
+    elements.modeBoxes.forEach(box => box.addEventListener('click', () => { const mode = box.dataset.mode; if (box.classList.contains('disabled')) return; connectToServer(() => sendMessage('create-game', { user: currentUser, token: spotifyToken, gameMode: mode })); }));
     elements.closeModalButtonExit.addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
     elements.numpadJoin.forEach(button => button.addEventListener('click', () => { const action = button.dataset.action; const value = button.textContent.trim(); if (action === 'clear') currentPin = ''; else if (action === 'backspace') currentPin = currentPin.slice(0, -1); else if (currentPin.length < 4 && !isNaN(parseInt(value))) currentPin += value; updatePinDisplay(); }));
-    elements.joinGameButton.addEventListener('click', () => { myNickname = localStorage.getItem('nickname'); if (currentPin.length === 4 && myNickname) { connectToServer(() => sendMessage('join-game', { pin: currentPin, nickname: myNickname })); } });
+    elements.joinGameButton.addEventListener('click', () => { if (currentPin.length === 4 && currentUser) { connectToServer(() => sendMessage('join-game', { pin: currentPin, user: currentUser })); } });
     
     function handleOptionSelection(e, containerId) {
         const target = e.target.closest('.option-btn');
@@ -577,5 +637,5 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.helpButtons.forEach(button => button.addEventListener('click', () => showHelpModal(button.dataset.topic)));
     elements.helpModalClose.addEventListener('click', () => elements.helpModalOverlay.classList.add('hidden'));
     elements.leaveButton.addEventListener('click', () => { if (ws.socket) { ws.socket.onclose = () => {}; ws.socket.close(); ws.socket = null; } window.location.reload(); });
-    elements.backToHomeButton.addEventListener('click', () => window.location.reload());
+    elements.backToHomeButton.addEventListener('click', () => { updateHomeScreenStats(); showScreen('home-screen'); });
 });

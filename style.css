@@ -41,7 +41,15 @@ body {
     display: flex; align-items: center; justify-content: space-between;
     position: relative; flex-shrink: 0;
 }
-.logo-container { display: flex; flex-direction: column; align-items: center; position: absolute; left: 50%; transform: translateX(-50%); }
+body:has(#home-screen.active) .app-header, body:has(#auth-screen.active) .app-header {
+    background-color: transparent;
+    backdrop-filter: none;
+    border-bottom: none;
+}
+body:has(#home-screen.active) .app-header .logo-container, body:has(#auth-screen.active) .app-header .logo-container {
+    opacity: 0;
+}
+.logo-container { display: flex; flex-direction: column; align-items: center; position: absolute; left: 50%; transform: translateX(-50%); transition: opacity 0.3s ease; }
 .logo-container h1 { font-size: 1.5rem; color: var(--primary-color); font-weight: 800; letter-spacing: 2px; margin: 0; line-height: 1; }
 .button-leave { z-index: 2; background: none; border: none; font-size: 1.5rem; color: var(--text-muted-color); cursor: pointer; padding: 5px; border-radius: 50%; width: 40px; height: 40px; display: inline-flex; justify-content: center; align-items: center; }
 .button-leave:hover { background-color: var(--dark-grey); }
@@ -51,20 +59,19 @@ body {
 .container { width: 100%; max-width: 500px; background-color: var(--surface-color); padding: 30px; border-radius: var(--border-radius); text-align: center; border: 1px solid var(--dark-grey); }
 h2 { font-size: 1.8rem; margin-bottom: 10px; font-weight: 800; }
 p { color: var(--text-muted-color); margin-bottom: 20px; line-height: 1.5; }
-.button-primary, .button-secondary, .button-start, .button-icon, .option-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 24px; border: 1px solid transparent; border-radius: 50px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; text-decoration: none; }
+.button-primary, .button-secondary, .button-start, .button-icon, .option-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 24px; border: 1px solid transparent; border-radius: 50px; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s; text-decoration: none; width: 100%; }
 .button-primary { background-color: var(--primary-color); color: #000; }
 .button-secondary { background-color: transparent; color: var(--text-color); border-color: var(--medium-grey); }
 .button-start { background-color: var(--accent-color); color: var(--text-color); }
 button:active, a:active { transform: scale(0.97); }
 input { width: 100%; padding: 12px 15px; margin-bottom: 20px; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); border-radius: 8px; color: var(--text-color); font-size: 16px; font-family: 'Montserrat', sans-serif; }
-.button-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; width: 100%; }
 .setting { margin-bottom: 25px; text-align: left; }
 .setting label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: var(--text-muted-color); font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
 .setting-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .option-btn { flex: 1; margin: 0; background-color: var(--dark-grey); color: var(--text-color); border: 1px solid var(--medium-grey); }
 .option-btn.active { background-color: var(--primary-color); color: #000; border-color: var(--primary-color); }
 .select-with-refresh { display: flex; align-items: center; gap: 10px; }
-.button-icon { padding: 10px 12px; font-size: 1rem; line-height: 1; }
+.button-icon { padding: 10px 12px; font-size: 1rem; line-height: 1; width: auto; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .pin-display-large { margin-bottom: 20px; }
 .pin-display-large p { margin: 0; font-size: 1rem; color: var(--text-muted-color); text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; justify-content: center; gap: 8px;}
@@ -73,6 +80,42 @@ input { width: 100%; padding: 12px 15px; margin-bottom: 20px; background-color: 
 #player-list li { display: flex; justify-content: space-between; align-items: center; background-color: var(--dark-grey); padding: 12px 15px; border-radius: 8px; margin-bottom: 8px; font-size: 1.1rem; }
 .game-header { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 30px; font-weight: 700; }
 .timer-display { font-size: 1.5rem; display: flex; align-items: center; gap: 8px; color: var(--primary-color); }
+
+/* --- AUTH-SCREEN STYLES --- */
+#auth-screen { justify-content: center; }
+.auth-container { width: 100%; max-width: 400px; text-align: center; }
+.auth-form { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.auth-form h2 { font-size: 1.5rem; margin-bottom: 10px; }
+.auth-toggle-text { font-size: 0.9rem; color: var(--text-muted-color); margin-top: 10px; }
+.auth-toggle-text a { color: var(--primary-color); text-decoration: none; font-weight: 700; }
+/* --- ENDE AUTH-SCREEN STYLES --- */
+
+/* --- HOMESCREEN STYLES --- */
+#home-screen { justify-content: space-around; }
+.home-container { width: 100%; max-width: 400px; text-align: center; display: flex; flex-direction: column; gap: 20px; }
+.home-logo-container {
+    padding: 20px 0;
+}
+.home-logo-container h1 {
+    font-size: 3.5rem; color: var(--primary-color); font-weight: 800; letter-spacing: 4px;
+    margin: 0; line-height: 1; text-shadow: 0 0 15px rgba(29, 185, 84, 0.4);
+}
+.home-logo-container p {
+    font-size: 0.8rem; color: var(--text-muted-color); letter-spacing: 5px;
+    font-weight: 700; text-transform: uppercase; margin: 5px 0 0 0;
+}
+#home-screen h2 { margin-bottom: 5px; }
+.player-stats { display: flex; gap: 15px; justify-content: center; }
+.stat-card {
+    background-color: var(--surface-color); border: 1px solid var(--dark-grey);
+    border-radius: var(--border-radius); padding: 15px;
+    flex: 1; display: flex; flex-direction: column;
+}
+.stat-value { font-size: 2rem; font-weight: 800; color: var(--primary-color); line-height: 1; }
+.stat-label { font-size: 0.7rem; color: var(--text-muted-color); margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+.home-actions { display: flex; flex-direction: column; gap: 15px; width: 100%; }
+.home-button-group { display: flex; gap: 15px; }
+/* --- ENDE HOMESCREEN STYLES --- */
 
 /* --- Custom Select Menu --- */
 .custom-select-wrapper { flex-grow: 1; position: relative; }
