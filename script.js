@@ -12,7 +12,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // KORRIGIERT: Der Supabase Client wird hier korrekt mit dem globalen Objekt initialisiert.
             // Der Fehler war "supabase.createClient", es muss "window.supabase.createClient" heißen.
-            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            const { createClient } = window.supabase;
+            supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
             
             // Starte den Auth State Listener, nachdem Supabase initialisiert ist
             setupAuthListener();
