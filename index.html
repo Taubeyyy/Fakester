@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-</head>
+    </head>
 <body>
 
     <div class="app-background"></div>
@@ -51,10 +51,32 @@
 
     <main id="home-screen" class="screen">
         <div class="home-container">
-            <div class="home-logo-container"><h1>FAKESTER</h1><p>DAS MUSIK QUIZ</p></div>
+            <div class="home-logo-container">
+                <h1>FAKESTER</h1>
+                <p>DAS MUSIK QUIZ</p>
+            </div>
+            
             <h2 id="welcome-header">Hallo, <span id="welcome-nickname"></span>!</h2>
-            <div class="player-stats"><div class="stat-card"><span class="stat-value" id="stat-games-played">0</span><span class="stat-label">Spiele gespielt</span></div><div class="stat-card"><span class="stat-value" id="stat-highscore">0</span><span class="stat-label">Highscore</span></div></div>
-            <div class="home-actions"><a href="/login" class="button-primary login-button" id="show-create-button-login"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a><button class="button-primary create-button hidden" id="show-create-button-action"><i class="fa-solid fa-plus"></i> Raum erstellen</button><div class="home-button-group"><button id="show-join-button" class="button-secondary"><i class="fa-solid fa-right-to-bracket"></i> Beitreten</button><button id="logout-button" class="button-secondary hidden"><i class="fa-solid fa-right-from-bracket"></i> Ausloggen</button></div></div>
+
+            <div class="player-stats">
+                <div class="stat-card">
+                    <span class="stat-value" id="stat-games-played">0</span>
+                    <span class="stat-label">Spiele gespielt</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value" id="stat-highscore">0</span>
+                    <span class="stat-label">Highscore</span>
+                </div>
+            </div>
+
+            <div class="home-actions">
+                <a href="/login" class="button-primary login-button" id="show-create-button-login"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
+                <button class="button-primary create-button hidden" id="show-create-button-action"><i class="fa-solid fa-plus"></i> Raum erstellen</button>
+                <div class="home-button-group">
+                    <button id="show-join-button" class="button-secondary"><i class="fa-solid fa-right-to-bracket"></i> Beitreten</button>
+                    <button id="logout-button" class="button-secondary hidden"><i class="fa-solid fa-right-from-bracket"></i> Ausloggen</button>
+                </div>
+            </div>
         </div>
     </main>
     
@@ -66,13 +88,13 @@
     <main id="popularity-screen" class="screen"></main>
     <main id="result-screen" class="screen"></main>
     <main id="end-screen" class="screen"></main>
-    <div id="guest-modal-overlay" class="hidden"><div class="container modal"><button id="close-guest-modal-button" class="button-exit-modal" title="Schließen"><i class="fa-solid fa-xmark"></i></button><h2>Als Gast spielen</h2><p>Gib einen Nickname ein.</p><input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15"><button id="guest-nickname-submit" class="button-primary">Weiter</button></div></div>
+    <div id="guest-modal-overlay" class="hidden"></div>
     <div id="join-modal-overlay" class="hidden"></div>
     <div id="custom-input-modal-overlay" class="hidden"></div>
     <div id="help-modal-overlay" class="hidden"></div>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script src="script.js"></script>
-
 </body>
 </html>
