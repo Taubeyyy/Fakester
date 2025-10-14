@@ -11,8 +11,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const config = await response.json();
             
             // KORRIGIERT: Dies war die fehlerhafte Zeile.
-            // Sie greift jetzt korrekt auf das globale "supabase" Objekt zu, das durch das Script-Tag im HTML erstellt wird.
-            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            // Sie greift jetzt korrekt auf das globale "supabase" Objekt zu.
+            const { createClient } = window.supabase;
+            supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
             
             // Starte den Auth State Listener, nachdem Supabase initialisiert ist
             setupAuthListener();
