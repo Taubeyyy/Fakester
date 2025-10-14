@@ -43,6 +43,10 @@
                 <button type="submit" class="button-primary">Konto erstellen</button>
                 <p class="auth-toggle-text">Schon ein Konto? <a href="#" id="show-login-form">Anmelden</a></p>
             </form>
+            <div class="guest-mode-separator">
+                <span>ODER</span>
+            </div>
+            <button class="button-secondary" id="guest-mode-button"><i class="fa-solid fa-user-secret"></i> Als Gast spielen</button>
         </div>
     </main>
 
@@ -313,6 +317,16 @@
             <button id="back-to-home-button" class="button-primary">Zurück zur Startseite</button>
         </div>
     </main>
+
+    <div id="guest-modal-overlay" class="hidden">
+        <div class="container modal">
+            <button id="close-guest-modal-button" class="button-exit-modal" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
+            <h2>Als Gast spielen</h2>
+            <p>Gib einen Nickname für diese Runde ein. Deine Daten werden nicht gespeichert.</p>
+            <input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15">
+            <button id="guest-nickname-submit" class="button-primary">Weiter</button>
+        </div>
+    </div>
 
     <div id="join-modal-overlay" class="hidden">
         <div class="container modal">

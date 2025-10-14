@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    // --- NEU: Supabase Konfiguration wird vom Server geladen ---
+    // --- Supabase Konfiguration wird vom Server geladen ---
     let supabase;
 
     async function initializeSupabase() {
@@ -40,6 +40,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         showRegisterForm: document.getElementById('show-register-form'),
         showLoginForm: document.getElementById('show-login-form'),
         logoutButton: document.getElementById('logout-button'),
+        guestModeButton: document.getElementById('guest-mode-button'), // KORRIGIERT: Fehlendes Element hinzugefügt
+        guestModalOverlay: document.getElementById('guest-modal-overlay'), // KORRIGIERT: Fehlendes Element hinzugefügt
+        closeGuestModalButton: document.getElementById('close-guest-modal-button'), // KORRIGIERT: Fehlendes Element hinzugefügt
+        guestNicknameInput: document.getElementById('guest-nickname-input'), // KORRIGIERT: Fehlendes Element hinzugefügt
+        guestNicknameSubmit: document.getElementById('guest-nickname-submit'), // KORRIGIERT: Fehlendes Element hinzugefügt
         welcomeNickname: document.getElementById('welcome-nickname'),
         showCreateButtonLogin: document.getElementById('show-create-button-login'),
         showCreateButtonAction: document.getElementById('show-create-button-action'),
@@ -108,6 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         headerScoreboard: document.getElementById('live-header-scoreboard'),
         leaveButton: document.querySelector('.button-leave'),
         backToHomeButton: document.getElementById('back-to-home-button'),
+        playerStats: document.querySelector('.player-stats'), // KORRIGIERT: Selektor für Statistik-Container
         statGamesPlayed: document.getElementById('stat-games-played'),
         statHighscore: document.getElementById('stat-highscore'),
     };
@@ -144,26 +150,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         else if (user) {
             const { error: profileError } = await supabase.from('profiles').insert({ id: user.id, username: username });
             if (profileError) showToast(profileError.message, true);
-            else showToast('Konto erfolgreich erstellt!');
+            else {
+                showToast('Konto erfolgreich erstellt! Du wirst angemeldet.');
+                elements.registerForm.reset();
+            }
         }
     }
 
     async function handleLogout() {
-        await supabase.auth.signOut();
+        if (currentUser && !currentUser.isGuest) {
+            await supabase.auth.signOut();
+        }
         await fetch('/logout', { method: 'POST' });
         spotifyToken = null;
         window.location.reload();
+    }
+    
+    function handleGuestLogin() {
+        const guestNickname = elements.guestNicknameInput.value.trim();
+        if (guestNickname.length < 3) {
+            showToast('Dein Gast-Name muss mindestens 3 Zeichen lang sein.', true);
+            return;
+        }
+        elements.guestModalOverlay.classList.add('hidden');
+        initializeAppAsGuest(guestNickname);
     }
     
     // --- Session- und App-Initialisierung ---
     async function initializeApp(user) {
         currentUser = {
             id: user.id,
-            username: user.user_metadata.username
+            username: user.user_metadata.username,
+            isGuest: false
         };
         myPlayerId = currentUser.id;
         myNickname = currentUser.username;
         
+        elements.playerStats.classList.remove('guest');
         await updateHomeScreenStats();
         await checkSpotifyStatus();
         
@@ -171,8 +194,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         showScreen('home-screen');
     }
 
+    async function initializeAppAsGuest(nickname) {
+        currentUser = {
+            id: 'guest-' + Date.now(), // Eindeutige ID für die Session
+            username: nickname,
+            isGuest: true
+        };
+        myPlayerId = currentUser.id;
+        myNickname = currentUser.username;
+
+        elements.playerStats.classList.add('guest'); // Versteckt Statistiken für Gäste
+        await checkSpotifyStatus();
+        elements.welcomeNickname.textContent = `${myNickname} (Gast)`;
+        showScreen('home-screen');
+    }
+
     async function updateHomeScreenStats() {
-        if (!currentUser) return;
+        if (!currentUser || currentUser.isGuest) return;
         const { data, error } = await supabase
             .from('profiles')
             .select('games_played, highscore')
@@ -193,10 +231,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             spotifyToken = data.token;
             elements.showCreateButtonLogin.classList.add('hidden');
             elements.showCreateButtonAction.classList.remove('hidden');
-            elements.logoutButton.classList.remove('hidden');
         } catch (error) {
             elements.showCreateButtonLogin.classList.remove('hidden');
             elements.showCreateButtonAction.classList.add('hidden');
+        } finally {
             elements.logoutButton.classList.remove('hidden');
         }
     }
@@ -206,7 +244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         supabase.auth.onAuthStateChange(async (event, session) => {
             if (session && session.user) {
                 initializeApp(session.user);
-            } else {
+            } else if (!currentUser || !currentUser.isGuest) { // Verhindert, dass Gast-Session überschrieben wird
                 currentUser = null;
                 showScreen('auth-screen');
             }
@@ -278,9 +316,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             hostSettingsState[type] = null;
         }
     }
-
-    setupCustomSelects();
-
+    
+    // --- WebSocket-Logik ---
     function connectToServer(onOpenCallback) {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws.socket = new WebSocket(`${protocol}//${window.location.host}`);
@@ -313,6 +350,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // --- Spielablauf-UI ---
     function showScreen(screenId) {
         elements.screens.forEach(s => s.classList.remove('active'));
         const activeScreen = document.getElementById(screenId);
@@ -551,10 +589,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         showScreen('end-screen');
         const myFinalScore = scores.find(p => p.id === myPlayerId)?.score || 0;
         
-        const { data } = await supabase.from('profiles').select('games_played, highscore').eq('id', currentUser.id).single();
-        const newGamesPlayed = (data.games_played || 0) + 1;
-        const newHighscore = Math.max(data.highscore || 0, myFinalScore);
-        await supabase.from('profiles').update({ games_played: newGamesPlayed, highscore: newHighscore }).eq('id', currentUser.id);
+        if (currentUser && !currentUser.isGuest) {
+            const { data } = await supabase.from('profiles').select('games_played, highscore').eq('id', currentUser.id).single();
+            const newGamesPlayed = (data.games_played || 0) + 1;
+            const newHighscore = Math.max(data.highscore || 0, myFinalScore);
+            await supabase.from('profiles').update({ games_played: newGamesPlayed, highscore: newHighscore }).eq('id', currentUser.id);
+        }
 
         const [first, second, third] = scores;
         const podiumElements = { 1: document.getElementById('podium-player-1'), 2: document.getElementById('podium-player-2'), 3: document.getElementById('podium-player-3') };
@@ -598,6 +638,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.showRegisterForm.addEventListener('click', (e) => { e.preventDefault(); elements.loginForm.classList.add('hidden'); elements.registerForm.classList.remove('hidden'); });
     elements.showLoginForm.addEventListener('click', (e) => { e.preventDefault(); elements.registerForm.classList.add('hidden'); elements.loginForm.classList.remove('hidden'); });
     elements.logoutButton.addEventListener('click', handleLogout);
+    elements.guestModeButton.addEventListener('click', () => { elements.guestModalOverlay.classList.remove('hidden'); });
+    elements.closeGuestModalButton.addEventListener('click', () => { elements.guestModalOverlay.classList.add('hidden'); });
+    elements.guestNicknameSubmit.addEventListener('click', handleGuestLogin);
     
     elements.showCreateButtonAction.addEventListener('click', () => showScreen('mode-selection-screen'));
     elements.showJoinButton.addEventListener('click', () => { currentPin = ''; updatePinDisplay(); elements.joinModalOverlay.classList.remove('hidden'); });
@@ -637,5 +680,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.helpButtons.forEach(button => button.addEventListener('click', () => showHelpModal(button.dataset.topic)));
     elements.helpModalClose.addEventListener('click', () => elements.helpModalOverlay.classList.add('hidden'));
     elements.leaveButton.addEventListener('click', () => { if (ws.socket) { ws.socket.onclose = () => {}; ws.socket.close(); ws.socket = null; } window.location.reload(); });
-    elements.backToHomeButton.addEventListener('click', () => { updateHomeScreenStats(); showScreen('home-screen'); });
+    elements.backToHomeButton.addEventListener('click', () => { if (!currentUser.isGuest) { updateHomeScreenStats(); } showScreen('home-screen'); });
+    
+    // --- STARTPUNKT DER ANWENDUNG ---
+    await initializeSupabase();
 });
