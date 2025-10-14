@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    </head>
+</head>
 <body>
 
     <div class="app-background"></div>
@@ -55,9 +55,7 @@
                 <h1>FAKESTER</h1>
                 <p>DAS MUSIK QUIZ</p>
             </div>
-            
             <h2 id="welcome-header">Hallo, <span id="welcome-nickname"></span>!</h2>
-
             <div class="player-stats">
                 <div class="stat-card">
                     <span class="stat-value" id="stat-games-played">0</span>
@@ -68,7 +66,6 @@
                     <span class="stat-label">Highscore</span>
                 </div>
             </div>
-
             <div class="home-actions">
                 <a href="/login" class="button-primary login-button" id="show-create-button-login"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
                 <button class="button-primary create-button hidden" id="show-create-button-action"><i class="fa-solid fa-plus"></i> Raum erstellen</button>
@@ -88,8 +85,25 @@
     <main id="popularity-screen" class="screen"></main>
     <main id="result-screen" class="screen"></main>
     <main id="end-screen" class="screen"></main>
-    <div id="guest-modal-overlay" class="hidden"></div>
-    <div id="join-modal-overlay" class="hidden"></div>
+
+    <div id="guest-modal-overlay" class="hidden">
+        <div class="modal">
+            <button id="close-guest-modal-button" class="button-exit-modal" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
+            <h2>Als Gast spielen</h2>
+            <p>Gib einen Nickname ein, um fortzufahren.</p>
+            <input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15">
+            <button id="guest-nickname-submit" class="button-primary">Weiter</button>
+        </div>
+    </div>
+    <div id="join-modal-overlay" class="hidden">
+         <div class="modal">
+            <button id="close-modal-button-exit" class="button-exit-modal" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
+            <h2>Raum beitreten</h2>
+            <p>Gib den 4-stelligen PIN des Raumes ein.</p>
+            <input type="number" id="join-pin-input" placeholder="PIN" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 0.5em;">
+            <button id="join-game-button" class="button-primary">Beitreten</button>
+        </div>
+    </div>
     <div id="custom-input-modal-overlay" class="hidden"></div>
     <div id="help-modal-overlay" class="hidden"></div>
     
