@@ -20,7 +20,7 @@ const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
 
-// NEU: Supabase Umgebungsvariablen vom Server holen
+// KORRIGIERT: Die richtigen Umgebungsvariablen werden hier ausgelesen
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
@@ -66,7 +66,7 @@ function shuffleArray(array) {
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-// NEU: API-Endpunkt, um die Konfiguration sicher an den Client zu senden
+// API-Endpunkt, um die Konfiguration sicher an den Client zu senden
 app.get('/api/config', (req, res) => {
     res.json({
         supabaseUrl: SUPABASE_URL,
