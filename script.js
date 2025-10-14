@@ -10,9 +10,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             const config = await response.json();
             
-            // KORRIGIERT: Der Supabase Client wird hier korrekt initialisiert.
-            // Der Fehler war in der nächsten Zeile.
-            supabase = supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            // KORRIGIERT: Der Supabase Client wird hier korrekt mit dem globalen Objekt initialisiert.
+            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
             
             // Starte den Auth State Listener, nachdem Supabase initialisiert ist
             setupAuthListener();
@@ -196,14 +195,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function initializeAppAsGuest(nickname) {
         currentUser = {
-            id: 'guest-' + Date.now(), // Eindeutige ID für die Session
+            id: 'guest-' + Date.now(),
             username: nickname,
             isGuest: true
         };
         myPlayerId = currentUser.id;
         myNickname = currentUser.username;
 
-        elements.playerStats.classList.add('guest'); // Versteckt Statistiken für Gäste
+        elements.playerStats.classList.add('guest');
         await checkSpotifyStatus();
         elements.welcomeNickname.textContent = `${myNickname} (Gast)`;
         showScreen('home-screen');
@@ -244,7 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         supabase.auth.onAuthStateChange(async (event, session) => {
             if (session && session.user) {
                 initializeApp(session.user);
-            } else if (!currentUser || !currentUser.isGuest) { // Verhindert, dass Gast-Session überschrieben wird
+            } else if (!currentUser || !currentUser.isGuest) {
                 currentUser = null;
                 showScreen('auth-screen');
             }
