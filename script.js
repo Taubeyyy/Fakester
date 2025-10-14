@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     let supabase;
 
-    // Diese Hauptfunktion wird sofort ausgeführt, um die App zu initialisieren.
     async function main() {
         try {
             const response = await fetch('/api/config');
@@ -52,7 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statHighscore: document.getElementById('stat-highscore'),
         modeBoxes: document.querySelectorAll('.mode-box'),
         joinModalOverlay: document.getElementById('join-modal-overlay'),
-        closeModalButtonExit: document.getElementById('close-modal-button-exit'),
+        closeModalButtonExit: document.getElementById('close-modal-button-exit'), // Dieses Element hat den Fehler verursacht
         joinGameButton: document.getElementById('join-game-button'),
     };
     
@@ -122,7 +121,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentUser && !currentUser.isGuest) {
             await supabase.auth.signOut();
         }
-        // Spotify-Cookie löschen etc.
         window.location.reload();
     }
 
@@ -194,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!supabase) return;
         supabase.auth.onAuthStateChange((event, session) => {
             if (session && session.user) {
-                initializeApp(session.user);
+                if (!currentUser) initializeApp(session.user);
             } else if (!currentUser || !currentUser.isGuest) {
                 currentUser = null;
                 showScreen('auth-screen');
@@ -213,8 +211,15 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.closeGuestModalButton.addEventListener('click', () => elements.guestModalOverlay.classList.add('hidden'));
         elements.guestNicknameSubmit.addEventListener('click', handleGuestLogin);
         elements.showJoinButton.addEventListener('click', () => elements.joinModalOverlay.classList.remove('hidden'));
-        elements.closeModalButtonExit.addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
-        elements.showCreateButtonAction.addEventListener('click', () => showScreen('mode-selection-screen'));
+        
+        // Dieser Listener hat den Fehler verursacht, weil das Element in der Liste oben gefehlt hat
+        if(elements.closeModalButtonExit) {
+            elements.closeModalButtonExit.addEventListener('click', () => elements.joinModalOverlay.classList.add('hidden'));
+        }
+        
+        if(elements.showCreateButtonAction) {
+            elements.showCreateButtonAction.addEventListener('click', () => showScreen('mode-selection-screen'));
+        }
     }
 
     // Starte die gesamte Anwendung
