@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Globale Variablen ---
     const ws = { socket: null };
     let currentUser = null, spotifyToken = null, settingsCache = {};
+    let supabase; // Wichtig: Hier nur deklarieren
 
     // --- DOM Elemente ---
     const elements = {
@@ -58,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(screenId)?.classList.add('active');
     }
 
-    // --- Auth-Logik (mit verbessertem Fehler-Handling) ---
+    // --- Auth-Logik ---
     async function handleRegister(e) {
         e.preventDefault();
         const username = document.getElementById('register-username').value;
@@ -72,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         if (error) {
-            // GENAUERE FEHLERMELDUNG
             console.error("Supabase SignUp Error:", error);
             const message = error.message.includes("User already registered") ? "Dieser Benutzername ist bereits vergeben." : "Fehler bei der Registrierung. Bitte versuche es erneut.";
             return showToast(message, true);
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showCustomInputModal(title, maxLength, callback) {
         elements.customInputModal.title.textContent = title;
         elements.customInputModal.display.forEach(d => d.style.display = 'flex');
-        if (maxLength < 3) { // Verstecke die 3. Ziffer, wenn nicht benötigt
+        if (maxLength < 3) {
              elements.customInputModal.display[2].style.display = 'none';
         }
         elements.customInputModal.overlay.classList.remove('hidden');
@@ -138,6 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.customInputModal.overlay.classList.add('hidden');
             customInputNumpadControl.clear();
             elements.customInputModal.submitButton.removeEventListener('click', submitHandler);
+            elements.customInputModal.cancelButton.removeEventListener('click', cleanup);
         };
         
         elements.customInputModal.submitButton.addEventListener('click', submitHandler);
@@ -147,29 +148,27 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Event Listeners ---
     function initializeEventListeners() {
         // Auth
-        elements.loginForm.addEventListener('submit', handleLogin); // handleLogin muss existieren
+        elements.loginForm.addEventListener('submit', handleLogin);
         elements.registerForm.addEventListener('submit', handleRegister);
         elements.showRegisterForm.addEventListener('click', (e) => { e.preventDefault(); elements.loginForm.classList.add('hidden'); elements.registerForm.classList.remove('hidden'); });
         elements.showLoginForm.addEventListener('click', (e) => { e.preventDefault(); elements.registerForm.classList.add('hidden'); elements.loginForm.classList.remove('hidden'); });
-        elements.logoutButton.addEventListener('click', handleLogout); // handleLogout muss existieren
+        elements.logoutButton.addEventListener('click', handleLogout);
 
         // Guest Modal
         elements.guestModeButton.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
         elements.guestModal.closeButton.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
-        elements.guestModal.submitButton.addEventListener('click', handleGuestLogin); // handleGuestLogin muss existieren
+        elements.guestModal.submitButton.addEventListener('click', handleGuestLogin);
         
         // Join Modal
         elements.showJoinButton.addEventListener('click', () => {
             elements.joinModal.overlay.classList.remove('hidden');
             joinNumpadControl = setupNumpad(elements.joinModal.numpad, elements.joinModal.pinDisplay, 4, (pin) => {
-                // Hier könnte man direkt joinen, wenn 4 Ziffern voll sind.
-                // ws.socket.send(...)
                 showToast(`PIN ${pin} eingegeben.`);
             });
         });
         elements.joinModal.closeButton.addEventListener('click', () => {
             elements.joinModal.overlay.classList.add('hidden');
-            joinNumpadControl.clear();
+            if (joinNumpadControl) joinNumpadControl.clear();
         });
 
         // Lobby Settings
@@ -178,23 +177,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const button = e.target.closest('.option-btn');
                 if (!button) return;
 
-                const type = button.dataset.type;
+                const type = button.parentElement.id.includes('song-count') ? 'songCount' : 'guessTime';
                 const action = button.dataset.action;
 
                 if (action === 'custom') {
-                    const title = type === 'song-count' ? 'Anzahl Songs' : 'Ratezeit (Sek.)';
-                    const maxLen = type === 'song-count' ? 3 : 2;
+                    const title = type === 'songCount' ? 'Anzahl Songs' : 'Ratezeit (Sek.)';
+                    const maxLen = type === 'songCount' ? 3 : 2;
                     showCustomInputModal(title, maxLen, (value) => {
                         settingsCache[type] = parseInt(value);
                         updateSettingsUI(container, button, value);
-                        // sendSettingsToServer();
                         showToast(`${title} auf ${value} gesetzt.`);
                     });
                 } else {
                     const value = parseInt(button.dataset.value);
                     settingsCache[type] = value;
                     updateSettingsUI(container, button);
-                    // sendSettingsToServer();
                 }
             });
         });
@@ -207,33 +204,37 @@ document.addEventListener('DOMContentLoaded', () => {
             activeButton.textContent = customValue;
         } else {
             const customBtn = container.querySelector('[data-action="custom"]');
-            const defaultText = customBtn.dataset.type === 'song-count' ? 'Custom' : 'Custom';
+            const defaultText = customBtn.parentElement.id.includes('song-count') ? 'Custom' : 'Custom';
             customBtn.textContent = defaultText;
         }
     }
     
     // --- Initialisierung der App ---
-    let supabase;
     async function main() {
         try {
             const response = await fetch('/api/config');
             if (!response.ok) throw new Error('Server-Konfiguration konnte nicht geladen werden.');
             
             const config = await response.json();
-            supabase = supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            
+            // ### KORREKTUR HIER ###
+            // Wir holen uns die createClient-Funktion aus dem globalen Objekt
+            const { createClient } = window.supabase;
+            // Jetzt initialisieren wir die 'supabase' Variable
+            supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
             initializeEventListeners();
-            // Rest der Initialisierungslogik (Auth Listener etc.)
+            // Rest der Initialisierungslogik
         } catch (error) {
             console.error("Kritischer Fehler bei der Initialisierung:", error);
-            document.body.innerHTML = `<div style="color: white; padding: 40px; text-align: center;"><h1>Fehler beim Laden der App</h1><p>${error.message}</p></div>`;
+            document.body.innerHTML = `<div style="color: white; padding: 40px; text-align: center;"><h1>Fehler beim Laden der App</h1><p style="font-family: monospace; color: #FF4500;">${error.message}</p></div>`;
         }
     }
     
-    // Platzhalter für Funktionen, die in deinem Original-Skript existieren, aber hier nicht gezeigt wurden.
+    // Platzhalter für Funktionen
     async function handleLogin(e) { e.preventDefault(); showToast('Login-Logik hier einfügen.'); }
     async function handleLogout() { showToast('Logout-Logik hier einfügen.'); }
     function handleGuestLogin() { showToast('Gast-Login-Logik hier einfügen.'); elements.guestModal.overlay.classList.add('hidden'); }
     
-    main(); // Startet die App
+    main();
 });
