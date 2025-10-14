@@ -10,9 +10,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             const config = await response.json();
             
-            // Initialisiere den Supabase Client mit den vom Server erhaltenen Keys
-            const { createClient } = supabase;
-            supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
+            // KORRIGIERT: Der Supabase Client wird hier korrekt initialisiert.
+            // Der Fehler war in der nächsten Zeile.
+            supabase = supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
             
             // Starte den Auth State Listener, nachdem Supabase initialisiert ist
             setupAuthListener();
@@ -40,11 +40,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         showRegisterForm: document.getElementById('show-register-form'),
         showLoginForm: document.getElementById('show-login-form'),
         logoutButton: document.getElementById('logout-button'),
-        guestModeButton: document.getElementById('guest-mode-button'), // KORRIGIERT: Fehlendes Element hinzugefügt
-        guestModalOverlay: document.getElementById('guest-modal-overlay'), // KORRIGIERT: Fehlendes Element hinzugefügt
-        closeGuestModalButton: document.getElementById('close-guest-modal-button'), // KORRIGIERT: Fehlendes Element hinzugefügt
-        guestNicknameInput: document.getElementById('guest-nickname-input'), // KORRIGIERT: Fehlendes Element hinzugefügt
-        guestNicknameSubmit: document.getElementById('guest-nickname-submit'), // KORRIGIERT: Fehlendes Element hinzugefügt
+        guestModeButton: document.getElementById('guest-mode-button'),
+        guestModalOverlay: document.getElementById('guest-modal-overlay'),
+        closeGuestModalButton: document.getElementById('close-guest-modal-button'),
+        guestNicknameInput: document.getElementById('guest-nickname-input'),
+        guestNicknameSubmit: document.getElementById('guest-nickname-submit'),
         welcomeNickname: document.getElementById('welcome-nickname'),
         showCreateButtonLogin: document.getElementById('show-create-button-login'),
         showCreateButtonAction: document.getElementById('show-create-button-action'),
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         headerScoreboard: document.getElementById('live-header-scoreboard'),
         leaveButton: document.querySelector('.button-leave'),
         backToHomeButton: document.getElementById('back-to-home-button'),
-        playerStats: document.querySelector('.player-stats'), // KORRIGIERT: Selektor für Statistik-Container
+        playerStats: document.querySelector('.player-stats'),
         statGamesPlayed: document.getElementById('stat-games-played'),
         statHighscore: document.getElementById('stat-highscore'),
     };
@@ -680,8 +680,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.helpButtons.forEach(button => button.addEventListener('click', () => showHelpModal(button.dataset.topic)));
     elements.helpModalClose.addEventListener('click', () => elements.helpModalOverlay.classList.add('hidden'));
     elements.leaveButton.addEventListener('click', () => { if (ws.socket) { ws.socket.onclose = () => {}; ws.socket.close(); ws.socket = null; } window.location.reload(); });
-    elements.backToHomeButton.addEventListener('click', () => { if (!currentUser.isGuest) { updateHomeScreenStats(); } showScreen('home-screen'); });
+    elements.backToHomeButton.addEventListener('click', () => { if (currentUser && !currentUser.isGuest) { updateHomeScreenStats(); } showScreen('home-screen'); });
     
     // --- STARTPUNKT DER ANWENDUNG ---
+    setupCustomSelects();
     await initializeSupabase();
 });
