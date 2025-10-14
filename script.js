@@ -10,8 +10,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             const config = await response.json();
             
-            // KORRIGIERT: Der Supabase Client wird hier korrekt mit dem globalen Objekt initialisiert.
-            // Der Fehler war "supabase.createClient", es muss "window.supabase.createClient" heißen.
+            // KORRIGIERT: Dies war die fehlerhafte Zeile.
+            // Sie greift jetzt korrekt auf das globale "supabase" Objekt zu.
             const { createClient } = window.supabase;
             supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
             
@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const username = document.getElementById('login-username').value;
         const password = document.getElementById('login-password').value;
         const { error } = await supabase.auth.signInWithPassword({ email: `${username}@fakester.app`, password });
-        if (error) showToast(error.message, true);
+        if (error) showToast("Anmeldedaten sind ungültig.", true);
         else { showToast('Erfolgreich angemeldet!'); elements.loginForm.reset(); }
     }
 
