@@ -139,26 +139,28 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.lobby.waitingMessage.classList.toggle('hidden', isHost);
     };
 
-    const loadSpotifyData = async (endpoint, selectElement) => {
+    const loadSpotifyData = async (endpoint, selectElement, specialOptions = []) => {
         try {
             if (!spotifyToken) return showToast("Spotify-Token fehlt.", true);
             const res = await fetch(endpoint, { headers: { 'Authorization': `Bearer ${spotifyToken}` } });
-            if (!res.ok) throw new Error('API-Anfrage fehlgeschlagen');
+            if (!res.ok) throw new Error(`API-Anfrage an ${endpoint} fehlgeschlagen`);
             const data = await res.json();
             const items = data.devices || data.items;
-            selectElement.innerHTML = items?.length > 0
+            let html = specialOptions.map(opt => `<option value="${opt.value}">${opt.name}</option>`).join('');
+            html += items?.length > 0
                 ? items.map(item => `<option value="${item.id}">${item.name}</option>`).join('')
-                : `<option value="">Nichts gefunden</option>`;
+                : '';
+            selectElement.innerHTML = html || `<option value="">Nichts gefunden</option>`;
         } catch(err) {
             console.error(`Fehler beim Laden von ${endpoint}:`, err);
             selectElement.innerHTML = `<option value="">Fehler beim Laden</option>`;
-            showToast("Playlists konnten nicht geladen werden. Ist Spotify aktiv?", true);
+            showToast("Daten konnten nicht geladen werden. Ist Spotify aktiv?", true);
         }
     };
     const loadSpotifyDevices = () => loadSpotifyData('/api/devices', elements.lobby.deviceSelect);
-    const loadSpotifyPlaylists = () => loadSpotifyData('/api/playlists', elements.lobby.playlistSelect);
+    const loadSpotifyPlaylists = () => loadSpotifyData('/api/playlists', elements.lobby.playlistSelect, [{ value: 'liked-songs', name: '❤️ Geliked Songs' }]);
 
-    // --- Auth-Logik (KORRIGIERT) ---
+    // --- Auth-Logik ---
     const handleAuthAction = async (action, form) => {
         const username = form.querySelector('input[type="text"]').value;
         const password = form.querySelector('input[type="password"]').value;
@@ -166,15 +168,11 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const { data, error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } });
             if (error) throw error;
-            // Der AuthListener kümmert sich um die Weiterleitung, wir warten hier nicht.
         } catch (error) {
+            setLoading(false); // Nur bei Fehler sofort beenden
             showToast(error.message, true);
-        } finally {
-            // Wichtig: setLoading(false) wird hier entfernt, da der AuthListener die UI nach dem Login aktualisiert.
-            // Der Ladebildschirm wird in initializeApp oder beim Fehlschlag ausgeblendet.
         }
     };
-
     const handleLogout = async () => {
         setLoading(true);
         if (currentUser?.isGuest) {
@@ -183,7 +181,6 @@ document.addEventListener('DOMContentLoaded', () => {
             await supabase.auth.signOut();
         }
     };
-    
     const setupAuthListener = () => {
         supabase.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN' && session) {
@@ -300,8 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setLoading(true);
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
-                // Der AuthListener wird das hier handhaben, aber wir warten kurz, damit der Ladebildschirm sichtbar ist
-                // Das ist ein kleiner Trick, um die UI flüssiger wirken zu lassen
+                // Der AuthListener wird übernehmen und setLoading(false) aufrufen
             } else {
                 showScreen('auth-screen');
                 setLoading(false);
