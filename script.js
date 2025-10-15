@@ -77,8 +77,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const setLoading = (isLoading) => elements.loadingOverlay.classList.toggle('hidden', !isLoading);
     
     // --- WebSocket Logik ---
-    const connectWebSocket = () => { /* ... bleibt unverändert ... */ };
-    const handleWebSocketMessage = ({ type, payload }) => { /* ... bleibt unverändert ... */ };
+    const connectWebSocket = () => {
+        const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+        ws.socket = new WebSocket(`${protocol}://${location.host}`);
+        ws.socket.onopen = () => console.log("WebSocket verbunden.");
+        ws.socket.onmessage = (event) => handleWebSocketMessage(JSON.parse(event.data));
+        ws.socket.onclose = () => setTimeout(connectWebSocket, 3000);
+    };
+
+    const handleWebSocketMessage = ({ type, payload }) => {
+        switch (type) {
+            case 'game-created':
+            case 'join-success':
+                showScreen('lobby-screen');
+                updateLobby(payload);
+                if (currentUser.id === payload.hostId) {
+                    loadSpotifyDevices();
+                    loadSpotifyPlaylists();
+                }
+                break;
+            case 'lobby-update': updateLobby(payload); break;
+            case 'error': showToast(payload.message, true); break;
+        }
+    };
     
     // --- App-Logik ---
     const initializeApp = async (user, isGuest = false) => {
@@ -135,7 +156,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.user) initializeApp(data.user);
     };
     const handleLogout = async () => currentUser?.isGuest ? window.location.reload() : await supabase.auth.signOut();
-    const setupAuthListener = () => supabase.auth.onAuthStateChange((event) => event === 'SIGNED_OUT' && window.location.reload());
+    const setupAuthListener = () => supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+            initializeApp(session.user);
+        } else if (event === 'SIGNED_OUT') {
+            window.location.reload();
+        }
+    });
 
     // --- Numpad & Modal Logik ---
     const setupNumpad = (numpadElements, displayElements, maxLength, onConfirm) => { /* ... bleibt unverändert ... */ };
@@ -143,8 +170,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = elements.customInputModal;
         const isSongCount = type === 'songCount';
         modal.title.textContent = isSongCount ? 'Anzahl Songs' : 'Ratezeit (Sek.)';
-        const maxLength = isSongCount ? 3 : 2; // Ratezeit bleibt zweistellig
-        modal.display.forEach((d, i) => d.style.display = i < maxLength ? 'flex' : 'none');
+        const maxLength = 3; // Immer dreistellig für Konsistenz
+        modal.display.forEach(d => d.style.display = 'flex');
         modal.overlay.classList.remove('hidden');
         modal.submitBtn.onclick = setupNumpad(modal.numpad, modal.display, maxLength, (value) => {
             if (value) {
@@ -197,7 +224,13 @@ document.addEventListener('DOMContentLoaded', () => {
             setupAuthListener();
             connectWebSocket();
             const { data: { session } } = await supabase.auth.getSession();
-            session ? initializeApp(session.user) : showScreen('auth-screen');
+            setLoading(true);
+            if (session) {
+                await initializeApp(session.user);
+            } else {
+                showScreen('auth-screen');
+            }
+            setLoading(false);
         } catch (error) {
             document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>${error.message}</p></div>`;
         }
