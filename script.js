@@ -66,10 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // =================================================================
-    // START ALLER FUNKTIONEN (vor dem Aufruf in main)
-    // =================================================================
-    
+    // --- Hilfsfunktionen ---
     const showToast = (message, isError = false) => Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "#e52d27" : "#00b09b", borderRadius: "8px" } }).showToast();
     const showScreen = (screenId) => {
         elements.screens.forEach(s => s.classList.remove('active'));
@@ -79,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const setLoading = (isLoading) => elements.loadingOverlay.classList.toggle('hidden', !isLoading);
     
+    // --- WebSocket Logik ---
     const connectWebSocket = () => {
         const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
         ws.socket = new WebSocket(`${protocol}://${location.host}`);
@@ -103,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
+    // --- App-Logik ---
     const initializeApp = async (user, isGuest = false) => {
         currentUser = { id: user.id, username: isGuest ? user.username : user.user_metadata.username, isGuest };
         elements.home.nickname.textContent = currentUser.username;
@@ -159,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadSpotifyDevices = () => loadSpotifyData('/api/devices', elements.lobby.deviceSelect);
     const loadSpotifyPlaylists = () => loadSpotifyData('/api/playlists', elements.lobby.playlistSelect);
 
+    // --- Auth-Logik (KORRIGIERT) ---
     const handleAuthAction = async (action, form) => {
         const username = form.querySelector('input[type="text"]').value;
         const password = form.querySelector('input[type="password"]').value;
@@ -166,24 +166,36 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const { data, error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } });
             if (error) throw error;
-            // Der AuthListener kümmert sich um die Weiterleitung
+            // Der AuthListener kümmert sich um die Weiterleitung, wir warten hier nicht.
         } catch (error) {
             showToast(error.message, true);
         } finally {
-            setLoading(false);
+            // Wichtig: setLoading(false) wird hier entfernt, da der AuthListener die UI nach dem Login aktualisiert.
+            // Der Ladebildschirm wird in initializeApp oder beim Fehlschlag ausgeblendet.
         }
     };
-    const handleLogout = async () => currentUser?.isGuest ? window.location.reload() : await supabase.auth.signOut();
+
+    const handleLogout = async () => {
+        setLoading(true);
+        if (currentUser?.isGuest) {
+            window.location.reload();
+        } else {
+            await supabase.auth.signOut();
+        }
+    };
+    
     const setupAuthListener = () => {
         supabase.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN' && session) {
                 await initializeApp(session.user);
+                setLoading(false);
             } else if (event === 'SIGNED_OUT') {
                 window.location.reload();
             }
         });
     };
 
+    // --- Numpad & Modal Logik ---
     const setupNumpad = (numpadElements, displayElements, maxLength, onConfirm) => {
         let value = '';
         const updateDisplay = () => displayElements.forEach((digit, i) => digit.textContent = value[i] || '');
@@ -218,6 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.cancelBtn.onclick = () => modal.overlay.classList.add('hidden');
     };
 
+    // --- Event Listeners ---
     const initializeEventListeners = () => {
         elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword, e.currentTarget); });
         elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp, e.currentTarget); });
@@ -270,16 +283,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // =================================================================
-    // MAIN APP START
-    // =================================================================
+    // --- MAIN APP ---
     const main = async () => {
         try {
             const response = await fetch('/api/config');
             if (!response.ok) throw new Error('Server-Konfiguration konnte nicht geladen werden.');
             const config = await response.json();
             
-            // Die KORREKTE Initialisierung
             const { createClient } = window.supabase;
             supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
             
@@ -290,15 +300,15 @@ document.addEventListener('DOMContentLoaded', () => {
             setLoading(true);
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
-                await initializeApp(session.user);
+                // Der AuthListener wird das hier handhaben, aber wir warten kurz, damit der Ladebildschirm sichtbar ist
+                // Das ist ein kleiner Trick, um die UI flüssiger wirken zu lassen
             } else {
                 showScreen('auth-screen');
+                setLoading(false);
             }
         } catch (error) {
-            console.error(error);
-            document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>${error.message}</p></div>`;
-        } finally {
             setLoading(false);
+            document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>${error.message}</p></div>`;
         }
     };
     main();
