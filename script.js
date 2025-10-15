@@ -25,6 +25,17 @@ document.addEventListener('DOMContentLoaded', () => {
             playlistSelect: document.getElementById('playlist-select'),
             refreshDevicesBtn: document.getElementById('refresh-devices-button'),
         },
+        guestModal: {
+            overlay: document.getElementById('guest-modal-overlay'),
+            closeBtn: document.getElementById('close-guest-modal-button'),
+            submitBtn: document.getElementById('guest-nickname-submit'),
+            input: document.getElementById('guest-nickname-input'),
+            openBtn: document.getElementById('guest-mode-button'),
+        },
+        joinModal: {
+            overlay: document.getElementById('join-modal-overlay'),
+            closeBtn: document.getElementById('close-join-modal-button'),
+        }
     };
 
     // --- Hilfsfunktionen ---
@@ -44,9 +55,38 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- WebSocket Logik ---
-    const connectWebSocket = () => { /* ... unverändert ... */ };
-    const handleWebSocketMessage = ({ type, payload }) => { /* ... unverändert ... */ };
-    const updateLobby = ({ pin, players, hostId }) => { /* ... unverändert ... */ };
+    const connectWebSocket = () => {
+        if (ws.socket && ws.socket.readyState === WebSocket.OPEN) return;
+        const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+        ws.socket = new WebSocket(`${protocol}://${location.host}`);
+        ws.socket.onopen = () => console.log("WebSocket verbunden.");
+        ws.socket.onmessage = (event) => handleWebSocketMessage(JSON.parse(event.data));
+        ws.socket.onclose = () => setTimeout(connectWebSocket, 3000);
+    };
+
+    const handleWebSocketMessage = ({ type, payload }) => {
+        setLoading(false);
+        switch (type) {
+            case 'game-created':
+            case 'join-success':
+                showScreen('lobby-screen');
+                updateLobby(payload);
+                if (currentUser.id === payload.hostId) {
+                    loadSpotifyDevices();
+                    loadSpotifyPlaylists();
+                }
+                break;
+            case 'error':
+                showToast(payload.message, true);
+                break;
+        }
+    };
+    
+    const updateLobby = ({ pin, players, hostId }) => {
+        document.getElementById('lobby-pin').textContent = pin;
+        const playerList = document.getElementById('player-list');
+        playerList.innerHTML = players.map(p => `<li>${p.nickname} ${p.id === hostId ? '👑' : ''}</li>`).join('');
+    };
 
     // --- App-Logik ---
     const initializeApp = async (user, isGuest = false) => {
@@ -96,24 +136,23 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.home.logoutBtn.addEventListener('click', handleLogout);
         elements.leaveGameButton.addEventListener('click', () => showScreen('home-screen'));
         elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
-
-        elements.home.profileTitleBtn.addEventListener('click', () => {
-            showToast('Funktion zum Ändern des Titels kommt bald!');
-        });
+        elements.home.profileTitleBtn.addEventListener('click', () => showToast('Funktion zum Ändern des Titels kommt bald!'));
 
         elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
         elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
 
-        document.getElementById('guest-mode-button').addEventListener('click', () => document.getElementById('guest-modal-overlay').classList.remove('hidden'));
-        document.getElementById('close-guest-modal-button').addEventListener('click', () => document.getElementById('guest-modal-overlay').classList.add('hidden'));
-        document.getElementById('guest-nickname-submit').addEventListener('click', () => {
-            const name = document.getElementById('guest-nickname-input').value.trim();
+        elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
+        elements.guestModal.closeBtn.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
+        elements.guestModal.submitBtn.addEventListener('click', () => {
+            const name = elements.guestModal.input.value.trim();
             if (name.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
-            document.getElementById('guest-modal-overlay').classList.add('hidden');
+            elements.guestModal.overlay.classList.add('hidden');
             initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
         });
         
         elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
+        elements.home.joinRoomBtn.addEventListener('click', () => elements.joinModal.overlay.classList.remove('hidden'));
+        elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
         
         document.querySelectorAll('.mode-box').forEach(box => {
             box.addEventListener('click', () => {
@@ -121,8 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: box.dataset.mode } }));
             });
         });
-
-        elements.home.joinRoomBtn.addEventListener('click', () => document.getElementById('join-modal-overlay').classList.remove('hidden'));
         
         elements.lobby.refreshDevicesBtn.addEventListener('click', loadSpotifyDevices);
     };
