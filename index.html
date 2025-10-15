@@ -47,7 +47,7 @@
                 <div class="profile-picture"><i class="fa-solid fa-user"></i></div>
                 <div class="profile-info">
                     <h2 id="welcome-nickname"></h2>
-                    <span class="profile-title">Neuling</span>
+                    <button class="profile-title-button"><span id="profile-title" class="profile-title">Neuling</span></button>
                 </div>
                 <div class="profile-achievements">
                     <button id="achievements-button" class="button-icon" title="Erfolge"><i class="fa-solid fa-trophy"></i></button>
@@ -65,73 +65,41 @@
         </div>
         <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button>
     </main>
-    
-    <main id="lobby-screen" class="screen">
-        <div class="lobby-container">
-            <div class="pin-display-large"><p>Lobby PIN</p><span id="lobby-pin">----</span></div>
-            <ul id="player-list"></ul>
-            <div id="host-settings" class="hidden">
-                <div class="setting"><label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" data-help="device"></i></label>
-                    <div class="select-with-refresh">
-                        <select id="device-select" class="lobby-select"><option>Lädt...</option></select>
-                        <button id="refresh-devices-button" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
-                    </div>
-                </div>
-                <div class="setting"><label>Playlist <i class="fa-solid fa-circle-question help-icon" data-help="playlist"></i></label><select id="playlist-select" class="lobby-select"><option>Lädt...</option></select></div>
-                <button id="start-game-button" class="button-primary button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
-            </div>
-            <div id="guest-waiting-message" class="hidden"><p>Warte, bis der Host das Spiel startet...</p></div>
-        </div>
-    </main>
+
+    <main id="lobby-screen" class="screen"> </main>
+    <main id="mode-selection-screen" class="screen"> </main>
 
     <main id="achievements-screen" class="screen">
         <div class="container text-left">
             <h2>Erfolge</h2>
-            <p>Hier werden bald deine freigeschalteten Erfolge angezeigt.</p>
-            <div class="achievements-list">
-                <div class="achievement locked">
-                    <div class="achievement-icon"><i class="fa-solid fa-lock"></i></div>
-                    <div class="achievement-info">
-                        <h3>Erstes Spiel</h3>
-                        <p>Spiele deine erste Runde Fakester.</p>
-                    </div>
+            <p>Sammle Erfolge und schalte neue Titel für dein Profil frei.</p>
+            <div class="achievement-grid">
+                <div class="achievement-card locked">
+                    <div class="achievement-icon"><i class="fa-solid fa-gamepad"></i></div>
+                    <h3>Erstes Spiel</h3>
+                    <p>Spiele deine erste Runde Fakester.</p>
                 </div>
-                <div class="achievement locked">
+                <div class="achievement-card locked">
+                    <div class="achievement-icon"><i class="fa-solid fa-crown"></i></div>
+                    <h3>Siegesserie</h3>
+                    <p>Gewinne 3 Spiele hintereinander.</p>
+                </div>
+                <div class="achievement-card locked">
+                    <div class="achievement-icon"><i class="fa-solid fa-music"></i></div>
+                    <h3>Musikkenner</h3>
+                    <p>Erreiche einen Highscore von 10.000.</p>
+                </div>
+                 <div class="achievement-card locked">
                     <div class="achievement-icon"><i class="fa-solid fa-lock"></i></div>
-                    <div class="achievement-info">
-                        <h3>Siegesserie</h3>
-                        <p>Gewinne 3 Spiele hintereinander.</p>
-                    </div>
+                    <h3>???</h3>
+                    <p>Ein geheimer Erfolg wartet auf dich.</p>
                 </div>
             </div>
         </div>
     </main>
 
-    <div id="guest-modal-overlay" class="modal-overlay hidden">
-        <div class="modal">
-            <button id="close-guest-modal-button" class="button-exit-modal">&times;</button>
-            <h2>Als Gast spielen</h2>
-            <input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15">
-            <button id="guest-nickname-submit" class="button-primary">Weiter</button>
-        </div>
-    </div>
-    <div id="join-modal-overlay" class="modal-overlay hidden">
-        <div class="modal numpad-modal">
-            <button id="close-join-modal-button" class="button-exit-modal">&times;</button>
-            <h2>Raum beitreten</h2>
-            <div class="pin-display">
-                <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
-            </div>
-            <div id="numpad-join" class="numpad">
-                <button>1</button><button>2</button><button>3</button>
-                <button>4</button><button>5</button><button>6</button>
-                <button>7</button><button>8</button><button>9</button>
-                <button class="numpad-action" data-action="clear">X</button>
-                <button>0</button>
-                <button id="join-game-button" class="numpad-action"><i class="fa-solid fa-right-to-bracket"></i></button>
-            </div>
-        </div>
-    </div>
+    <div id="guest-modal-overlay" class="modal-overlay hidden"> </div>
+    <div id="join-modal-overlay" class="modal-overlay hidden"> </div>
     
     <div id="loading-overlay" class="loading-overlay hidden">
         <div class="equalizer">
