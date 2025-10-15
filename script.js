@@ -1,17 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Globale Variablen ---
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "";
 
-    const ALL_ACHIEVEMENTS = {
-        first_game: { icon: "fa-gamepad", title: "Erstes Spiel", description: "Spiele deine erste Runde Fakester." },
-        win_streak_3: { icon: "fa-crown", title: "Siegesserie", description: "Gewinne 3 Spiele hintereinander." },
-    };
-
-    const ALL_TITLES = {
-        'Neuling': { description: "Standard-Titel für alle neuen Spieler.", unlockedBy: null },
-        'Kenner': { description: "Schalte diesen Titel frei, indem du 10 Spiele gewinnst.", unlockedBy: 'win_streak_3' }, // Beispiel
-    };
-
+    // --- DOM Elemente ---
     const elements = {
         screens: document.querySelectorAll('.screen'),
         leaveGameButton: document.getElementById('leave-game-button'),
@@ -43,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
     };
 
+    // --- Hilfsfunktionen ---
     const showToast = (message, isError = false) => Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "#e52d27" : "#00b09b", borderRadius: "8px" } }).showToast();
     const showScreen = (screenId) => {
         elements.screens.forEach(s => s.classList.remove('active'));
@@ -52,21 +45,10 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const setLoading = (isLoading) => elements.loadingOverlay.classList.toggle('hidden', !isLoading);
 
+    // --- App Initialisierung ---
     const initializeApp = async (user, isGuest = false) => {
-        if (!isGuest) {
-            const { data, error } = await supabase.from('profiles').select('equipped_title, user_achievements(achievement_id)').eq('id', user.id).single();
-            if (error) {
-                showToast("Profil konnte nicht geladen werden.", true);
-                return;
-            }
-            const achievements = data.user_achievements.map(a => a.achievement_id);
-            currentUser = { id: user.id, username: user.user_metadata.username, isGuest, achievements, title: data.equipped_title };
-        } else {
-            currentUser = { id: user.id, username: user.username, isGuest, achievements: [], title: 'Neuling' };
-        }
-        
+        currentUser = { id: user.id, username: isGuest ? user.username : user.user_metadata.username, isGuest };
         document.getElementById('welcome-nickname').textContent = currentUser.username;
-        document.getElementById('profile-title').textContent = currentUser.title;
         await checkSpotifyStatus();
         showScreen('home-screen');
         connectWebSocket();
@@ -81,11 +63,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('spotify-connect-button').classList.toggle('hidden', !!spotifyToken);
         elements.home.createRoomBtn.classList.toggle('hidden', !spotifyToken);
     };
-
+    
+    // --- Auth Logik ---
     const handleAuthAction = async (action, form) => {
+        setLoading(true);
         const username = form.querySelector('input[type="text"]').value;
         const password = form.querySelector('input[type="password"]').value;
-        setLoading(true);
         try {
             const { error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } });
             if (error) throw error;
@@ -98,114 +81,67 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleLogout = async () => {
         setLoading(true);
         if (currentUser?.isGuest) return window.location.reload();
-        await supabase.auth.signOut();
-    };
-    
-    const setupAuthListener = () => {
-        supabase.auth.onAuthStateChange(async (event, session) => {
-            if (event === 'SIGNED_IN' && session) {
-                await initializeApp(session.user);
-            } else if (event === 'SIGNED_OUT') {
-                window.location.reload();
-            }
-            setLoading(false);
-        });
-    };
-    
-    const renderAchievements = () => {
-        const grid = document.getElementById('achievement-grid');
-        grid.innerHTML = '';
-        for (const id in ALL_ACHIEVEMENTS) {
-            const achievement = ALL_ACHIEVEMENTS[id];
-            const isUnlocked = currentUser.achievements.includes(id);
-            const card = document.createElement('div');
-            card.className = `achievement-card ${isUnlocked ? '' : 'locked'}`;
-            card.innerHTML = `
-                <div class="achievement-icon"><i class="fa-solid ${achievement.icon}"></i></div>
-                <h3>${achievement.title}</h3>
-                <p>${achievement.description}</p>
-            `;
-            grid.appendChild(card);
-        }
-    };
-
-    const renderTitles = () => {
-        const list = document.getElementById('title-list');
-        list.innerHTML = '';
-        for (const title in ALL_TITLES) {
-            const info = ALL_TITLES[title];
-            const isUnlocked = !info.unlockedBy || currentUser.achievements.includes(info.unlockedBy);
-            const isActive = title === currentUser.title;
-            const item = document.createElement('div');
-            item.className = `title-item ${isActive ? 'active' : ''} ${isUnlocked ? '' : 'locked'}`;
-            item.dataset.title = title;
-            item.innerHTML = `<h3>${title}</h3><p>${info.description}</p>`;
-            list.appendChild(item);
-        }
-    };
-
-    const equipTitle = async (title) => {
-        if (currentUser.isGuest) {
-            showToast("Nur für registrierte Benutzer.", true);
-            return;
-        }
-        setLoading(true);
-        const { error } = await supabase.from('profiles').update({ equipped_title: title }).eq('id', currentUser.id);
-        setLoading(false);
+        const { error } = await supabase.auth.signOut();
         if (error) {
-            showToast("Titel konnte nicht geändert werden.", true);
+            setLoading(false);
+            showToast(error.message, true);
         } else {
-            currentUser.title = title;
-            document.getElementById('profile-title').textContent = title;
-            showScreen('home-screen');
-            showToast(`Titel "${title}" ausgerüstet!`);
+            window.location.reload();
         }
     };
-
+    
+    // --- Event Listeners ---
     const initializeEventListeners = () => {
         elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
         elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
         elements.home.logoutBtn.addEventListener('click', handleLogout);
         elements.leaveGameButton.addEventListener('click', () => showScreen('home-screen'));
 
-        elements.home.achievementsBtn.addEventListener('click', () => {
-            renderAchievements();
-            showScreen('achievements-screen');
-        });
-        
-        elements.home.profileTitleBtn.addEventListener('click', () => {
-            renderTitles();
-            showScreen('title-selection-screen');
-        });
-
-        document.getElementById('title-list').addEventListener('click', (e) => {
-            const item = e.target.closest('.title-item');
-            if (item && !item.classList.contains('locked')) {
-                equipTitle(item.dataset.title);
-            }
-        });
+        elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
+        elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
 
         elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
         elements.guestModal.closeBtn.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
         elements.guestModal.submitBtn.addEventListener('click', () => {
-            const name = elements.guestModal.input.value.trim();
+            const name = document.getElementById('guest-nickname-input').value.trim();
             if (name.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
             elements.guestModal.overlay.classList.add('hidden');
             initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
         });
 
+        elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
         elements.home.joinRoomBtn.addEventListener('click', () => {
             pinInput = "";
-            elements.joinModal.pinDisplay.forEach(d => d.textContent = "");
+            updatePinDisplay();
             elements.joinModal.overlay.classList.remove('hidden');
         });
         elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
-        elements.joinModal.numpad.addEventListener('click', (e) => { /* Numpad Logic */ });
+        elements.joinModal.numpad.addEventListener('click', handleNumpadInput);
     };
 
+    const handleNumpadInput = (e) => {
+        const target = e.target.closest('button');
+        if (!target) return;
+        const key = target.dataset.key;
+        const action = target.dataset.action;
+
+        if (key && pinInput.length < 4) pinInput += key;
+        else if (action === 'clear') pinInput = "";
+        else if (action === 'confirm' && pinInput.length === 4) {
+             setLoading(true);
+             ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
+             elements.joinModal.overlay.classList.add('hidden');
+        }
+        updatePinDisplay();
+    };
+
+    const updatePinDisplay = () => {
+        elements.joinModal.pinDisplay.forEach((digit, index) => digit.textContent = pinInput[index] || "");
+    };
+
+    // --- Main App Start ---
     const main = async () => {
         try {
-            setLoading(true);
             const response = await fetch('/api/config');
             if (!response.ok) throw new Error('Server-Konfiguration konnte nicht geladen werden.');
             const config = await response.json();
@@ -214,7 +150,15 @@ document.addEventListener('DOMContentLoaded', () => {
             supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
             initializeEventListeners();
-            setupAuthListener();
+
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                if (event === 'SIGNED_IN' && session) {
+                    await initializeApp(session.user);
+                } else if (event === 'SIGNED_OUT') {
+                    window.location.reload();
+                }
+                setLoading(false);
+            });
 
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
@@ -223,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             setLoading(false);
-            document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>Ein kritischer Fehler ist aufgetreten: ${error.message}</p></div>`;
+            document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>${error.message}</p></div>`;
         }
     };
 
