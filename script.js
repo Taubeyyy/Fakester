@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const { data, error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } });
             if (error) throw error;
         } catch (error) {
-            setLoading(false); // Nur bei Fehler sofort beenden
+            setLoading(false);
             showToast(error.message, true);
         }
     };
