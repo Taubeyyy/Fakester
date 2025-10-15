@@ -63,7 +63,8 @@
                 <button id="show-join-button" class="button-secondary"><i class="fa-solid fa-right-to-bracket"></i> Beitreten</button>
             </div>
         </div>
-        <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button>
+        <button id="show-patch-notes-button" class="corner-button" title="Patch Notes"><i class="fa-solid fa-scroll"></i></button>
+        <button id="corner-logout-button" class="corner-button" title="Ausloggen" style="right: 80px;"><i class="fa-solid fa-right-from-bracket"></i></button>
     </main>
     
     <main id="mode-selection-screen" class="screen">
@@ -90,7 +91,7 @@
             <div class="pin-display-large"><p>Lobby PIN</p><span id="lobby-pin">----</span></div>
             <ul id="player-list"></ul>
             <div id="host-settings" class="hidden">
-                <div class="setting"><label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" data-help="device"></i></label>
+                <div class="setting"><label>Wiedergaberät <i class="fa-solid fa-circle-question help-icon" data-help="device"></i></label>
                     <div class="select-with-refresh">
                         <select id="device-select" class="lobby-select"><option>Lädt...</option></select>
                         <button id="refresh-devices-button" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
@@ -109,9 +110,26 @@
                         <button class="option-btn active" data-value="30" data-type="guessTime">30</button><button class="option-btn" data-action="custom" data-type="guessTime">Custom</button>
                     </div>
                 </div>
+                <div class="setting"><label>Spielziel <i class="fa-solid fa-circle-question help-icon" data-help="goal"></i></label>
+                    <div class="setting-toggle" id="game-goal-options">
+                        <button class="option-btn active" data-value="points" data-type="gameGoal">Punkte</button><button class="option-btn" data-value="lives" data-type="gameGoal">Leben</button>
+                    </div>
+                </div>
                 <button id="start-game-button" class="button-primary button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
             </div>
             <div id="guest-waiting-message" class="hidden"><p>Warte, bis der Host das Spiel startet...</p></div>
+        </div>
+    </main>
+    
+    <main id="patch-notes-screen" class="screen">
+        <div class="container text-left">
+            <h2>Geplante Features (Roadmap)</h2>
+            <ul class="roadmap-list">
+                <li><span>Erfolge & Titel</span><p>Sammle Erfolge für besondere Leistungen und rüste Titel aus, um sie im Profil zu zeigen.</p></li>
+                <li><span>Profilbilder</span><p>Lade dein eigenes Profilbild hoch, um deinen Account zu personalisieren.</p></li>
+                <li><span>Multiple Choice</span><p>Eine optionale Einstellung für das klassische Quiz, um aus vorgegebenen Antworten zu wählen.</p></li>
+                <li><span>Leben-Modus</span><p>Spiele mit einer festen Anzahl an Leben anstatt auf Highscore. Wer als letzter übrig bleibt, gewinnt.</p></li>
+            </ul>
         </div>
     </main>
 
@@ -138,10 +156,47 @@
         </div>
     </main>
 
-    <div id="guest-modal-overlay" class="modal-overlay hidden"> ... </div>
-    <div id="join-modal-overlay" class="modal-overlay hidden"> ... </div>
-    <div id="custom-input-modal-overlay" class="modal-overlay hidden"> ... </div>
-    
+    <div id="guest-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button id="close-guest-modal-button" class="button-exit-modal">&times;</button>
+            <h2>Als Gast spielen</h2>
+            <input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15">
+            <button id="guest-nickname-submit" class="button-primary">Weiter</button>
+        </div>
+    </div>
+    <div id="join-modal-overlay" class="modal-overlay hidden">
+        <div class="modal numpad-modal">
+            <button id="close-join-modal-button" class="button-exit-modal">&times;</button>
+            <h2>Raum beitreten</h2>
+            <div class="pin-display">
+                <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
+            </div>
+            <div id="numpad-join" class="numpad">
+                <button>1</button><button>2</button><button>3</button>
+                <button>4</button><button>5</button><button>6</button>
+                <button>7</button><button>8</button><button>9</button>
+                <button class="numpad-action" data-action="clear">X</button><button>0</button>
+                <button id="join-game-button" class="numpad-action"><i class="fa-solid fa-right-to-bracket"></i></button>
+            </div>
+        </div>
+    </div>
+    <div id="custom-input-modal-overlay" class="modal-overlay hidden">
+        <div class="modal numpad-modal">
+            <button id="custom-input-cancel" class="button-exit-modal">&times;</button>
+            <h2 id="custom-input-title">Eingabe</h2>
+            <div class="pin-display" id="custom-input-display" style="gap: 5px;">
+                <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
+            </div>
+            <div id="numpad-custom" class="numpad">
+                <button>1</button><button>2</button><button>3</button>
+                <button>4</button><button>5</button><button>6</button>
+                <button>7</button><button>8</button><button>9</button>
+                <button class="numpad-action" data-action="clear">X</button><button>0</button>
+                <button class="numpad-action" data-action="backspace"><i class="fa-solid fa-delete-left"></i></button>
+            </div>
+            <button id="custom-input-submit" class="button-primary" style="margin-top: 15px;">Bestätigen</button>
+        </div>
+    </div>
     <div id="loading-overlay" class="loading-overlay hidden">
         <div class="equalizer">
             <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
