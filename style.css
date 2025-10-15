@@ -44,7 +44,6 @@ body {
     z-index: 10;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     position: relative;
 }
 
@@ -66,14 +65,11 @@ body:has(#auth-screen.active) .app-header {
 }
 
 .button-leave {
-    z-index: 2;
     background: none;
     border: none;
     font-size: 1.5rem;
     color: var(--text-muted-color);
     cursor: pointer;
-    position: absolute;
-    left: 20px;
 }
 
 .screen {
@@ -144,38 +140,38 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .home-actions { display: flex; flex-direction: column; gap: 20px; width: 100%; margin-top: 40px; }
 .corner-button { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background-color: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; font-size: 1rem; z-index: 100; }
 
-/* ACHIEVEMENTS */
-.achievement-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
-    margin-top: 20px;
-}
-.achievement-card {
-    background-color: var(--dark-grey);
-    border-radius: var(--border-radius);
-    padding: 20px;
-    text-align: center;
-}
+/* ACHIEVEMENTS & TITLES */
+.achievement-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px; }
+.achievement-card { background-color: var(--dark-grey); border-radius: var(--border-radius); padding: 20px; text-align: center; }
 .achievement-card.locked { opacity: 0.5; }
 .achievement-card .achievement-icon { font-size: 2.5rem; color: var(--primary-color); margin-bottom: 10px; }
 .achievement-card.locked .achievement-icon { color: var(--medium-grey); }
 .achievement-card h3 { font-size: 1rem; margin-bottom: 5px; }
 .achievement-card p { font-size: 0.8rem; color: var(--text-muted-color); margin-bottom: 0; }
+.title-list { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
+.title-item { background-color: var(--dark-grey); border: 2px solid var(--dark-grey); border-radius: var(--border-radius); padding: 20px; text-align: left; cursor: pointer; transition: border-color 0.2s; }
+.title-item.active { border-color: var(--primary-color); }
+.title-item.locked { opacity: 0.5; cursor: not-allowed; }
+.title-item h3 { margin-bottom: 5px; }
+.title-item p { font-size: 0.9rem; color: var(--text-muted-color); margin: 0; }
+
+/* MODALS & NUMPAD */
+.modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; }
+.modal { background-color: var(--surface-color); padding: 20px; border-radius: var(--border-radius); width: 90%; max-width: 380px; position: relative; }
+.button-exit-modal { position: absolute; top: 10px; right: 15px; font-size: 2rem; background: none; border: none; color: var(--text-muted-color); }
+.numpad-modal .pin-display { display: flex; gap: 10px; justify-content: center; margin: 20px 0; }
+.numpad-modal .pin-digit { width: 50px; height: 60px; background: var(--dark-grey); border: 2px solid var(--medium-grey); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
+.numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 25px; }
+.numpad button { background-color: var(--dark-grey); border: none; border-radius: 50%; aspect-ratio: 1 / 1; font-size: 1.8rem; color: var(--text-color); cursor: pointer; }
+.numpad button:active { background-color: var(--medium-grey); }
+.numpad .numpad-action { font-size: 1.5rem; }
+#join-game-button { background-color: var(--primary-color); color: #000; }
 
 /* LOADING */
-.loading-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center;
-    z-index: 9999; backdrop-filter: blur(5px);
-}
+.loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
 .equalizer { display: flex; gap: 5px; height: 50px; align-items: flex-end; }
 .equalizer .bar { width: 8px; background-color: var(--primary-color); animation: bounce 1.2s infinite ease-in-out; }
 .equalizer .bar:nth-child(2) { animation-delay: -1.0s; }
 .equalizer .bar:nth-child(3) { animation-delay: -0.8s; }
 .equalizer .bar:nth-child(4) { animation-delay: -0.6s; }
 @keyframes bounce { 0%, 40%, 100% { height: 10%; } 20% { height: 100%; } }
-
-/* MODALS */
-.modal-overlay { /* Unverändert */ }
-.modal { /* Unverändert */ }

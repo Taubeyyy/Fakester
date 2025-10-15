@@ -58,80 +58,34 @@
                 <div class="stat-card"><span class="stat-value" id="stat-highscore">0</span><span class="stat-label">Highscore</span></div>
             </div>
             <div class="home-actions">
-                <a href="/login" class="button-primary" id="show-create-button-login"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
+                <a href="/login" class="button-primary" id="spotify-connect-button"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
                 <button class="button-primary hidden" id="show-create-button-action"><i class="fa-solid fa-plus"></i> Raum erstellen</button>
-                <button id="show-join-button" class="button-secondary"><i class="fa-solid fa-right-to-bracket"></i> Beitreten</button>
+                <button class="button-secondary" id="show-join-button"><i class="fa-solid fa-right-to-bracket"></i> Raum beitreten</button>
             </div>
         </div>
         <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button>
-    </main>
-
-    <main id="mode-selection-screen" class="screen">
-        <div class="container">
-            <h2>Wähle einen Spielmodus</h2>
-            <div class="mode-selection-container">
-                <button class="mode-box" data-mode="quiz">
-                    <h3>Klassisches Quiz</h3>
-                    <p>Errate Künstler, Titel und Jahr des Songs. Ideal für Allrounder.</p>
-                </button>
-                <button class="mode-box" data-mode="timeline">
-                    <h3>Timeline</h3>
-                    <p>Sortiere Songs chronologisch. Perfekt für Kenner von Musik-Epochen.</p>
-                </button>
-                <button class="mode-box" data-mode="popularity">
-                    <h3>Popularity</h3>
-                    <p>Errate, ob der nächste Song populärer ist als der vorherige.</p>
-                </button>
-            </div>
-        </div>
-    </main>
-
-    <main id="lobby-screen" class="screen">
-        <div class="lobby-container">
-            <div class="pin-display-large"><p>Lobby PIN</p><span id="lobby-pin">----</span></div>
-            <ul id="player-list"></ul>
-            <div id="host-settings" class="hidden">
-                <div class="setting"><label>Wiedergabegerät</label>
-                    <div class="select-with-refresh">
-                        <select id="device-select" class="lobby-select"><option>Lädt...</option></select>
-                        <button id="refresh-devices-button" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
-                    </div>
-                </div>
-                <div class="setting"><label>Playlist</label><select id="playlist-select" class="lobby-select"><option>Lädt...</option></select></div>
-                <button id="start-game-button" class="button-primary button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
-            </div>
-            <div id="guest-waiting-message" class="hidden"><p>Warte, bis der Host das Spiel startet...</p></div>
-        </div>
     </main>
 
     <main id="achievements-screen" class="screen">
         <div class="container text-left">
             <h2>Erfolge</h2>
             <p>Sammle Erfolge und schalte neue Titel für dein Profil frei.</p>
-            <div class="achievement-grid">
-                <div class="achievement-card locked">
-                    <div class="achievement-icon"><i class="fa-solid fa-gamepad"></i></div>
-                    <h3>Erstes Spiel</h3>
-                    <p>Spiele deine erste Runde Fakester.</p>
+            <div id="achievement-grid" class="achievement-grid">
                 </div>
-                <div class="achievement-card locked">
-                    <div class="achievement-icon"><i class="fa-solid fa-crown"></i></div>
-                    <h3>Siegesserie</h3>
-                    <p>Gewinne 3 Spiele hintereinander.</p>
-                </div>
-                <div class="achievement-card locked">
-                    <div class="achievement-icon"><i class="fa-solid fa-music"></i></div>
-                    <h3>Musikkenner</h3>
-                    <p>Erreiche einen Highscore von 10.000.</p>
-                </div>
-                 <div class="achievement-card locked">
-                    <div class="achievement-icon"><i class="fa-solid fa-lock"></i></div>
-                    <h3>???</h3>
-                    <p>Ein geheimer Erfolg wartet auf dich.</p>
-                </div>
-            </div>
         </div>
     </main>
+
+    <main id="title-selection-screen" class="screen">
+        <div class="container text-left">
+            <h2>Titel auswählen</h2>
+            <p>Wähle einen Titel, der unter deinem Namen angezeigt wird.</p>
+            <div id="title-list" class="title-list">
+                </div>
+        </div>
+    </main>
+
+    <main id="mode-selection-screen" class="screen"> </main>
+    <main id="lobby-screen" class="screen"> </main>
 
     <div id="guest-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
@@ -145,16 +99,15 @@
         <div class="modal numpad-modal">
             <button id="close-join-modal-button" class="button-exit-modal">&times;</button>
             <h2>Raum beitreten</h2>
-            <div class="pin-display">
+            <div class="pin-display" id="join-pin-display">
                 <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
             </div>
             <div id="numpad-join" class="numpad">
-                <button>1</button><button>2</button><button>3</button>
-                <button>4</button><button>5</button><button>6</button>
-                <button>7</button><button>8</button><button>9</button>
-                <button class="numpad-action" data-action="clear">X</button>
-                <button>0</button>
-                <button id="join-game-button" class="numpad-action"><i class="fa-solid fa-right-to-bracket"></i></button>
+                <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
+                <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
+                <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
+                <button class="numpad-action" data-action="clear">C</button><button data-key="0">0</button>
+                <button id="join-game-button" class="numpad-action" data-action="confirm"><i class="fa-solid fa-right-to-bracket"></i></button>
             </div>
         </div>
     </div>
