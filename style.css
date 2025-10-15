@@ -83,6 +83,10 @@ body:has(#auth-screen.active) .app-header {
     overflow-y: auto;
 }
 
+#auth-screen {
+    justify-content: center;
+}
+
 .screen.active {
     display: flex;
     animation: fadeIn 0.5s ease-in-out;
@@ -125,6 +129,7 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 /* AUTH SCREEN */
 .home-logo-container h1 { font-size: 4.5rem; font-weight: 800; color: var(--text-color); }
 .auth-form { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.auth-toggle-text { font-size: 0.9rem; margin-top: 15px; }
 
 /* HOME & PROFILE */
 .profile-section { display: flex; align-items: center; gap: 15px; width: 100%; margin-bottom: 20px; background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); }

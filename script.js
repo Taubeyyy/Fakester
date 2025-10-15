@@ -45,7 +45,32 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const setLoading = (isLoading) => elements.loadingOverlay.classList.toggle('hidden', !isLoading);
 
-    // --- App Initialisierung ---
+    // --- WebSocket Logik ---
+    const connectWebSocket = () => {
+        if (ws.socket && ws.socket.readyState === WebSocket.OPEN) return;
+        const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+        ws.socket = new WebSocket(`${protocol}://${location.host}`);
+
+        ws.socket.onopen = () => console.log("WebSocket verbunden.");
+        ws.socket.onmessage = (event) => handleWebSocketMessage(JSON.parse(event.data));
+        ws.socket.onclose = () => setTimeout(() => connectWebSocket(), 3000);
+        ws.socket.onerror = (err) => console.error("WebSocket Fehler:", err);
+    };
+
+    const handleWebSocketMessage = ({ type, payload }) => {
+        setLoading(false);
+        switch (type) {
+            case 'game-created':
+            case 'join-success':
+                showScreen('lobby-screen');
+                break;
+            case 'error':
+                showToast(payload.message, true);
+                break;
+        }
+    };
+    
+    // --- App-Logik ---
     const initializeApp = async (user, isGuest = false) => {
         currentUser = { id: user.id, username: isGuest ? user.username : user.user_metadata.username, isGuest };
         document.getElementById('welcome-nickname').textContent = currentUser.username;
@@ -81,65 +106,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleLogout = async () => {
         setLoading(true);
         if (currentUser?.isGuest) return window.location.reload();
-        const { error } = await supabase.auth.signOut();
-        if (error) {
-            setLoading(false);
-            showToast(error.message, true);
-        } else {
-            window.location.reload();
-        }
+        await supabase.auth.signOut();
     };
     
-    // --- Event Listeners ---
-    const initializeEventListeners = () => {
-        elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
-        elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
-        elements.home.logoutBtn.addEventListener('click', handleLogout);
-        elements.leaveGameButton.addEventListener('click', () => showScreen('home-screen'));
-
-        elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
-        elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
-
-        elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
-        elements.guestModal.closeBtn.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
-        elements.guestModal.submitBtn.addEventListener('click', () => {
-            const name = document.getElementById('guest-nickname-input').value.trim();
-            if (name.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
-            elements.guestModal.overlay.classList.add('hidden');
-            initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
-        });
-
-        elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
-        elements.home.joinRoomBtn.addEventListener('click', () => {
-            pinInput = "";
-            updatePinDisplay();
-            elements.joinModal.overlay.classList.remove('hidden');
-        });
-        elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
-        elements.joinModal.numpad.addEventListener('click', handleNumpadInput);
-    };
-
+    // --- Numpad Logik ---
     const handleNumpadInput = (e) => {
         const target = e.target.closest('button');
         if (!target) return;
+
         const key = target.dataset.key;
         const action = target.dataset.action;
 
-        if (key && pinInput.length < 4) pinInput += key;
-        else if (action === 'clear') pinInput = "";
-        else if (action === 'confirm' && pinInput.length === 4) {
-             setLoading(true);
-             ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
-             elements.joinModal.overlay.classList.add('hidden');
+        if (key && pinInput.length < 4) {
+            pinInput += key;
+        } else if (action === 'clear') {
+            pinInput = "";
+        } else if (action === 'confirm') {
+            if (pinInput.length === 4) {
+                setLoading(true);
+                ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
+                elements.joinModal.overlay.classList.add('hidden');
+            } else {
+                showToast('PIN muss 4-stellig sein.', true);
+            }
         }
         updatePinDisplay();
     };
 
     const updatePinDisplay = () => {
-        elements.joinModal.pinDisplay.forEach((digit, index) => digit.textContent = pinInput[index] || "");
+        elements.joinModal.pinDisplay.forEach((digit, index) => {
+            digit.textContent = pinInput[index] || "";
+        });
     };
 
-    // --- Main App Start ---
+    // --- MAIN APP START ---
     const main = async () => {
         try {
             const response = await fetch('/api/config');
@@ -149,8 +149,39 @@ document.addEventListener('DOMContentLoaded', () => {
             const { createClient } = window.supabase;
             supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-            initializeEventListeners();
-
+            // Event Listeners erst nach Supabase-Initialisierung hinzufügen
+            elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
+            elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
+            elements.home.logoutBtn.addEventListener('click', handleLogout);
+            elements.leaveGameButton.addEventListener('click', () => showScreen('home-screen'));
+            elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
+            elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
+            elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
+            elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
+            elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
+            elements.guestModal.closeBtn.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
+            elements.guestModal.submitBtn.addEventListener('click', () => {
+                const name = document.getElementById('guest-nickname-input').value.trim();
+                if (name.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
+                elements.guestModal.overlay.classList.add('hidden');
+                initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
+            });
+            elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
+            document.querySelectorAll('.mode-box').forEach(box => {
+                box.addEventListener('click', () => {
+                    setLoading(true);
+                    ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: box.dataset.mode } }));
+                });
+            });
+            elements.home.joinRoomBtn.addEventListener('click', () => {
+                pinInput = "";
+                updatePinDisplay();
+                elements.joinModal.overlay.classList.remove('hidden');
+            });
+            elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
+            elements.joinModal.numpad.addEventListener('click', handleNumpadInput);
+            
+            // Auth State Listener
             supabase.auth.onAuthStateChange(async (event, session) => {
                 if (event === 'SIGNED_IN' && session) {
                     await initializeApp(session.user);
@@ -160,6 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setLoading(false);
             });
 
+            // Initialen Status prüfen
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 showScreen('auth-screen');
