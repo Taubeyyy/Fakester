@@ -63,7 +63,8 @@
                 <button id="show-join-button" class="button-secondary"><i class="fa-solid fa-right-to-bracket"></i> Beitreten</button>
             </div>
         </div>
-        <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button>
+        <button id="show-patch-notes-button" class="corner-button" title="Patch Notes"><i class="fa-solid fa-scroll"></i></button>
+        <button id="corner-logout-button" class="corner-button" title="Ausloggen" style="right: 80px;"><i class="fa-solid fa-right-from-bracket"></i></button>
     </main>
     
     <main id="mode-selection-screen" class="screen">
@@ -90,28 +91,45 @@
             <div class="pin-display-large"><p>Lobby PIN</p><span id="lobby-pin">----</span></div>
             <ul id="player-list"></ul>
             <div id="host-settings" class="hidden">
-                <div class="setting"><label for="device-select">Wiedergabegerät</label>
+                <div class="setting"><label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" data-help="device"></i></label>
                     <div class="select-with-refresh">
                         <select id="device-select" class="lobby-select"><option>Lädt...</option></select>
                         <button id="refresh-devices-button" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
                     </div>
                 </div>
-                <div class="setting"><label for="playlist-select">Playlist</label><select id="playlist-select" class="lobby-select"><option>Lädt...</option></select></div>
-                <div class="setting"><label>Anzahl Songs</label>
+                <div class="setting"><label>Playlist <i class="fa-solid fa-circle-question help-icon" data-help="playlist"></i></label><select id="playlist-select" class="lobby-select"><option>Lädt...</option></select></div>
+                <div class="setting"><label>Anzahl Songs <i class="fa-solid fa-circle-question help-icon" data-help="songs"></i></label>
                     <div class="setting-grid" id="song-count-options">
                         <button class="option-btn active" data-value="10" data-type="songCount">10</button><button class="option-btn" data-value="20" data-type="songCount">20</button>
                         <button class="option-btn" data-value="-1" data-type="songCount">Alle</button><button class="option-btn" data-action="custom" data-type="songCount">Custom</button>
                     </div>
                 </div>
-                <div class="setting"><label>Ratezeit (Sek.)</label>
+                <div class="setting"><label>Ratezeit (Sek.) <i class="fa-solid fa-circle-question help-icon" data-help="time"></i></label>
                     <div class="setting-grid" id="guess-time-options">
                         <button class="option-btn" data-value="10" data-type="guessTime">10</button><button class="option-btn" data-value="20" data-type="guessTime">20</button>
                         <button class="option-btn active" data-value="30" data-type="guessTime">30</button><button class="option-btn" data-action="custom" data-type="guessTime">Custom</button>
                     </div>
                 </div>
+                <div class="setting"><label>Spielziel <i class="fa-solid fa-circle-question help-icon" data-help="goal"></i></label>
+                    <div class="setting-toggle" id="game-goal-options">
+                        <button class="option-btn active" data-value="points">Punkte</button><button class="option-btn" data-value="lives">Leben</button>
+                    </div>
+                </div>
                 <button id="start-game-button" class="button-primary button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
             </div>
             <div id="guest-waiting-message" class="hidden"><p>Warte, bis der Host das Spiel startet...</p></div>
+        </div>
+    </main>
+    
+    <main id="patch-notes-screen" class="screen">
+        <div class="container text-left">
+            <h2>Geplante Features (Roadmap)</h2>
+            <ul class="roadmap-list">
+                <li><span>Erfolge & Titel</span><p>Sammle Erfolge für besondere Leistungen und rüste Titel aus, um sie im Profil zu zeigen.</p></li>
+                <li><span>Profilbilder</span><p>Lade dein eigenes Profilbild hoch, um deinen Account zu personalisieren.</p></li>
+                <li><span>Multiple Choice</span><p>Eine optionale Einstellung für das klassische Quiz, um aus vorgegebenen Antworten zu wählen.</p></li>
+                <li><span>Leben-Modus</span><p>Spiele mit einer festen Anzahl an Leben anstatt auf Highscore. Wer als letzter übrig bleibt, gewinnt.</p></li>
+            </ul>
         </div>
     </main>
 

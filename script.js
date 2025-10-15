@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Globale Variablen ---
     let ws = { socket: null }, currentUser = null, spotifyToken = null, supabase;
-    let gameSettings = { songCount: 10, guessTime: 30 };
+    let gameSettings = { songCount: 10, guessTime: 30, gameGoal: 'points' };
 
     // --- DOM Elemente ---
     const elements = {
@@ -24,7 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
             loginSpotifyBtn: document.getElementById('show-create-button-login'),
             createBtn: document.getElementById('show-create-button-action'),
             joinBtn: document.getElementById('show-join-button'),
-            logoutBtn: document.getElementById('corner-logout-button')
+            logoutBtn: document.getElementById('corner-logout-button'),
+            patchNotesBtn: document.getElementById('show-patch-notes-button'),
         },
         modeSelection: {
             screen: document.getElementById('mode-selection-screen'),
@@ -40,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
             refreshDevicesBtn: document.getElementById('refresh-devices-button'),
             songCountOptions: document.getElementById('song-count-options'),
             guessTimeOptions: document.getElementById('guess-time-options'),
+            gameGoalOptions: document.getElementById('game-goal-options'),
             startGameBtn: document.getElementById('start-game-button'),
             waitingMessage: document.getElementById('guest-waiting-message')
         },
@@ -63,7 +65,8 @@ document.addEventListener('DOMContentLoaded', () => {
             numpad: document.querySelectorAll('#numpad-custom button'),
             submitBtn: document.getElementById('custom-input-submit'),
             cancelBtn: document.getElementById('custom-input-cancel')
-        }
+        },
+        helpIcons: document.querySelectorAll('.help-icon')
     };
     
     // --- Hilfsfunktionen ---
@@ -72,7 +75,8 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.screens.forEach(s => s.classList.remove('active'));
         const screen = document.getElementById(screenId);
         if (screen) screen.classList.add('active');
-        elements.leaveGameButton.classList.toggle('hidden', !['lobby-screen', 'mode-selection-screen'].includes(screenId));
+        const showLeaveButton = ['lobby-screen', 'mode-selection-screen', 'patch-notes-screen'].includes(screenId);
+        elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton);
     };
     const setLoading = (isLoading) => elements.loadingOverlay.classList.toggle('hidden', !isLoading);
     
@@ -168,19 +172,26 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const { data, error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } });
             if (error) throw error;
+            // Der AuthListener übernimmt die Weiterleitung.
         } catch (error) {
             setLoading(false);
             showToast(error.message, true);
         }
     };
+    
     const handleLogout = async () => {
         setLoading(true);
         if (currentUser?.isGuest) {
             window.location.reload();
         } else {
-            await supabase.auth.signOut();
+            const { error } = await supabase.auth.signOut();
+            if (error) {
+                setLoading(false);
+                showToast(error.message, true);
+            }
         }
     };
+    
     const setupAuthListener = () => {
         supabase.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN' && session) {
@@ -226,6 +237,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         modal.cancelBtn.onclick = () => modal.overlay.classList.add('hidden');
     };
+    
+    const showHelp = (topic) => {
+        const messages = {
+            device: "Wenn dein Gerät nicht erscheint, öffne Spotify und spiele kurz einen Song ab.",
+            playlist: "Hier werden deine eigenen und von dir gespeicherten Playlists angezeigt.",
+            songs: "Wähle, wie viele Songs in dieser Runde gespielt werden sollen.",
+            time: "Legt fest, wie viele Sekunden du pro Frage Zeit hast.",
+            goal: "Spiele auf Highscore (Punkte) oder bis nur noch ein Spieler übrig ist (Leben)."
+        };
+        showToast(messages[topic] || "Keine Hilfe verfügbar.");
+    };
 
     // --- Event Listeners ---
     const initializeEventListeners = () => {
@@ -249,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.home.createBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
         elements.home.joinBtn.addEventListener('click', () => elements.joinModal.overlay.classList.remove('hidden'));
         elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
+        elements.home.patchNotesBtn.addEventListener('click', () => showScreen('patch-notes-screen'));
         
         elements.modeSelection.modeBoxes.forEach(box => box.onclick = () => ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: box.dataset.mode } })));
         
@@ -264,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         
         elements.lobby.refreshDevicesBtn.addEventListener('click', loadSpotifyDevices);
-        [elements.lobby.songCountOptions, elements.lobby.guessTimeOptions].forEach(container => {
+        [elements.lobby.songCountOptions, elements.lobby.guessTimeOptions, elements.lobby.gameGoalOptions].forEach(container => {
             container.addEventListener('click', (e) => {
                 const btn = e.target.closest('.option-btn');
                 if (!btn) return;
@@ -273,11 +296,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 container.querySelectorAll('.option-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                gameSettings[type] = parseInt(btn.dataset.value);
-                container.querySelector('[data-action="custom"]').textContent = "Custom";
+                gameSettings[type] = btn.dataset.value;
+                if (container.querySelector('[data-action="custom"]')) {
+                    container.querySelector('[data-action="custom"]').textContent = "Custom";
+                }
                 ws.socket.send(JSON.stringify({ type: 'update-settings', payload: gameSettings }));
             });
         });
+
+        elements.helpIcons.forEach(icon => icon.onclick = () => showHelp(icon.dataset.help));
     };
 
     // --- MAIN APP ---
