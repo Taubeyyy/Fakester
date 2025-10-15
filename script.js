@@ -113,8 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function checkSpotifyStatus() {
         try {
-            const { ok, data } = await (await fetch('/api/status')).json();
-            spotifyToken = ok ? data.token : null;
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            spotifyToken = data.loggedIn ? data.token : null;
         } catch {
             spotifyToken = null;
         }
@@ -143,15 +144,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const password = form.querySelector('input[type="password"]').value;
         const { data, error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } });
         if (error) return showToast(error.message, true);
-        if (data.user) initializeApp(data.user);
+        if (data.user) initializeApp(data.user, false);
     }
     async function handleLogout() {
-        if (currentUser.isGuest) return window.location.reload();
+        if (currentUser && currentUser.isGuest) return window.location.reload();
         await supabase.auth.signOut();
     }
     function setupAuthListener() {
         supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_OUT') window.location.reload();
+            if (event === 'SIGNED_OUT') {
+                currentUser = null;
+                window.location.reload();
+            }
         });
     }
 
@@ -203,15 +207,21 @@ document.addEventListener('DOMContentLoaded', () => {
     async function main() {
         try {
             const response = await fetch('/api/config');
+            if (!response.ok) throw new Error('Server-Konfiguration konnte nicht geladen werden.');
             const config = await response.json();
-            supabase = supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            
+            // ### DIE KORREKTUR IST HIER ###
+            // Wir holen `createClient` aus dem globalen `window.supabase` Objekt
+            const { createClient } = window.supabase;
+            // Jetzt initialisieren wir unsere lokale `supabase` Variable damit
+            supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
             
             initializeEventListeners();
             setupAuthListener();
             connectWebSocket();
 
             const { data: { session } } = await supabase.auth.getSession();
-            session ? initializeApp(session.user) : showScreen('auth-screen');
+            session ? initializeApp(session.user, false) : showScreen('auth-screen');
         } catch (error) {
             document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>${error.message}</p></div>`;
         }
