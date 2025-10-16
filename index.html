@@ -49,14 +49,30 @@
                     <h2 id="welcome-nickname"></h2>
                     <button class="profile-title-button"><span id="profile-title" class="profile-title">Neuling</span></button>
                 </div>
-                <div class="profile-achievements">
+                <div class="profile-actions">
+                    <button id="friends-button" class="button-icon" title="Freunde"><i class="fa-solid fa-user-group"></i></button>
                     <button id="achievements-button" class="button-icon" title="Erfolge"><i class="fa-solid fa-trophy"></i></button>
                 </div>
             </div>
-            <div class="player-stats">
-                <div class="stat-card"><span class="stat-value" id="stat-games-played">0</span><span class="stat-label">Spiele</span></div>
-                <div class="stat-card"><span class="stat-value" id="stat-highscore">0</span><span class="stat-label">Highscore</span></div>
+            
+            <div id="stats-button" class="stats-overview-card">
+                <h3>Statistiken</h3>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-value" id="stat-games-played">0</span>
+                        <span class="stat-label">Spiele</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="stat-wins">0</span>
+                        <span class="stat-label">Siege</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="stat-correct-answers">0</span>
+                        <span class="stat-label">Richtige Antworten</span>
+                    </div>
+                </div>
             </div>
+
             <div class="home-actions">
                 <a href="/login" class="button-primary" id="spotify-connect-button"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
                 <button class="button-primary hidden" id="show-create-button-action"><i class="fa-solid fa-plus"></i> Raum erstellen</button>
@@ -71,16 +87,22 @@
             <h2>Wähle einen Spielmodus</h2>
             <div class="mode-selection-container">
                 <button class="mode-box" data-mode="quiz">
-                    <h3>Klassisches Quiz</h3>
-                    <p>Errate Künstler, Titel und Jahr des Songs.</p>
+                    <div class="mode-box-content">
+                        <h3>Klassisches Quiz</h3>
+                        <p>Errate Künstler, Titel und Jahr des Songs.</p>
+                    </div>
                 </button>
                 <button class="mode-box" data-mode="timeline">
-                    <h3>Timeline</h3>
-                    <p>Sortiere Songs chronologisch.</p>
+                     <div class="mode-box-content">
+                        <h3>Timeline</h3>
+                        <p>Sortiere Songs chronologisch.</p>
+                    </div>
                 </button>
                 <button class="mode-box" data-mode="popularity">
-                    <h3>Popularity</h3>
-                    <p>Errate, ob der nächste Song populärer ist.</p>
+                     <div class="mode-box-content">
+                        <h3>Popularity</h3>
+                        <p>Errate, ob der nächste Song populärer ist.</p>
+                    </div>
                 </button>
             </div>
         </div>
@@ -88,9 +110,17 @@
 
     <main id="lobby-screen" class="screen">
         <div class="lobby-container">
-            <div class="pin-display-large"><p>Lobby PIN</p><span id="lobby-pin">----</span></div>
-            <ul id="player-list"></ul>
+            <div class="lobby-header">
+                <p>Lobby PIN</p>
+                <div class="pin-display-large" id="lobby-pin">----</div>
+            </div>
+            <div class="lobby-players-container">
+                <h3>Spieler</h3>
+                <div id="player-list" class="player-grid">
+                </div>
+            </div>
             <div id="host-settings" class="hidden">
+                 <h3>Einstellungen</h3>
                 <div class="setting"><label>Wiedergabegerät</label>
                     <div class="select-with-refresh">
                         <select id="device-select" class="lobby-select"><option>Lädt...</option></select>
@@ -109,7 +139,7 @@
             <h2>Erfolge</h2>
             <p>Sammle Erfolge und schalte neue Titel frei.</p>
             <div id="achievement-grid" class="achievement-grid">
-                </div>
+            </div>
         </div>
     </main>
 
@@ -118,13 +148,13 @@
             <h2>Titel auswählen</h2>
             <p>Wähle einen Titel, der unter deinem Namen angezeigt wird.</p>
             <div id="title-list" class="title-list">
-                </div>
+            </div>
         </div>
     </main>
 
     <div id="guest-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
-            <button id="close-guest-modal-button" class="button-exit-modal">&times;</button>
+            <button id="close-guest-modal-button" class="button-exit-modal">×</button>
             <h2>Als Gast spielen</h2>
             <input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15">
             <button id="guest-nickname-submit" class="button-primary">Weiter</button>
@@ -132,7 +162,7 @@
     </div>
     <div id="join-modal-overlay" class="modal-overlay hidden">
         <div class="modal numpad-modal">
-            <button id="close-join-modal-button" class="button-exit-modal">&times;</button>
+            <button id="close-join-modal-button" class="button-exit-modal">×</button>
             <h2>Raum beitreten</h2>
             <div class="pin-display" id="join-pin-display">
                 <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
@@ -147,6 +177,31 @@
         </div>
     </div>
     
+    <div id="friends-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button id="close-friends-modal-button" class="button-exit-modal">×</button>
+            <h2>Freunde</h2>
+            <div class="friends-content">
+                <div class="add-friend-form">
+                    <input type="text" id="add-friend-input" placeholder="Benutzername eingeben...">
+                    <button id="add-friend-button" class="button-primary"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="friends-list-tab">Freunde</button>
+                    <button class="tab-button" data-tab="requests-list-tab">Anfragen <span id="requests-count" class="badge hidden">0</span></button>
+                </div>
+                <div id="friends-list-tab" class="tab-content active">
+                    <ul id="friends-list" class="friends-list">
+                    </ul>
+                </div>
+                <div id="requests-list-tab" class="tab-content">
+                     <ul id="requests-list" class="requests-list">
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="loading-overlay" class="loading-overlay hidden">
         <div class="equalizer">
             <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>

@@ -6,6 +6,12 @@ const axios = require('axios');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
+const { createClient } = require('@supabase/supabase-js');
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+
 process.on('uncaughtException', (err, origin) => {
     console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
     console.error('!! UNERWARTETER FEHLER (UNCAUGHT EXCEPTION) !!');
@@ -20,8 +26,6 @@ const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
 
-// KORRIGIERT: Die richtigen Umgebungsvariablen werden hier ausgelesen
-const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 
@@ -66,7 +70,6 @@ function shuffleArray(array) {
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-// API-Endpunkt, um die Konfiguration sicher an den Client zu senden
 app.get('/api/config', (req, res) => {
     res.json({
         supabaseUrl: SUPABASE_URL,
@@ -121,7 +124,7 @@ wss.on('connection', ws => {
 });
 
 function handleWebSocketMessage(ws, { type, payload }) {
-    const { pin, playerId } = ws; 
+    const { pin, playerId } = ws;
     const game = games[pin];
     if (!game && type !== 'create-game' && type !== 'join-game') return;
 
@@ -129,22 +132,22 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'create-game':
             const newPin = generatePin();
             ws.pin = newPin;
-            ws.playerId = payload.user.id; 
+            ws.playerId = payload.user.id;
             games[newPin] = { hostId: payload.user.id, players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0 } }, settings: { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, quizType: 'free' }, hostToken: payload.token, gameState: 'LOBBY', gameMode: payload.gameMode || 'quiz', readyPlayers: [], timeline: [], };
             ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId: payload.user.id } }));
             broadcastLobbyUpdate(newPin);
             break;
-        case 'join-game': 
-            const gameToJoin = games[payload.pin]; 
-            if (gameToJoin && gameToJoin.gameState === 'LOBBY') { 
-                ws.pin = payload.pin; 
+        case 'join-game':
+            const gameToJoin = games[payload.pin];
+            if (gameToJoin && gameToJoin.gameState === 'LOBBY') {
+                ws.pin = payload.pin;
                 ws.playerId = payload.user.id;
-                gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0 }; 
-                ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId: payload.user.id } })); 
-                broadcastLobbyUpdate(payload.pin); 
-            } else { 
-                ws.send(JSON.stringify({ type: 'error', payload: { message: 'Ungültiger PIN oder Spiel läuft bereits.' } })); 
-            } 
+                gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0 };
+                ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId: payload.user.id } }));
+                broadcastLobbyUpdate(payload.pin);
+            } else {
+                ws.send(JSON.stringify({ type: 'error', payload: { message: 'Ungültiger PIN oder Spiel läuft bereits.' } }));
+            }
             break;
         case 'update-settings': if (game.hostId === playerId) { game.settings = { ...game.settings, ...payload }; broadcastLobbyUpdate(pin); } break;
         case 'start-game': if (game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
