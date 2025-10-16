@@ -89,10 +89,10 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .home-actions { display: flex; flex-direction: column; gap: 15px; width: 100%; margin-top: 20px; }
 .corner-button { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background-color: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; font-size: 1rem; z-index: 100; }
 
-.stats-full-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+.stats-full-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; }
 .stat-card { background-color: var(--surface-color); padding: 20px; border-radius: var(--border-radius); text-align: center; }
-.stat-card .stat-value { font-size: 2.2rem; font-weight: 800; color: var(--primary-color); display: block; margin-bottom: 5px; }
-.stat-card .stat-label { font-size: 0.8rem; color: var(--text-muted-color); text-transform: uppercase; }
+.stat-card .stat-value { font-size: 1.5rem; font-weight: 800; color: var(--primary-color); display: block; margin-bottom: 5px; }
+.stat-card .stat-label { font-size: 0.75rem; color: var(--text-muted-color); text-transform: uppercase; }
 
 .game-container { height: 100%; justify-content: space-between; }
 .round-info { width: 100%; }
@@ -120,7 +120,8 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .lobby-players-container { width: 100%; text-align: left; }
 .lobby-players-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .player-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
-.player-card { background-color: var(--dark-grey); padding: 15px; border-radius: var(--border-radius); display: flex; align-items: center; gap: 10px; animation: slideIn 0.5s ease-out forwards; position: relative; overflow: hidden;}
+.player-card { background-color: var(--dark-grey); padding: 15px; border-radius: var(--border-radius); display: flex; align-items: center; gap: 10px; position: relative; overflow: hidden;}
+.player-card.new { animation: slideIn 0.5s ease-out forwards; }
 .player-card.disconnected::after { content: 'Offline'; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.7); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
 @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 .player-card .player-icon { font-size: 1.5rem; }

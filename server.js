@@ -188,7 +188,6 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'update-settings':
             if (game && game.hostId === playerId) { 
                 game.settings = { ...game.settings, ...payload }; 
-                // Wenn der Spieltyp auf "Leben" geändert wird, aktualisiere die Leben aller Spieler
                 if(payload.gameType === 'lives' || payload.lives) {
                     Object.values(game.players).forEach(p => p.lives = game.settings.lives);
                 }
@@ -289,7 +288,7 @@ function startRoundCountdown(pin) {
     if (game.settings.gameType === 'lives' && activePlayers.length <= 1) { return endGame(pin); }
 
     game.gameState = 'PLAYING';
-    broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound + 1, totalRounds: game.songList.length } });
+    broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound + 1, totalRounds: game.settings.gameType === 'points' ? game.songList.length : 0 } });
     setTimeout(() => startNewRound(pin), 4000);
 }
 
@@ -301,7 +300,7 @@ function startNewRound(pin) {
     axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response?.data || err.message));
     
     let payload = {
-        round: game.currentRound, totalRounds: game.songList.length,
+        round: game.currentRound, totalRounds: game.settings.gameType === 'points' ? game.songList.length : 0,
         scores: getScores(pin), guessTime: parseInt(game.settings.guessTime),
         gameMode: game.gameMode, song: {} 
     };

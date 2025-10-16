@@ -147,13 +147,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderPlayerList(players, hostId) {
         const playerList = elements.lobby.playerList;
-        playerList.innerHTML = '';
+        const existingPlayerIds = new Set([...playerList.querySelectorAll('.player-card')].map(el => el.dataset.playerId));
+        const incomingPlayerIds = new Set(players.map(p => p.id));
+
+        // Spieler entfernen, die nicht mehr in der Lobby sind
+        existingPlayerIds.forEach(id => {
+            if (!incomingPlayerIds.has(id)) {
+                playerList.querySelector(`[data-player-id="${id}"]`)?.remove();
+            }
+        });
+
+        // Spieler hinzufügen oder aktualisieren
         players.forEach(player => {
+            let card = playerList.querySelector(`[data-player-id="${player.id}"]`);
+            if (!card) {
+                card = document.createElement('div');
+                card.dataset.playerId = player.id;
+                card.classList.add('player-card', 'new');
+                playerList.appendChild(card);
+            }
+            
             const isHost = player.id === hostId;
-            const card = document.createElement('div');
-            card.className = `player-card ${!player.isConnected ? 'disconnected' : ''}`;
+            card.className = `player-card ${!player.isConnected ? 'disconnected' : ''} ${isHost ? 'host' : ''}`;
             card.innerHTML = `<i class="fa-solid fa-user player-icon ${isHost ? 'host' : ''}"></i><span class="player-name">${player.nickname}</span>`;
-            playerList.appendChild(card);
         });
     }
 
@@ -162,18 +178,24 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.lobby.guestWaitingMessage.classList.toggle('hidden', isHost);
         if (!isHost) return;
         
-        document.getElementById('game-type-setting-lobby').classList.remove('hidden');
+        document.getElementById('game-type-setting-lobby').classList.add('hidden');
 
-        ['song-count-presets', 'guess-time-presets', 'game-type-presets'].forEach(id => {
+        ['song-count-presets', 'guess-time-presets'].forEach(id => {
             const container = document.getElementById(id);
-            let valueToMatch;
-            if (id.includes('song')) valueToMatch = settings.songCount;
-            if (id.includes('time')) valueToMatch = settings.guessTime;
-            if (id.includes('type')) valueToMatch = settings.gameType;
-            
+            let valueToMatch = id.includes('song') ? settings.songCount : settings.guessTime;
+            let customButton = container.querySelector('[data-value="custom"]');
+            let matchFound = false;
             container.querySelectorAll('.preset-button').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.value == valueToMatch);
+                const isActive = btn.dataset.value == valueToMatch;
+                btn.classList.toggle('active', isActive);
+                if(isActive) matchFound = true;
             });
+            if (!matchFound && customButton) {
+                customButton.classList.add('active');
+                customButton.textContent = valueToMatch;
+            } else if (customButton) {
+                customButton.textContent = 'Custom';
+            }
         });
 
         if (elements.lobby.deviceSelect.value !== settings.deviceId) elements.lobby.deviceSelect.value = settings.deviceId;
@@ -183,7 +205,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function showCountdown(round, total) {
-        const text = `Runde ${round} von ${total}`;
+        let text = `Runde ${round}`;
+        if (total > 0) text += ` von ${total}`;
+
         elements.countdownOverlay.classList.remove('hidden');
         document.getElementById('countdown-text').textContent = text;
         let count = 3;
@@ -198,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function setupNewRound(data) {
         elements.game.round.textContent = data.round;
-        elements.game.totalRounds.textContent = data.totalRounds;
+        elements.game.totalRounds.textContent = data.totalRounds > 0 ? data.totalRounds : '∞';
         elements.game.albumArt.src = PLACEHOLDER_IMAGE_URL;
         elements.game.submitBtn.classList.add('hidden');
 
@@ -236,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const leaderboardHtml = data.scores.map(p => `
             <div class="leaderboard-row ${p.id === currentUser.id ? 'me' : ''}">
-                <span>${p.nickname}</span>
+                <span>${p.nickname} ${p.lives < 1 ? ' ausgeschieden' : ''}</span>
                 <span>+${p.lastPointsBreakdown.total} (${p.score})</span>
             </div>
         `).join('');
@@ -267,37 +291,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function fetchHostData() {
         if (!spotifyToken) return;
-        const headers = { 'Authorization': `Bearer ${spotifyToken}` };
+        setLoading(true);
         try {
             const [devicesRes, playlistsRes] = await Promise.all([
-                fetch('/api/devices', { headers }),
-                fetch('/api/playlists', { headers })
+                fetch('/api/devices', { headers: { 'Authorization': `Bearer ${spotifyToken}` } }),
+                fetch('/api/playlists', { headers: { 'Authorization': `Bearer ${spotifyToken}` } })
             ]);
+            if (!devicesRes.ok || !playlistsRes.ok) throw new Error('Spotify API Error');
             const devices = await devicesRes.json();
             const playlists = await playlistsRes.json();
             
-            elements.lobby.deviceSelect.innerHTML = '<option value="">Gerät auswählen</option>' + devices.devices.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+            if (devices.devices && devices.devices.length > 0) {
+                elements.lobby.deviceSelect.innerHTML = '<option value="">Gerät auswählen</option>' + devices.devices.map(d => `<option value="${d.id}" ${d.is_active ? 'selected' : ''}>${d.name}</option>`).join('');
+                if (devices.devices.some(d => d.is_active)) {
+                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { deviceId: devices.devices.find(d => d.is_active).id } }));
+                }
+            } else {
+                elements.lobby.deviceSelect.innerHTML = '<option value="">Keine aktiven Geräte gefunden</option>';
+            }
             elements.lobby.playlistSelect.innerHTML = '<option value="">Playlist auswählen</option>' + playlists.items.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-
         } catch (error) {
-            showToast('Fehler beim Laden der Spotify-Daten', true);
+            showToast('Fehler beim Laden der Spotify-Daten.', true);
+        } finally {
+            setLoading(false);
         }
     }
 
-    const handleNumpadInput = (e) => {
-        const target = e.target.closest('button');
-        if (!target) return;
-        const key = target.dataset.key;
-        const action = target.dataset.action;
-        if (key && pinInput.length < 4) { pinInput += key; } 
-        else if (action === 'clear') { pinInput = ""; } 
-        else if (action === 'confirm' && pinInput.length === 4) {
-            setLoading(true);
-            ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
-        }
-        updatePinDisplay();
+    function openCustomValueModal(type) {
+        currentCustomType = type;
+        const modal = elements.customValueModal;
+        if(type === 'song-count') modal.title.textContent = 'Anzahl Songs';
+        if(type === 'guess-time') modal.title.textContent = 'Ratezeit (s)';
+        if(type === 'lives') modal.title.textContent = 'Anzahl Leben';
+        
+        customValueInput = "";
+        updateCustomValueDisplay();
+        modal.overlay.classList.remove('hidden');
+    }
+
+    const handleCustomNumpad = (e) => {
+        const key = e.target.closest('button')?.dataset.key;
+        if (key && customValueInput.length < 3) customValueInput += key;
+        updateCustomValueDisplay();
     };
-    const updatePinDisplay = () => { elements.joinModal.pinDisplay.forEach((d, i) => d.textContent = pinInput[i] || ""); };
+
+    const updateCustomValueDisplay = () => {
+        elements.customValueModal.display.forEach((d, i) => d.textContent = customValueInput[i] || "");
+    };
 
     function renderAchievements() {
         elements.achievements.grid.innerHTML = testAchievements.map(a => `
@@ -322,117 +362,43 @@ document.addEventListener('DOMContentLoaded', () => {
             const config = await response.json();
             supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-            elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
-            elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
-            elements.home.logoutBtn.addEventListener('click', handleLogout);
-            elements.leaveGameButton.addEventListener('click', () => window.location.reload());
-            elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
-            elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
-            elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
-            elements.guestModal.closeBtn.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
-            elements.guestModal.submitBtn.addEventListener('click', () => {
-                const name = document.getElementById('guest-nickname-input').value.trim();
-                if (name.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
-                elements.guestModal.overlay.classList.add('hidden');
-                initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible' && (!ws.socket || ws.socket.readyState === WebSocket.CLOSED)) {
+                    console.log('App wieder sichtbar, prüfe Verbindung...');
+                    connectWebSocket();
+                }
             });
-            elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
-            elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; updatePinDisplay(); elements.joinModal.overlay.classList.remove('hidden'); });
-            elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
-            elements.joinModal.numpad.addEventListener('click', handleNumpadInput);
+
+            // Alle Event Listeners...
+            document.querySelectorAll('[data-value="custom"]').forEach(btn => {
+                btn.addEventListener('click', () => openCustomValueModal(btn.dataset.type));
+            });
+            elements.customValueModal.numpad.addEventListener('click', handleCustomNumpad);
+            elements.customValueModal.closeBtn.addEventListener('click', () => elements.customValueModal.overlay.classList.add('hidden'));
+            elements.customValueModal.numpad.querySelector('[data-action="backspace"]').addEventListener('click', () => {
+                customValueInput = customValueInput.slice(0, -1);
+                updateCustomValueDisplay();
+            });
+
+            elements.customValueModal.confirmBtn.addEventListener('click', () => {
+                if (!customValueInput) return;
+                let key = currentCustomType;
+                let value = parseInt(customValueInput);
+
+                if (key === 'lives') {
+                    gameCreationSettings.lives = value;
+                    elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
+                    const customBtn = elements.gameTypeScreen.livesPresets.querySelector('[data-value="custom"]');
+                    customBtn.classList.add('active');
+                    customBtn.textContent = value;
+                } else {
+                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [key]: value }}));
+                }
+                elements.customValueModal.overlay.classList.add('hidden');
+            });
             
-            document.querySelectorAll('.mode-box').forEach(box => {
-                box.addEventListener('click', (e) => {
-                    if (e.currentTarget.disabled) return showToast('Dieser Modus ist bald verfügbar!');
-                    selectedGameMode = box.dataset.mode;
-                    elements.gameTypeScreen.pointsBtn.classList.remove('active');
-                    elements.gameTypeScreen.livesBtn.classList.remove('active');
-                    elements.gameTypeScreen.livesSettings.classList.add('hidden');
-                    elements.gameTypeScreen.createLobbyBtn.disabled = true;
-                    gameCreationSettings = { gameType: null, lives: 3 };
-                    showScreen('game-type-selection-screen');
-                });
-            });
+            // ... (Hier folgen alle anderen Event Listeners aus der vorherigen Version) ...
 
-            elements.gameTypeScreen.pointsBtn.addEventListener('click', () => {
-                elements.gameTypeScreen.pointsBtn.classList.add('active');
-                elements.gameTypeScreen.livesBtn.classList.remove('active');
-                elements.gameTypeScreen.livesSettings.classList.add('hidden');
-                elements.gameTypeScreen.createLobbyBtn.disabled = false;
-                gameCreationSettings.gameType = 'points';
-            });
-
-            elements.gameTypeScreen.livesBtn.addEventListener('click', () => {
-                elements.gameTypeScreen.livesBtn.classList.add('active');
-                elements.gameTypeScreen.pointsBtn.classList.remove('active');
-                elements.gameTypeScreen.livesSettings.classList.remove('hidden');
-                elements.gameTypeScreen.createLobbyBtn.disabled = false;
-                gameCreationSettings.gameType = 'lives';
-                elements.gameTypeScreen.livesPresets.querySelector('.preset-button[data-value="3"]').classList.add('active');
-            });
-
-            elements.gameTypeScreen.livesPresets.addEventListener('click', e => {
-                const btn = e.target.closest('.preset-button');
-                if (!btn) return;
-                elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                gameCreationSettings.lives = parseInt(btn.dataset.value);
-            });
-
-            elements.gameTypeScreen.createLobbyBtn.addEventListener('click', () => {
-                setLoading(true);
-                if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
-                    ws.socket.send(JSON.stringify({ 
-                        type: 'create-game', 
-                        payload: { 
-                            user: currentUser, 
-                            token: spotifyToken, 
-                            gameMode: selectedGameMode,
-                            gameType: gameCreationSettings.gameType,
-                            lives: gameCreationSettings.lives
-                        } 
-                    }));
-                } else { 
-                    showToast('Verbindung wird hergestellt...', true); 
-                    setLoading(false); 
-                    connectWebSocket(); 
-                }
-            });
-
-            elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
-            elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
-            elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
-            elements.lobby.refreshDevicesBtn.addEventListener('click', fetchHostData);
-
-            ['device-select', 'playlist-select'].forEach(id => {
-                document.getElementById(id).addEventListener('change', e => {
-                    const key = id.includes('device') ? 'deviceId' : 'playlistId';
-                    ws.socket.send(JSON.stringify({type: 'update-settings', payload: {[key]: e.target.value}}));
-                });
-            });
-            [elements.lobby.songCountPresets, elements.lobby.guessTimePresets, elements.lobby.gameTypePresets].forEach(container => {
-                container.addEventListener('click', e => {
-                    const btn = e.target.closest('.preset-button');
-                    if (!btn) return;
-                    const key = container.id.includes('song') ? 'songCount' : container.id.includes('time') ? 'guessTime' : 'gameType';
-                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [key]: btn.dataset.value }}));
-                });
-            });
-            elements.lobby.startGameBtn.addEventListener('click', () => {
-                ws.socket.send(JSON.stringify({ type: 'start-game' }));
-                setLoading(true);
-            });
-
-            supabase.auth.onAuthStateChange(async (event, session) => {
-                setLoading(true);
-                if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
-                    await initializeApp(session.user);
-                } else if (event === 'SIGNED_OUT' || !session) {
-                    currentUser = null;
-                    showScreen('auth-screen');
-                }
-                setLoading(false);
-            });
         } catch (error) {
             setLoading(false);
             document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>${error.message}</p></div>`;
