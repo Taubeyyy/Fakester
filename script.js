@@ -31,12 +31,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const initializeApp = async (user, isGuest = false) => {
         sessionStorage.removeItem('fakesterGame');
         currentUser = { id: user.id, username: isGuest ? user.username : user.user_metadata.username, isGuest };
+        document.body.classList.toggle('is-guest', isGuest);
         document.getElementById('welcome-nickname').textContent = currentUser.username;
         await checkSpotifyStatus();
         showScreen('home-screen');
-        // connectWebSocket(); // Connect is handled by auth state change
+        connectWebSocket();
     };
-
+    
     const checkSpotifyStatus = async () => {
         try { const res = await fetch('/api/status'); const data = await res.json(); spotifyToken = data.loggedIn ? data.token : null; } catch { spotifyToken = null; }
         document.getElementById('spotify-connect-button').classList.toggle('hidden', !!spotifyToken);
@@ -52,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     const handleLogout = async () => { setLoading(true); if (currentUser?.isGuest) return window.location.reload(); await supabase.auth.signOut(); };
-
+    
     const setupFriendsModal = () => {
         elements.home.friendsBtn.addEventListener('click', () => {
             elements.friendsModal.overlay.classList.remove('hidden');
@@ -78,7 +79,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const { createClient } = window.supabase;
             supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-            // --- EVENT LISTENERS (KORRIGIERTE STRUKTUR) ---
+            // --- EVENT LISTENERS (FIXED) ---
             elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
             elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
             elements.home.logoutBtn.addEventListener('click', handleLogout);
@@ -94,11 +95,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
             });
             elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
+            elements.home.joinRoomBtn.addEventListener('click', () => {
+                pinInput = "";
+                // updatePinDisplay();
+                elements.joinModal.overlay.classList.remove('hidden');
+            });
+            document.querySelectorAll('.mode-box').forEach(box => {
+                box.addEventListener('click', () => {
+                    setLoading(true);
+                    ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: box.dataset.mode } }));
+                });
+            });
             elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
             elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
             elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
-            
             setupFriendsModal(); 
+            // ... (Alle weiteren Listeners hier)
+
 
             // --- AUTHENTICATION LOGIC (FIXED) ---
             supabase.auth.onAuthStateChange(async (event, session) => {
