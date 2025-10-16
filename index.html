@@ -55,23 +55,23 @@
                 </div>
             </div>
             
-            <div id="stats-button" class="stats-overview-card">
+            <button id="stats-button" class="stats-overview-card">
                 <h3>Statistiken</h3>
-                <div class="stats-grid">
+                <div class="stats-grid-preview">
                     <div class="stat-item">
-                        <span class="stat-value" id="stat-games-played">0</span>
+                        <span class="stat-value" id="stat-games-played-preview">0</span>
                         <span class="stat-label">Spiele</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-value" id="stat-wins">0</span>
+                        <span class="stat-value" id="stat-wins-preview">0</span>
                         <span class="stat-label">Siege</span>
                     </div>
                     <div class="stat-item">
-                        <span class="stat-value" id="stat-correct-answers">0</span>
+                        <span class="stat-value" id="stat-correct-answers-preview">0</span>
                         <span class="stat-label">Richtige Antworten</span>
                     </div>
                 </div>
-            </div>
+            </button>
 
             <div class="home-actions">
                 <a href="/login" class="button-primary" id="spotify-connect-button"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
@@ -80,6 +80,20 @@
             </div>
         </div>
         <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button>
+    </main>
+
+    <main id="stats-screen" class="screen">
+        <div class="container text-left">
+            <h2>Statistiken</h2>
+            <div class="stats-full-grid">
+                <div class="stat-card"><span class="stat-value" id="stat-games-played">0</span><span class="stat-label">Gespielte Spiele</span></div>
+                <div class="stat-card"><span class="stat-value" id="stat-wins">0</span><span class="stat-label">Siege</span></div>
+                <div class="stat-card"><span class="stat-value" id="stat-winrate">0%</span><span class="stat-label">Siegesrate</span></div>
+                <div class="stat-card"><span class="stat-value" id="stat-highscore">0</span><span class="stat-label">Highscore</span></div>
+                <div class="stat-card"><span class="stat-value" id="stat-correct-answers">0</span><span class="stat-label">Richtige Antworten</span></div>
+                <div class="stat-card"><span class="stat-value" id="stat-avg-score">0</span><span class="stat-label">Ø Punktzahl</span></div>
+            </div>
+        </div>
     </main>
 
     <main id="mode-selection-screen" class="screen">
@@ -115,9 +129,11 @@
                 <div class="pin-display-large" id="lobby-pin">----</div>
             </div>
             <div class="lobby-players-container">
-                <h3>Spieler</h3>
-                <div id="player-list" class="player-grid">
+                <div class="lobby-players-header">
+                    <h3>Spieler</h3>
+                    <button id="invite-friends-button" class="button-secondary button-small"><i class="fa-solid fa-user-plus"></i> Freunde einladen</button>
                 </div>
+                <div id="player-list" class="player-grid"></div>
             </div>
             <div id="host-settings" class="hidden">
                  <h3>Einstellungen</h3>
@@ -128,9 +144,31 @@
                     </div>
                 </div>
                 <div class="setting"><label>Playlist</label><select id="playlist-select" class="lobby-select"><option>Lädt...</option></select></div>
+                <div class="setting-row">
+                    <div class="setting"><label for="song-count-input">Anzahl Songs</label><input type="number" id="song-count-input" class="lobby-input" value="10" min="5" max="50"></div>
+                    <div class="setting"><label for="guess-time-input">Ratezeit (s)</label><input type="number" id="guess-time-input" class="lobby-input" value="30" min="10" max="60"></div>
+                </div>
                 <button id="start-game-button" class="button-primary button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
             </div>
             <div id="guest-waiting-message" class="hidden"><p>Warte, bis der Host das Spiel startet...</p></div>
+        </div>
+    </main>
+
+    <main id="game-screen" class="screen">
+        <div class="game-container">
+            <div class="round-info">
+                <span>Runde <span id="current-round">1</span> / <span id="total-rounds">10</span></span>
+                <div class="timer">
+                    <div id="timer-bar" class="timer-bar"></div>
+                </div>
+            </div>
+            <div class="game-content">
+                <div class="album-art-container">
+                    <img id="album-art" src="placeholder.png" alt="Album Cover">
+                </div>
+                <div id="game-guess-area" class="guess-area"></div>
+            </div>
+            <button id="submit-guess-button" class="button-primary button-submit-guess">Antwort einloggen</button>
         </div>
     </main>
 
@@ -138,8 +176,7 @@
         <div class="container text-left">
             <h2>Erfolge</h2>
             <p>Sammle Erfolge und schalte neue Titel frei.</p>
-            <div id="achievement-grid" class="achievement-grid">
-            </div>
+            <div id="achievement-grid" class="achievement-grid"></div>
         </div>
     </main>
 
@@ -147,66 +184,14 @@
         <div class="container text-left">
             <h2>Titel auswählen</h2>
             <p>Wähle einen Titel, der unter deinem Namen angezeigt wird.</p>
-            <div id="title-list" class="title-list">
-            </div>
+            <div id="title-list" class="title-list"></div>
         </div>
     </main>
 
-    <div id="guest-modal-overlay" class="modal-overlay hidden">
-        <div class="modal">
-            <button id="close-guest-modal-button" class="button-exit-modal">×</button>
-            <h2>Als Gast spielen</h2>
-            <input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15">
-            <button id="guest-nickname-submit" class="button-primary">Weiter</button>
-        </div>
-    </div>
-    <div id="join-modal-overlay" class="modal-overlay hidden">
-        <div class="modal numpad-modal">
-            <button id="close-join-modal-button" class="button-exit-modal">×</button>
-            <h2>Raum beitreten</h2>
-            <div class="pin-display" id="join-pin-display">
-                <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
-            </div>
-            <div id="numpad-join" class="numpad">
-                <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
-                <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
-                <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
-                <button class="numpad-action" data-action="clear">C</button><button data-key="0">0</button>
-                <button id="join-game-button" class="numpad-action" data-action="confirm"><i class="fa-solid fa-right-to-bracket"></i></button>
-            </div>
-        </div>
-    </div>
-    
-    <div id="friends-modal-overlay" class="modal-overlay hidden">
-        <div class="modal">
-            <button id="close-friends-modal-button" class="button-exit-modal">×</button>
-            <h2>Freunde</h2>
-            <div class="friends-content">
-                <div class="add-friend-form">
-                    <input type="text" id="add-friend-input" placeholder="Benutzername eingeben...">
-                    <button id="add-friend-button" class="button-primary"><i class="fa-solid fa-plus"></i></button>
-                </div>
-                <div class="tabs">
-                    <button class="tab-button active" data-tab="friends-list-tab">Freunde</button>
-                    <button class="tab-button" data-tab="requests-list-tab">Anfragen <span id="requests-count" class="badge hidden">0</span></button>
-                </div>
-                <div id="friends-list-tab" class="tab-content active">
-                    <ul id="friends-list" class="friends-list">
-                    </ul>
-                </div>
-                <div id="requests-list-tab" class="tab-content">
-                     <ul id="requests-list" class="requests-list">
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="loading-overlay" class="loading-overlay hidden">
-        <div class="equalizer">
-            <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
-        </div>
-    </div>
+    <div id="guest-modal-overlay" class="modal-overlay hidden"><div class="modal"><button id="close-guest-modal-button" class="button-exit-modal">×</button><h2>Als Gast spielen</h2><input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15"><button id="guest-nickname-submit" class="button-primary">Weiter</button></div></div>
+    <div id="join-modal-overlay" class="modal-overlay hidden"><div class="modal numpad-modal"><button id="close-join-modal-button" class="button-exit-modal">×</button><h2>Raum beitreten</h2><div class="pin-display" id="join-pin-display"><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span></div><div id="numpad-join" class="numpad"><button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button class="numpad-action" data-action="clear">C</button><button data-key="0">0</button><button id="join-game-button" class="numpad-action" data-action="confirm"><i class="fa-solid fa-right-to-bracket"></i></button></div></div></div>
+    <div id="friends-modal-overlay" class="modal-overlay hidden"><div class="modal"><button id="close-friends-modal-button" class="button-exit-modal">×</button><h2>Freunde</h2><div class="friends-content"><div class="add-friend-form"><input type="text" id="add-friend-input" placeholder="Benutzername eingeben..."><button id="add-friend-button" class="button-primary"><i class="fa-solid fa-plus"></i></button></div><div class="tabs"><button class="tab-button active" data-tab="friends-list-tab">Freunde</button><button class="tab-button" data-tab="requests-list-tab">Anfragen <span id="requests-count" class="badge hidden">0</span></button></div><div id="friends-list-tab" class="tab-content active"><ul id="friends-list" class="friends-list"></ul></div><div id="requests-list-tab" class="tab-content"><ul id="requests-list" class="requests-list"></ul></div></div></div></div>
+    <div id="loading-overlay" class="loading-overlay hidden"><div class="equalizer"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>

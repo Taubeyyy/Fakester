@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Globale Variablen & Konstanten ---
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "";
     let achievements = [], userTitles = [];
@@ -10,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
         SENDER_ID: 'data-sender-id'
     };
 
-    // --- DOM Elemente ---
     const elements = {
         screens: document.querySelectorAll('.screen'),
         leaveGameButton: document.getElementById('leave-game-button'),
@@ -28,12 +26,27 @@ document.addEventListener('DOMContentLoaded', () => {
             joinRoomBtn: document.getElementById('show-join-button'),
             profileTitleBtn: document.querySelector('.profile-title-button'),
             friendsBtn: document.getElementById('friends-button'),
+            statsBtn: document.getElementById('stats-button'),
         },
         lobby: {
             pinDisplay: document.getElementById('lobby-pin'),
             playerList: document.getElementById('player-list'),
             hostSettings: document.getElementById('host-settings'),
             guestWaitingMessage: document.getElementById('guest-waiting-message'),
+            deviceSelect: document.getElementById('device-select'),
+            playlistSelect: document.getElementById('playlist-select'),
+            songCountInput: document.getElementById('song-count-input'),
+            guessTimeInput: document.getElementById('guess-time-input'),
+            startGameBtn: document.getElementById('start-game-button'),
+            inviteFriendsBtn: document.getElementById('invite-friends-button'),
+        },
+        game: {
+            round: document.getElementById('current-round'),
+            totalRounds: document.getElementById('total-rounds'),
+            timerBar: document.getElementById('timer-bar'),
+            albumArt: document.getElementById('album-art'),
+            guessArea: document.getElementById('game-guess-area'),
+            submitBtn: document.getElementById('submit-guess-button'),
         },
         guestModal: {
             overlay: document.getElementById('guest-modal-overlay'),
@@ -60,22 +73,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- Hilfsfunktionen ---
     const showToast = (message, isError = false) => Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "var(--danger-color)" : "var(--success-color)", borderRadius: "8px" } }).showToast();
     const showScreen = (screenId) => {
         elements.screens.forEach(s => s.classList.remove('active'));
         document.getElementById(screenId)?.classList.add('active');
-        const showLeaveButton = ['lobby-screen', 'achievements-screen', 'mode-selection-screen', 'title-selection-screen'].includes(screenId);
+        const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId);
         elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton);
     };
     const setLoading = (isLoading) => elements.loadingOverlay.classList.toggle('hidden', !isLoading);
 
-    // --- WebSocket Logik ---
     const connectWebSocket = () => {
         if (ws.socket && ws.socket.readyState === WebSocket.OPEN) return;
         const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
         ws.socket = new WebSocket(`${protocol}://${location.host}`);
-
         ws.socket.onopen = () => console.log("WebSocket verbunden.");
         ws.socket.onmessage = (event) => handleWebSocketMessage(JSON.parse(event.data));
         ws.socket.onclose = () => setTimeout(() => connectWebSocket(), 3000);
@@ -86,47 +96,77 @@ document.addEventListener('DOMContentLoaded', () => {
         setLoading(false);
         switch (type) {
             case 'game-created':
+                showScreen('lobby-screen');
+                // lobby-update wird die UI füllen
+                break;
             case 'join-success':
                 showScreen('lobby-screen');
                 break;
             case 'lobby-update':
                 updateLobbyUI(payload);
                 break;
+            case 'new-round':
+                setupNewRound(payload);
+                break;
             case 'error':
                 showToast(payload.message, true);
                 break;
-            case 'friend-request-received':
-                showToast(`Neue Freundschaftsanfrage von ${payload.sender_username}!`);
-                updateFriendRequestsBadge();
-                break;
-            case 'friend-request-accepted':
-                showToast(`${payload.username} hat deine Anfrage angenommen.`);
-                break;
         }
     };
+    
+    const setupNewRound = (payload) => {
+        elements.game.round.textContent = payload.round;
+        elements.game.totalRounds.textContent = payload.totalRounds;
+        elements.game.timerBar.style.transition = 'none';
+        elements.game.timerBar.style.width = '100%';
+        setTimeout(() => {
+            elements.game.timerBar.style.transition = `width ${payload.guessTime}s linear`;
+            elements.game.timerBar.style.width = '0%';
+        }, 100);
 
-    // --- Lobby-Logik ---
-    const updateLobbyUI = ({ pin, hostId, players }) => {
+        const guessArea = elements.game.guessArea;
+        guessArea.innerHTML = '';
+
+        if (payload.gameMode === 'quiz') {
+            guessArea.innerHTML = `
+                <input type="text" id="guess-title" placeholder="Songtitel...">
+                <input type="text" id="guess-artist" placeholder="Künstler...">
+                <input type="number" id="guess-year" placeholder="Jahr...">
+            `;
+            elements.game.submitBtn.classList.remove('hidden');
+        } else if (payload.gameMode === 'popularity') {
+            guessArea.innerHTML = `
+                <p>Ist der nächste Song populärer oder weniger populär?</p>
+                <div class="popularity-buttons">
+                    <button class="button-secondary" id="guess-higher">Höher</button>
+                    <button class="button-secondary" id="guess-lower">Tiefer</button>
+                </div>
+            `;
+            elements.game.submitBtn.classList.add('hidden');
+        }
+        showScreen('game-screen');
+    };
+
+    const updateLobbyUI = ({ pin, hostId, players, settings }) => {
         elements.lobby.pinDisplay.textContent = pin;
         elements.lobby.playerList.innerHTML = '';
-
         players.forEach(player => {
             const isHost = player.id === hostId;
             const playerCard = document.createElement('div');
             playerCard.className = 'player-card';
-            playerCard.innerHTML = `
-                <i class="fa-solid ${isHost ? 'fa-crown' : 'fa-user'} player-icon ${isHost ? 'host' : ''}"></i>
-                <span class="player-name">${player.nickname}</span>
-            `;
+            playerCard.innerHTML = `<i class="fa-solid ${isHost ? 'fa-crown' : 'fa-user'} player-icon ${isHost ? 'host' : ''}"></i><span class="player-name">${player.nickname}</span>`;
             elements.lobby.playerList.appendChild(playerCard);
         });
-
         const isCurrentUserHost = currentUser.id === hostId;
         elements.lobby.hostSettings.classList.toggle('hidden', !isCurrentUserHost);
         elements.lobby.guestWaitingMessage.classList.toggle('hidden', isCurrentUserHost);
+
+        if (isCurrentUserHost && settings) {
+            elements.lobby.songCountInput.value = settings.songCount;
+            elements.lobby.guessTimeInput.value = settings.guessTime;
+        }
     };
     
-    // --- App-Logik ---
     const initializeApp = async (user, isGuest = false) => {
         currentUser = { id: user.id, username: isGuest ? user.username : user.user_metadata.username, isGuest };
         document.getElementById('welcome-nickname').textContent = currentUser.username;
@@ -146,7 +186,6 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.home.createRoomBtn.classList.toggle('hidden', !spotifyToken);
     };
 
-    // --- Auth Logik ---
     const handleAuthAction = async (action, form) => {
         setLoading(true);
         const username = form.querySelector('input[type="text"]').value;
@@ -154,11 +193,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const { error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } });
             if (error) throw error;
-        } catch (error) {
-            showToast(error.message, true);
-        } finally {
-            setLoading(false);
-        }
+        } catch (error) { showToast(error.message, true); } 
+        finally { setLoading(false); }
     };
 
     const handleLogout = async () => {
@@ -167,26 +203,19 @@ document.addEventListener('DOMContentLoaded', () => {
         await supabase.auth.signOut();
     };
     
-    // --- Numpad Logik ---
     const handleNumpadInput = (e) => {
         const target = e.target.closest('button');
         if (!target) return;
-
         const key = target.dataset.key;
         const action = target.dataset.action;
-
-        if (key && pinInput.length < 4) {
-            pinInput += key;
-        } else if (action === 'clear') {
-            pinInput = "";
-        } else if (action === 'confirm') {
+        if (key && pinInput.length < 4) { pinInput += key; } 
+        else if (action === 'clear') { pinInput = ""; } 
+        else if (action === 'confirm') {
             if (pinInput.length === 4) {
                 setLoading(true);
                 ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
                 elements.joinModal.overlay.classList.add('hidden');
-            } else {
-                showToast('PIN muss 4-stellig sein.', true);
-            }
+            } else { showToast('PIN muss 4-stellig sein.', true); }
         }
         updatePinDisplay();
     };
@@ -197,39 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // --- Erfolge & Titel Logik ---
     const loadGameData = () => {
-        achievements = [
-            { id: 'first_game', icon: 'fa-play', title: 'Erste Schritte', desc: 'Spiele dein erstes Spiel.', unlocked: true },
-            { id: 'first_win', icon: 'fa-trophy', title: 'Sieger', desc: 'Gewinne dein erstes Spiel.', unlocked: false },
-            { id: 'correct_streak', icon: 'fa-fire', title: 'Heiß gelaufen', desc: 'Beantworte 5 Fragen in Folge richtig.', unlocked: false },
-            { id: 'social', icon: 'fa-users', title: 'Gesellig', desc: 'Spiele in einer Lobby mit 4+ Spielern.', unlocked: false },
-        ];
-
-        userTitles = [
-            { id: 'newbie', title: 'Neuling', desc: 'Standard-Titel für alle neuen Spieler.', unlocked: true },
-            { id: 'maestro', title: 'Maestro', desc: 'Erreiche 50 Siege.', unlocked: false },
-        ];
-
+        achievements = [ { id: 'first_game', icon: 'fa-play', title: 'Erste Schritte', desc: 'Spiele dein erstes Spiel.', unlocked: true }, { id: 'first_win', icon: 'fa-trophy', title: 'Sieger', desc: 'Gewinne dein erstes Spiel.', unlocked: false }, ];
+        userTitles = [ { id: 'newbie', title: 'Neuling', desc: 'Standard-Titel.', unlocked: true }, { id: 'maestro', title: 'Maestro', desc: 'Erreiche 50 Siege.', unlocked: false }, ];
         renderAchievements();
         renderTitles();
     };
 
-    const renderAchievements = () => {
-        const grid = document.getElementById('achievement-grid');
-        grid.innerHTML = '';
-        achievements.forEach(ach => {
-            const card = document.createElement('div');
-            card.className = `achievement-card ${ach.unlocked ? '' : 'locked'}`;
-            card.innerHTML = `
-                <div class="achievement-icon"><i class="fa-solid ${ach.icon}"></i></div>
-                <h3>${ach.title}</h3>
-                <p>${ach.desc}</p>
-            `;
-            grid.appendChild(card);
-        });
-    };
-
+    const renderAchievements = () => { document.getElementById('achievement-grid').innerHTML = achievements.map(ach => `<div class="achievement-card ${ach.unlocked ? '' : 'locked'}"><div class="achievement-icon"><i class="fa-solid ${ach.icon}"></i></div><h3>${ach.title}</h3><p>${ach.desc}</p></div>`).join(''); };
     const renderTitles = () => {
         const list = document.getElementById('title-list');
         list.innerHTML = '';
@@ -244,22 +248,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast('Titel geändert!');
                  });
             }
-            item.innerHTML = `
-                <h3>${title.title}</h3>
-                <p>${title.desc}</p>
-            `;
+            item.innerHTML = `<h3>${title.title}</h3><p>${title.desc}</p>`;
             list.appendChild(item);
         });
     };
 
-    // --- Freunde System Logik ---
     const setupFriendsModal = () => {
         elements.home.friendsBtn.addEventListener('click', () => {
             elements.friendsModal.overlay.classList.remove('hidden');
             loadFriendsAndRequests();
         });
         elements.friendsModal.closeBtn.addEventListener('click', () => elements.friendsModal.overlay.classList.add('hidden'));
-
         elements.friendsModal.tabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 elements.friendsModal.tabs.forEach(t => t.classList.remove('active'));
@@ -268,7 +267,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById(tab.dataset.tab).classList.add('active');
             });
         });
-
         elements.friendsModal.addFriendBtn.addEventListener('click', sendFriendRequest);
     };
 
@@ -276,170 +274,77 @@ document.addEventListener('DOMContentLoaded', () => {
         const username = elements.friendsModal.addFriendInput.value.trim();
         if (username.length < 3) return showToast('Benutzername ist zu kurz.', true);
         if (username === currentUser.username) return showToast('Du kannst dich nicht selbst hinzufügen.', true);
-
         setLoading(true);
         try {
-            const { data: targetUser, error: findError } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('username', username)
-                .single();
-
+            const { data: targetUser, error: findError } = await supabase.from('profiles').select('id').eq('username', username).single();
             if (findError || !targetUser) throw new Error('Benutzer nicht gefunden.');
-            
-            const { data: existingFriendship, error: friendCheckError } = await supabase
-                .from('friends')
-                .select()
-                .or(`(user_id1.eq.${currentUser.id},user_id2.eq.${targetUser.id}),(user_id1.eq.${targetUser.id},user_id2.eq.${currentUser.id})`);
-            if(friendCheckError) throw friendCheckError;
-            if(existingFriendship.length > 0) {
-                showToast('Ihr seid bereits Freunde.', true);
-                return;
-            }
-
-            const { error: requestError } = await supabase
-                .from('friend_requests')
-                .insert({ sender_id: currentUser.id, receiver_id: targetUser.id });
-
-            if (requestError) {
-                if (requestError.code === '23505') {
-                    throw new Error('Anfrage bereits gesendet oder erhalten.');
-                }
-                throw requestError;
-            }
+            const orFilter = `or(and(user_id1.eq.${currentUser.id},user_id2.eq.${targetUser.id}),and(user_id1.eq.${targetUser.id},user_id2.eq.${currentUser.id}))`;
+            const { data: existingFriendship, error: friendCheckError } = await supabase.from('friends').select().or(orFilter);
+            if (friendCheckError) throw friendCheckError;
+            if (existingFriendship && existingFriendship.length > 0) throw new Error('Ihr seid bereits Freunde.');
+            const { error: requestError } = await supabase.from('friend_requests').insert({ sender_id: currentUser.id, receiver_id: targetUser.id });
+            if (requestError) throw new Error(requestError.code === '23505' ? 'Anfrage bereits gesendet.' : requestError.message);
             showToast(`Anfrage an ${username} gesendet!`);
             elements.friendsModal.addFriendInput.value = '';
-
-        } catch (error) {
-            showToast(error.message, true);
-        } finally {
-            setLoading(false);
-        }
+        } catch (error) { showToast(error.message, true); } 
+        finally { setLoading(false); }
     };
     
     const loadFriendsAndRequests = async () => {
         if (!currentUser || currentUser.isGuest) return;
         setLoading(true);
         try {
-            const { data: requests, error: reqError } = await supabase
-                .from('friend_requests')
-                .select('id, sender_id, profiles(username)')
-                .eq('receiver_id', currentUser.id)
-                .eq('status', 'pending');
-
+            const { data: requests, error: reqError } = await supabase.from('friend_requests').select('id, sender_id, profiles(username)').eq('receiver_id', currentUser.id).eq('status', 'pending');
             if (reqError) throw reqError;
-
-            const { data: friends, error: friendsError } = await supabase
-                .rpc('get_friends', { user_id_param: currentUser.id });
-                
+            const { data: friends, error: friendsError } = await supabase.rpc('get_friends', { user_id_param: currentUser.id });
             if (friendsError) throw friendsError;
-            
             renderFriendsList(friends || []);
             renderRequestsList(requests || []);
             updateFriendRequestsBadge((requests || []).length);
-
-        } catch (error) {
-            showToast('Fehler beim Laden der Freundesliste: ' + error.message, true);
-        } finally {
-            setLoading(false);
-        }
+        } catch (error) { showToast('Fehler beim Laden: ' + error.message, true); } 
+        finally { setLoading(false); }
     };
     
-    const renderFriendsList = (friends) => {
-        const friendsListEl = elements.friendsModal.friendsList;
-        if (friends.length === 0) {
-            friendsListEl.innerHTML = '<li>Du hast noch keine Freunde.</li>';
-            return;
-        }
-        friendsListEl.innerHTML = friends.map(friend => `
-            <li>
-                <span>${friend.username}</span>
-                <button ${DATA_KEYS.FRIEND_ID}="${friend.id}" class="button-icon-small remove-friend">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-            </li>
-        `).join('');
-    };
-
-    const renderRequestsList = (requests) => {
-        const requestsListEl = elements.friendsModal.requestsList;
-        if (requests.length === 0) {
-            requestsListEl.innerHTML = '<li>Keine neuen Anfragen.</li>';
-            return;
-        }
-        requestsListEl.innerHTML = requests.map(request => `
-            <li>
-                <span>${request.profiles.username}</span>
-                <div>
-                    <button ${DATA_KEYS.REQUEST_ID}="${request.id}" ${DATA_KEYS.SENDER_ID}="${request.sender_id}" class="button-icon-small accept">
-                        <i class="fa-solid fa-check"></i>
-                    </button>
-                    <button ${DATA_KEYS.REQUEST_ID}="${request.id}" class="button-icon-small decline">
-                        <i class="fa-solid fa-times"></i>
-                    </button>
-                </div>
-            </li>
-        `).join('');
-    };
-
-    const updateFriendRequestsBadge = (count) => {
-        const requestsCountEl = elements.friendsModal.requestsCount;
-        if (count > 0) {
-            requestsCountEl.textContent = count;
-            requestsCountEl.classList.remove('hidden');
-        } else {
-            requestsCountEl.classList.add('hidden');
-        }
-    };
+    const renderFriendsList = (friends) => { elements.friendsModal.friendsList.innerHTML = friends.length === 0 ? '<li>Du hast noch keine Freunde.</li>' : friends.map(f => `<li><span>${f.username}</span><button ${DATA_KEYS.FRIEND_ID}="${f.id}" class="button-icon-small remove-friend"><i class="fa-solid fa-trash"></i></button></li>`).join(''); };
+    const renderRequestsList = (requests) => { elements.friendsModal.requestsList.innerHTML = requests.length === 0 ? '<li>Keine neuen Anfragen.</li>' : requests.map(r => `<li><span>${r.profiles.username}</span><div><button ${DATA_KEYS.REQUEST_ID}="${r.id}" ${DATA_KEYS.SENDER_ID}="${r.sender_id}" class="button-icon-small accept"><i class="fa-solid fa-check"></i></button><button ${DATA_KEYS.REQUEST_ID}="${r.id}" class="button-icon-small decline"><i class="fa-solid fa-times"></i></button></div></li>`).join('');};
+    const updateFriendRequestsBadge = (count) => { const badge = elements.friendsModal.requestsCount; badge.textContent = count; badge.classList.toggle('hidden', count === 0); };
     
     elements.friendsModal.requestsList.addEventListener('click', async (e) => {
         const button = e.target.closest('button');
         if (!button) return;
-
         const requestId = button.getAttribute(DATA_KEYS.REQUEST_ID);
         const senderId = button.getAttribute(DATA_KEYS.SENDER_ID);
-
         setLoading(true);
         try {
             if (button.classList.contains('accept')) {
-                const { error: updateError } = await supabase
-                    .from('friend_requests')
-                    .update({ status: 'accepted' })
-                    .eq('id', requestId);
-                if (updateError) throw updateError;
-                
-                const { error: insertError } = await supabase
-                    .from('friends')
-                    .insert({ user_id1: senderId, user_id2: currentUser.id });
-                if (insertError) throw insertError;
-
-                showToast('Freundschaftsanfrage angenommen!');
-
+                await supabase.from('friend_requests').update({ status: 'accepted' }).eq('id', requestId);
+                await supabase.from('friends').insert({ user_id1: senderId, user_id2: currentUser.id });
+                showToast('Anfrage angenommen!');
             } else if (button.classList.contains('decline')) {
-                 const { error: declineError } = await supabase
-                    .from('friend_requests')
-                    .update({ status: 'declined' })
-                    .eq('id', requestId);
-                if (declineError) throw declineError;
+                await supabase.from('friend_requests').update({ status: 'declined' }).eq('id', requestId);
                 showToast('Anfrage abgelehnt.');
             }
-            
             loadFriendsAndRequests();
-
-        } catch (error) {
-            showToast('Fehler: ' + error.message, true);
-        } finally {
-            setLoading(false);
-        }
+        } catch (error) { showToast('Fehler: ' + error.message, true); } 
+        finally { setLoading(false); }
     });
 
-    // --- MAIN APP START ---
+    // NEUE EVENT LISTENERS FÜR LOBBY EINSTELLUNGEN
+    const sendSettingsUpdate = () => {
+        const settings = {
+            deviceId: elements.lobby.deviceSelect.value,
+            playlistId: elements.lobby.playlistSelect.value,
+            songCount: parseInt(elements.lobby.songCountInput.value),
+            guessTime: parseInt(elements.lobby.guessTimeInput.value)
+        };
+        ws.socket.send(JSON.stringify({ type: 'update-settings', payload: settings }));
+    };
+
     const main = async () => {
         try {
             const response = await fetch('/api/config');
             if (!response.ok) throw new Error('Server-Konfiguration konnte nicht geladen werden.');
             const config = await response.json();
-
             const { createClient } = window.supabase;
             supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
@@ -448,10 +353,8 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.home.logoutBtn.addEventListener('click', handleLogout);
             elements.leaveGameButton.addEventListener('click', () => showScreen('home-screen'));
             elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
+            elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
             elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
-            elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
-            elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
-            
             elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
             elements.guestModal.closeBtn.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
             elements.guestModal.submitBtn.addEventListener('click', () => {
@@ -461,6 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
             });
             
+            // GEÄNDERTER SPIELFLUSS
             elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
             document.querySelectorAll('.mode-box').forEach(box => {
                 box.addEventListener('click', () => {
@@ -469,30 +373,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
             
-            elements.home.joinRoomBtn.addEventListener('click', () => {
-                pinInput = "";
-                updatePinDisplay();
-                elements.joinModal.overlay.classList.remove('hidden');
-            });
+            elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; updatePinDisplay(); elements.joinModal.overlay.classList.remove('hidden'); });
             elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
             elements.joinModal.numpad.addEventListener('click', handleNumpadInput);
+            
+            // LOBBY-EINSTELLUNGEN LISTENERS
+            elements.lobby.deviceSelect.addEventListener('change', sendSettingsUpdate);
+            elements.lobby.playlistSelect.addEventListener('change', sendSettingsUpdate);
+            elements.lobby.songCountInput.addEventListener('change', sendSettingsUpdate);
+            elements.lobby.guessTimeInput.addEventListener('change', sendSettingsUpdate);
+            elements.lobby.startGameBtn.addEventListener('click', () => {
+                setLoading(true);
+                ws.socket.send(JSON.stringify({ type: 'start-game' }));
+            });
             
             setupFriendsModal();
 
             supabase.auth.onAuthStateChange(async (event, session) => {
                 setLoading(true);
-                if (event === 'SIGNED_IN' && session) {
-                    await initializeApp(session.user);
-                } else if (event === 'SIGNED_OUT') {
-                    window.location.reload();
-                }
+                if (event === 'SIGNED_IN' && session) { await initializeApp(session.user); } 
+                else if (event === 'SIGNED_OUT') { window.location.reload(); }
                 setLoading(false);
             });
 
             const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                // Already handled by onAuthStateChange
-            } else {
+            if (!session) {
                 showScreen('auth-screen');
                 setLoading(false);
             }
