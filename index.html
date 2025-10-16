@@ -100,16 +100,16 @@
                         <p>Errate Künstler, Titel und Jahr des Songs.</p>
                     </div>
                 </button>
-                <button class="mode-box" data-mode="timeline" disabled>
+                <button class="mode-box" data-mode="timeline">
                      <div class="mode-box-content">
-                        <h3>Timeline (bald)</h3>
-                        <p>Sortiere Songs chronologisch.</p>
+                        <h3>Timeline</h3>
+                        <p>Errate das Erscheinungsjahr des Songs.</p>
                     </div>
                 </button>
-                <button class="mode-box" data-mode="popularity" disabled>
+                <button class="mode-box" data-mode="popularity">
                      <div class="mode-box-content">
-                        <h3>Popularity (bald)</h3>
-                        <p>Errate, ob der nächste Song populärer ist.</p>
+                        <h3>Popularity</h3>
+                        <p>Errate, ob der nächste Song populärer ist (0-100).</p>
                     </div>
                 </button>
             </div>
@@ -168,10 +168,10 @@
                     <button class="button-select" id="playlist-select-button">Playlist auswählen</button>
                 </div>
                 <div class="setting" id="answer-type-container">
-                    <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="'Freitext' erfordert das manuelle Eintippen der Antwort. 'Multiple Choice' gibt vier Antwortmöglichkeiten vor."></i></label>
+                    <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="'Freitext' erfordert das manuelle Eintippen der Antwort. 'Multiple Choice' gibt vier Antwortmöglichkeiten vor (bald verfügbar)."></i></label>
                     <div class="preset-group" id="answer-type-presets">
-                        <button class="preset-button" data-value="freestyle">Freitext</button>
-                        <button class="preset-button" data-value="multiple">Multiple Choice</button>
+                        <button class="preset-button active" data-value="freestyle">Freitext</button>
+                        <button class="preset-button" data-value="multiple" disabled>Multiple Choice</button>
                     </div>
                 </div>
                 <div class="setting">
@@ -257,6 +257,14 @@
             <button id="close-playlist-select-modal" class="button-exit-modal">×</button>
             <h2>Playlist auswählen</h2>
             <ul id="playlist-list" class="selection-list"></ul>
+        </div>
+    </div>
+
+    <div id="info-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button id="close-info-modal-button" class="button-exit-modal">×</button>
+            <h2 id="info-modal-title">Info</h2>
+            <p id="info-modal-text"></p>
         </div>
     </div>
 
