@@ -12,9 +12,6 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 process.on('uncaughtException', (err, origin) => {
-    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
-    console.error('!! UNERWARTETER FEHLER (UNCAUGHT EXCEPTION) !!');
-    console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
     console.error(`Fehler: ${err.stack}`);
     console.error(`Ursprung: ${origin}`);
 });
@@ -133,7 +130,7 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'create-game':
             const newPin = generatePin();
             ws.pin = newPin; ws.playerId = payload.user.id;
-            const initialSettings = { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, gameType: payload.gameType || 'points', lives: payload.lives || 3 };
+            const initialSettings = { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, gameType: payload.gameType || 'points', lives: payload.lives || 3, answerType: 'freestyle' };
             games[newPin] = {
                 hostId: payload.user.id,
                 players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0, lives: initialSettings.lives, isConnected: true, isReady: false } },
@@ -176,12 +173,17 @@ function handleWebSocketMessage(ws, { type, payload }) {
             }
             break;
         case 'player-ready':
-            if (game && game.players[playerId] && game.gameState === 'RESULTS') {
+            if (game && game.players[playerId] && (game.gameState === 'RESULTS' || game.gameState === 'PLAYING')) {
                 game.players[playerId].isReady = true;
-                const allReady = Object.values(game.players).filter(p=>p.isConnected).every(p => p.isReady);
-                if (allReady) {
+                const activePlayers = Object.values(game.players).filter(p => p.isConnected && p.lives > 0);
+                const allReady = activePlayers.every(p => p.isReady);
+                
+                if (game.gameState === 'RESULTS' && allReady) {
                     clearTimeout(game.nextRoundTimer);
                     startRoundCountdown(pin);
+                } else if (game.gameState === 'PLAYING' && allReady) {
+                    clearTimeout(game.roundTimer);
+                    evaluateRound(pin);
                 }
             }
             break;
@@ -195,7 +197,10 @@ function handlePlayerDisconnect(ws) {
     if (!game || !game.players[playerId]) return;
 
     game.players[playerId].isConnected = false;
-    broadcastToLobby(pin, { type: 'toast', payload: { message: `${game.players[playerId].nickname} hat die Verbindung verloren...` } });
+
+    if (game.gameState === 'LOBBY') {
+        broadcastToLobby(pin, { type: 'toast', payload: { message: `${game.players[playerId].nickname} hat die Verbindung verloren...` } });
+    }
     broadcastLobbyUpdate(pin);
 
     setTimeout(() => {

@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let achievements = [], userTitles = [], currentGame = { pin: null, playerId: null, isHost: false, gameMode: null };
 
-    // Temporäre Variablen für die Spielerstellung
     let selectedGameMode = null;
     let gameCreationSettings = {
         gameType: null,
@@ -31,16 +30,18 @@ document.addEventListener('DOMContentLoaded', () => {
         home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), },
         lobby: {
             pinDisplay: document.getElementById('lobby-pin'), playerList: document.getElementById('player-list'), hostSettings: document.getElementById('host-settings'), guestWaitingMessage: document.getElementById('guest-waiting-message'),
-            deviceSelect: document.getElementById('device-select'), playlistSelect: document.getElementById('playlist-select'), startGameBtn: document.getElementById('start-game-button'), inviteFriendsBtn: document.getElementById('invite-friends-button'), refreshDevicesBtn: document.getElementById('refresh-devices-button'),
+            deviceSelectBtn: document.getElementById('device-select-button'),
+            playlistSelectBtn: document.getElementById('playlist-select-button'),
+            startGameBtn: document.getElementById('start-game-button'),
+            inviteFriendsBtn: document.getElementById('invite-friends-button'),
             songCountPresets: document.getElementById('song-count-presets'),
             guessTimePresets: document.getElementById('guess-time-presets'),
-            gameTypePresets: document.getElementById('game-type-presets'),
+            answerTypePresets: document.getElementById('answer-type-presets'),
         },
-        game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), albumArt: document.getElementById('album-art'), guessArea: document.getElementById('game-guess-area'), submitBtn: document.getElementById('submit-guess-button'), },
+        game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), albumArt: document.getElementById('album-art'), guessArea: document.getElementById('game-guess-area') },
         guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), },
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), },
-        friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), tabs: document.querySelectorAll('.friends-modal .tab-button'), tabContents: document.querySelectorAll('.friends-modal .tab-content'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), },
-        inviteFriendsModal: { overlay: document.getElementById('invite-friends-modal-overlay'), closeBtn: document.getElementById('close-invite-modal-button'), list: document.getElementById('online-friends-list'), },
+        friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button') },
         customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')},
         achievements: { grid: document.getElementById('achievement-grid') },
         titles: { list: document.getElementById('title-list') },
@@ -56,6 +57,17 @@ document.addEventListener('DOMContentLoaded', () => {
             closeBtn: document.getElementById('close-change-name-modal-button'),
             submitBtn: document.getElementById('change-name-submit'),
             input: document.getElementById('change-name-input'),
+        },
+        deviceSelectModal: {
+            overlay: document.getElementById('device-select-modal-overlay'),
+            closeBtn: document.getElementById('close-device-select-modal'),
+            list: document.getElementById('device-list'),
+            refreshBtn: document.getElementById('refresh-devices-button-modal'),
+        },
+        playlistSelectModal: {
+            overlay: document.getElementById('playlist-select-modal-overlay'),
+            closeBtn: document.getElementById('close-playlist-select-modal'),
+            list: document.getElementById('playlist-list'),
         }
     };
 
@@ -103,8 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         ws.socket.onmessage = (event) => { try { const { type, payload } = JSON.parse(event.data); handleWebSocketMessage({ type, payload }); } catch (error) { console.error('Fehler bei Nachricht:', error); } };
-        ws.socket.onclose = () => { console.warn('WebSocket-Verbindung getrennt.'); setTimeout(() => { if(sessionStorage.getItem('fakesterGame')) connectWebSocket() }, 3000); };
-        ws.socket.onerror = (error) => { console.error('WebSocket-Fehler:', error); showToast('Verbindungsfehler.', true); };
+        ws.socket.onclose = () => { console.warn('WebSocket-Verbindung getrennt.'); setTimeout(() => { if(sessionStorage.getItem('fakesterGame') || document.getElementById('home-screen').classList.contains('active')) connectWebSocket() }, 3000); };
+        ws.socket.onerror = (error) => { console.error('WebSocket-Fehler:', error); if(document.getElementById('auth-screen').classList.contains('active')) return; };
     };
 
     const handleWebSocketMessage = ({ type, payload }) => {
@@ -118,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentGame = { pin: payload.pin, playerId: payload.playerId, isHost: payload.isHost, gameMode: payload.gameMode };
                 sessionStorage.setItem('fakesterGame', JSON.stringify(currentGame));
                 if (currentGame.isHost) { fetchHostData(); }
+                elements.joinModal.overlay.classList.add('hidden');
                 showScreen('lobby-screen');
                 break;
             case 'lobby-update':
@@ -140,7 +153,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'error':
                 showToast(payload.message, true);
-                elements.joinModal.overlay.classList.add('hidden');
+                pinInput = "";
+                document.querySelectorAll('#join-pin-display .pin-digit').forEach(d => d.textContent = "");
                 break;
         }
     };
@@ -175,12 +189,16 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.lobby.hostSettings.classList.toggle('hidden', !isHost);
         elements.lobby.guestWaitingMessage.classList.toggle('hidden', isHost);
         if (!isHost) return;
-        
-        document.getElementById('game-type-setting-lobby').classList.add('hidden');
 
-        ['song-count-presets', 'guess-time-presets'].forEach(id => {
+        ['song-count-presets', 'guess-time-presets', 'answer-type-presets'].forEach(id => {
             const container = document.getElementById(id);
-            let valueToMatch = id.includes('song') ? settings.songCount : settings.guessTime;
+            if(!container) return;
+            
+            let valueToMatch;
+            if (id.includes('song')) valueToMatch = settings.songCount;
+            else if (id.includes('time')) valueToMatch = settings.guessTime;
+            else if (id.includes('answer')) valueToMatch = settings.answerType;
+
             let customButton = container.querySelector('[data-value="custom"]');
             let matchFound = false;
             container.querySelectorAll('.preset-button').forEach(btn => {
@@ -196,8 +214,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        if (elements.lobby.deviceSelect.value !== settings.deviceId) elements.lobby.deviceSelect.value = settings.deviceId;
-        if (elements.lobby.playlistSelect.value !== settings.playlistId) elements.lobby.playlistSelect.value = settings.playlistId;
+        elements.lobby.deviceSelectBtn.textContent = settings.deviceName || 'Gerät auswählen';
+        elements.lobby.playlistSelectBtn.textContent = settings.playlistName || 'Playlist auswählen';
 
         elements.lobby.startGameBtn.disabled = !(settings.deviceId && settings.playlistId);
     }
@@ -222,7 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.game.round.textContent = data.round;
         elements.game.totalRounds.textContent = data.totalRounds > 0 ? data.totalRounds : '∞';
         elements.game.albumArt.src = PLACEHOLDER_IMAGE_URL;
-        elements.game.submitBtn.classList.add('hidden');
 
         if (data.gameMode === 'quiz') {
             elements.game.guessArea.innerHTML = `
@@ -287,9 +304,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function fetchHostData() {
+    async function fetchHostData(isRefresh = false) {
         if (!spotifyToken) return;
-        setLoading(true);
+        if(isRefresh) setLoading(true);
         try {
             const [devicesRes, playlistsRes] = await Promise.all([
                 fetch('/api/devices', { headers: { 'Authorization': `Bearer ${spotifyToken}` } }),
@@ -299,20 +316,38 @@ document.addEventListener('DOMContentLoaded', () => {
             const devices = await devicesRes.json();
             const playlists = await playlistsRes.json();
             
+            const deviceList = elements.deviceSelectModal.list;
+            deviceList.innerHTML = '';
             if (devices.devices && devices.devices.length > 0) {
-                elements.lobby.deviceSelect.innerHTML = '<option value="">Gerät auswählen</option>' + devices.devices.map(d => `<option value="${d.id}" ${d.is_active ? 'selected' : ''}>${d.name}</option>`).join('');
+                devices.devices.forEach(d => {
+                    const li = document.createElement('li');
+                    li.textContent = d.name;
+                    li.dataset.id = d.id;
+                    li.dataset.name = d.name;
+                    deviceList.appendChild(li);
+                });
                 const activeDevice = devices.devices.find(d => d.is_active);
                 if (activeDevice) {
-                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { deviceId: activeDevice.id } }));
+                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { deviceId: activeDevice.id, deviceName: activeDevice.name } }));
                 }
             } else {
-                elements.lobby.deviceSelect.innerHTML = '<option value="">Keine aktiven Geräte gefunden</option>';
+                deviceList.innerHTML = '<li>Keine aktiven Geräte gefunden.</li>';
             }
-            elements.lobby.playlistSelect.innerHTML = '<option value="">Playlist auswählen</option>' + playlists.items.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
+            const playlistList = elements.playlistSelectModal.list;
+            playlistList.innerHTML = '';
+            playlists.items.forEach(p => {
+                const li = document.createElement('li');
+                li.textContent = p.name;
+                li.dataset.id = p.id;
+                li.dataset.name = p.name;
+                playlistList.appendChild(li);
+            });
+
         } catch (error) {
             showToast('Fehler beim Laden der Spotify-Daten.', true);
         } finally {
-            setLoading(false);
+            if(isRefresh) setLoading(false);
         }
     }
 
@@ -343,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     function renderTitles() {
         let finalTitles = [...testTitles];
-        if (currentUser && currentUser.username === 'Taubey') {
+        if (currentUser && currentUser.username.toLowerCase() === 'taubey') {
             finalTitles.push({ id: 99, name: 'Entwickler', achievement_id: null });
         }
         elements.titles.list.innerHTML = finalTitles.map(t => `
@@ -371,9 +406,16 @@ document.addEventListener('DOMContentLoaded', () => {
             // Alle Event Listeners...
 
             // Numpad für Custom Values
-            document.querySelectorAll('[data-value="custom"]').forEach(btn => {
-                const title = btn.dataset.type === 'song-count' ? 'Anzahl Songs' : btn.dataset.type === 'guess-time' ? 'Ratezeit (s)' : 'Anzahl Leben';
-                btn.addEventListener('click', () => openCustomValueModal(btn.dataset.type, title));
+            const allCustomButtons = document.querySelectorAll('[data-value="custom"]');
+            allCustomButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const type = btn.dataset.type;
+                    let title = 'Wert eingeben';
+                    if (type === 'song-count') title = 'Anzahl Songs';
+                    if (type === 'guess-time') title = 'Ratezeit (s)';
+                    if (type === 'lives') title = 'Anzahl Leben';
+                    openCustomValueModal(type, title);
+                });
             });
             elements.customValueModal.numpad.addEventListener('click', handleCustomNumpad);
             elements.customValueModal.closeBtn.addEventListener('click', () => elements.customValueModal.overlay.classList.add('hidden'));
@@ -398,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 elements.customValueModal.overlay.classList.add('hidden');
             });
-
+            
             // Name ändern Modal
             elements.home.usernameContainer.addEventListener('click', () => {
                 if(currentUser.isGuest) return;
@@ -435,11 +477,14 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
             elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
             elements.home.logoutBtn.addEventListener('click', handleLogout);
-            elements.leaveGameButton.addEventListener('click', () => window.location.reload());
+            elements.leaveGameButton.addEventListener('click', () => {
+                sessionStorage.removeItem('fakesterGame');
+                window.location.reload();
+            });
             elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
             elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
             
-            // Guest Modal
+            // Modals
             elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
             elements.guestModal.closeBtn.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
             elements.guestModal.submitBtn.addEventListener('click', () => {
@@ -448,9 +493,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 elements.guestModal.overlay.classList.add('hidden');
                 initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
             });
-            
-            // Join Modal
-            elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; updateCustomValueDisplay(); elements.joinModal.overlay.classList.remove('hidden'); });
+            elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; document.querySelectorAll('#join-pin-display .pin-digit').forEach(d => d.textContent = ""); elements.joinModal.overlay.classList.remove('hidden'); });
             elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
             elements.joinModal.numpad.addEventListener('click', (e) => {
                 const target = e.target.closest('button');
@@ -463,9 +506,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     setLoading(true);
                     ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
                 }
-                const updatePinDisplay = () => { elements.joinModal.pinDisplay.forEach((d, i) => d.textContent = pinInput[i] || ""); };
-                updatePinDisplay();
+                document.querySelectorAll('#join-pin-display .pin-digit').forEach((d, i) => d.textContent = pinInput[i] || "");
             });
+            elements.home.friendsBtn.addEventListener('click', () => elements.friendsModal.overlay.classList.remove('hidden'));
+            elements.friendsModal.closeBtn.addEventListener('click', () => elements.friendsModal.overlay.classList.add('hidden'));
 
             // Spiel erstellen Prozess
             elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
@@ -525,19 +569,34 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
             
             // Lobby Aktionen
-            elements.lobby.refreshDevicesBtn.addEventListener('click', fetchHostData);
-            ['device-select', 'playlist-select'].forEach(id => {
-                document.getElementById(id).addEventListener('change', e => {
-                    const key = id.includes('device') ? 'deviceId' : 'playlistId';
-                    ws.socket.send(JSON.stringify({type: 'update-settings', payload: {[key]: e.target.value}}));
-                });
+            elements.lobby.deviceSelectBtn.addEventListener('click', () => elements.deviceSelectModal.overlay.classList.remove('hidden'));
+            elements.deviceSelectModal.closeBtn.addEventListener('click', () => elements.deviceSelectModal.overlay.classList.add('hidden'));
+            elements.deviceSelectModal.refreshBtn.addEventListener('click', () => fetchHostData(true));
+            elements.deviceSelectModal.list.addEventListener('click', (e) => {
+                const li = e.target.closest('li');
+                if(!li || !li.dataset.id) return;
+                ws.socket.send(JSON.stringify({type: 'update-settings', payload: { deviceId: li.dataset.id, deviceName: li.dataset.name }}));
+                elements.deviceSelectModal.overlay.classList.add('hidden');
             });
-            [elements.lobby.songCountPresets, elements.lobby.guessTimePresets, elements.lobby.gameTypePresets].forEach(container => {
+
+            elements.lobby.playlistSelectBtn.addEventListener('click', () => elements.playlistSelectModal.overlay.classList.remove('hidden'));
+            elements.playlistSelectModal.closeBtn.addEventListener('click', () => elements.playlistSelectModal.overlay.classList.add('hidden'));
+            elements.playlistSelectModal.list.addEventListener('click', (e) => {
+                const li = e.target.closest('li');
+                if(!li || !li.dataset.id) return;
+                ws.socket.send(JSON.stringify({type: 'update-settings', payload: { playlistId: li.dataset.id, playlistName: li.dataset.name }}));
+                elements.playlistSelectModal.overlay.classList.add('hidden');
+            });
+
+            [elements.lobby.songCountPresets, elements.lobby.guessTimePresets, elements.lobby.answerTypePresets].forEach(container => {
                 container.addEventListener('click', e => {
                     const btn = e.target.closest('.preset-button');
                     if (!btn || btn.dataset.value === 'custom') return;
-                    const key = container.id.includes('song') ? 'songCount' : container.id.includes('time') ? 'guessTime' : 'gameType';
-                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [key]: btn.dataset.value }}));
+                    let key;
+                    if (container.id.includes('song')) key = 'songCount';
+                    else if (container.id.includes('time')) key = 'guessTime';
+                    else if (container.id.includes('answer')) key = 'answerType';
+                    if(key) ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [key]: btn.dataset.value }}));
                 });
             });
             elements.lobby.startGameBtn.addEventListener('click', () => {
