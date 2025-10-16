@@ -78,9 +78,11 @@ input:-webkit-autofill:active {
 
 .home-container { justify-content: flex-start; }
 .profile-section { display: flex; align-items: center; gap: 15px; width: 100%; background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); }
-.profile-info { text-align: left; flex-grow: 1; cursor: pointer; }
 .profile-picture { width: 60px; height: 60px; border-radius: 50%; background-color: var(--dark-grey); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--text-muted-color); flex-shrink: 0;}
-.profile-title-button { background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+.profile-info { text-align: left; flex-grow: 1; }
+.username-container { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.edit-icon { font-size: 0.9rem; color: var(--text-muted-color); }
+.profile-title-button { background: none; border: none; padding: 0; cursor: pointer; text-align: left; margin-top: 4px; }
 .profile-title { font-size: 0.9rem; font-weight: 700; color: var(--primary-color); background: #1db95420; padding: 3px 8px; border-radius: 20px; display: inline-block; }
 .profile-actions { margin-left: auto; display: flex; gap: 10px; }
 
@@ -98,9 +100,9 @@ input:-webkit-autofill:active {
 .corner-button { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background-color: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; font-size: 1rem; z-index: 100; }
 
 .stats-full-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; }
-.stat-card { background-color: var(--surface-color); padding: 20px; border-radius: var(--border-radius); text-align: center; }
-.stat-card .stat-value { font-size: 1.5rem; font-weight: 800; color: var(--primary-color); display: block; margin-bottom: 5px; }
-.stat-card .stat-label { font-size: 0.75rem; color: var(--text-muted-color); text-transform: uppercase; }
+.stat-card { background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); text-align: center; }
+.stat-card .stat-value { font-size: 1.2rem; font-weight: 800; color: var(--primary-color); display: block; margin-bottom: 5px; }
+.stat-card .stat-label { font-size: 0.7rem; color: var(--text-muted-color); }
 
 .game-container { height: 100%; justify-content: space-between; }
 .round-info { width: 100%; }

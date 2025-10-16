@@ -3,14 +3,23 @@ document.addEventListener('DOMContentLoaded', () => {
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let achievements = [], userTitles = [], currentGame = { pin: null, playerId: null, isHost: false, gameMode: null };
 
+    // Temporäre Variablen für die Spielerstellung
     let selectedGameMode = null;
     let gameCreationSettings = {
         gameType: null,
         lives: 3
     };
 
-    const testAchievements = [ { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig.' }, { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' }];
-    const testTitles = [ { id: 1, name: 'Neuling', achievement_id: null }, { id: 2, name: 'Musik-Kenner', achievement_id: 2 }, { id: 3, name: 'Legende', achievement_id: 3 }];
+    const testAchievements = [
+        { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' },
+        { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig.' },
+        { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' }
+    ];
+    const testTitles = [
+        { id: 1, name: 'Neuling', achievement_id: null },
+        { id: 2, name: 'Musik-Kenner', achievement_id: 2 },
+        { id: 3, name: 'Legende', achievement_id: 3 }
+    ];
     const PLACEHOLDER_IMAGE_URL = 'https://i.imgur.com/3EMVPIA.png';
 
     const elements = {
@@ -19,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingOverlay: document.getElementById('loading-overlay'),
         countdownOverlay: document.getElementById('countdown-overlay'),
         auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form'), },
-        home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), profileInfoBtn: document.getElementById('profile-info-button'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), },
+        home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), },
         lobby: {
             pinDisplay: document.getElementById('lobby-pin'), playerList: document.getElementById('player-list'), hostSettings: document.getElementById('host-settings'), guestWaitingMessage: document.getElementById('guest-waiting-message'),
             deviceSelect: document.getElementById('device-select'), playlistSelect: document.getElementById('playlist-select'), startGameBtn: document.getElementById('start-game-button'), inviteFriendsBtn: document.getElementById('invite-friends-button'), refreshDevicesBtn: document.getElementById('refresh-devices-button'),
@@ -333,10 +342,14 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`).join('');
     }
     function renderTitles() {
-        elements.titles.list.innerHTML = testTitles.map(t => `
+        let finalTitles = [...testTitles];
+        if (currentUser && currentUser.username === 'Taubey') {
+            finalTitles.push({ id: 99, name: 'Entwickler', achievement_id: null });
+        }
+        elements.titles.list.innerHTML = finalTitles.map(t => `
             <div class="stat-card">
                 <span class="stat-value">${t.name}</span>
-                <span class="stat-label">${t.achievement_id ? 'Freigeschaltet durch Erfolg' : 'Standard-Titel'}</span>
+                <span class="stat-label">${t.achievement_id ? 'Freigeschaltet durch Erfolg' : 'Spezial-Titel'}</span>
             </div>`).join('');
     }
 
@@ -387,10 +400,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             // Name ändern Modal
-            elements.home.profileInfoBtn.addEventListener('click', () => {
+            elements.home.usernameContainer.addEventListener('click', () => {
                 if(currentUser.isGuest) return;
                 elements.changeNameModal.input.value = currentUser.username;
                 elements.changeNameModal.overlay.classList.remove('hidden');
+            });
+             elements.home.profileTitleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (currentUser.isGuest) return;
+                showScreen('title-selection-screen');
             });
             elements.changeNameModal.closeBtn.addEventListener('click', () => elements.changeNameModal.overlay.classList.add('hidden'));
             elements.changeNameModal.submitBtn.addEventListener('click', async () => {
@@ -432,7 +450,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             // Join Modal
-            elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; updatePinDisplay(); elements.joinModal.overlay.classList.remove('hidden'); });
+            elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; updateCustomValueDisplay(); elements.joinModal.overlay.classList.remove('hidden'); });
             elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
             elements.joinModal.numpad.addEventListener('click', (e) => {
                 const target = e.target.closest('button');
@@ -445,8 +463,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     setLoading(true);
                     ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
                 }
+                const updatePinDisplay = () => { elements.joinModal.pinDisplay.forEach((d, i) => d.textContent = pinInput[i] || ""); };
                 updatePinDisplay();
-                function updatePinDisplay() { elements.joinModal.pinDisplay.forEach((d, i) => d.textContent = pinInput[i] || ""); };
             });
 
             // Spiel erstellen Prozess
@@ -505,7 +523,6 @@ document.addEventListener('DOMContentLoaded', () => {
             // Home Screen Navigation
             elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
             elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
-            elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
             
             // Lobby Aktionen
             elements.lobby.refreshDevicesBtn.addEventListener('click', fetchHostData);

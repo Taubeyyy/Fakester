@@ -231,7 +231,10 @@ async function startGame(pin) {
     
     game.gameState = 'PLAYING'; 
     game.currentRound = 0; 
-    Object.values(game.players).forEach(p => { p.score = 0; p.lives = game.settings.lives; });
+    Object.values(game.players).forEach(p => { 
+        p.score = 0; 
+        p.lives = game.settings.lives; 
+    });
     
     const tracks = await getPlaylistTracks(game.settings.playlistId, game.hostToken);
     if (!tracks || tracks.length < 1) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer oder konnte nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
@@ -329,6 +332,12 @@ function endGame(pin, cleanup = true) {
     const game = games[pin];
     if (!game) return;
     game.gameState = 'FINISHED';
+    
+    // Stoppe die Spotify-Wiedergabe
+    if (game.hostToken && game.settings.deviceId) {
+        axios.put(`http://googleusercontent.com/spotify.com/7`, { device_id: game.settings.deviceId }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Pause API Fehler:`, err.response?.data || err.message));
+    }
+
     broadcastToLobby(pin, { type: 'game-over', payload: { scores: getScores(pin) } });
     if(cleanup) {
         setTimeout(() => delete games[pin], 60000);
