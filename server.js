@@ -169,7 +169,9 @@ function handleWebSocketMessage(ws, { type, payload }) {
                 gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0, lives: 3, isConnected: true };
                 ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId: payload.user.id, gameState: 'LOBBY', isHost: false } }));
                 broadcastLobbyUpdate(payload.pin);
-            } else { ws.send(JSON.stringify({ type: 'error', payload: { message: 'Ungültiger PIN oder Spiel läuft bereits.' } })); }
+            } else {
+                ws.send(JSON.stringify({ type: 'error', payload: { message: 'PIN ungültig oder Spiel läuft bereits.' } }));
+            }
             break;
         case 'update-settings':
             if (game && game.hostId === playerId) {
@@ -186,9 +188,9 @@ function handleWebSocketMessage(ws, { type, payload }) {
                 } else { showToastToPlayer(ws, 'Freund ist nicht online.', true); }
             }
             break;
-        case 'start-game': if (game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
+        case 'start-game': if (game && game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
         case 'submit-guess':
-            if (game.gameState === 'PLAYING') {
+            if (game && game.gameState === 'PLAYING') {
                 if (!game.guesses) game.guesses = {};
                 game.guesses[playerId] = payload.guess || payload;
                 ws.send(JSON.stringify({ type: 'guess-received' }));
@@ -226,7 +228,7 @@ function handlePlayerDisconnect(ws) {
 function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]); return pin; }
 function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws && player.ws.readyState === WebSocket.OPEN) { player.ws.send(messageString); } }); }
 function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }
-function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws.playerId, nickname: p.nickname, score: p.score, lives: p.lives, isConnected: p.isConnected })).sort((a, b) => b.score - a.score); }
+function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws.playerId, nickname: p.nickname, score: p.score, lives: p.lives, isConnected: p.isConnected, lastPointsBreakdown: p.lastPointsBreakdown })).sort((a, b) => b.score - a.score); }
 function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'toast', payload: { message, isError } })); } }
 async function getPlaylistTracks(playlistId, token) { try { const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, { headers: { 'Authorization': `Bearer ${token}` } }); return response.data.items.map(item => item.track).filter(track => track && track.id).map(track => ({ spotifyId: track.id, title: track.name, artist: track.artists[0].name, year: parseInt(track.album.release_date.substring(0, 4)), popularity: track.popularity, albumArtUrl: track.album.images[0]?.url })); } catch (error) { console.error("Fehler beim Abrufen der Playlist-Tracks:", error.response?.data || error.message); return null; } }
 
@@ -248,7 +250,9 @@ async function startGame(pin) {
 function startRoundCountdown(pin) {
     const game = games[pin];
     if (!game || (game.settings.gameType === 'points' && game.currentRound >= game.songList.length)) { return endGame(pin); }
-    // Logic for lives mode end condition would go here
+    const activePlayers = Object.values(game.players).filter(p => p.lives > 0);
+    if (game.settings.gameType === 'lives' && activePlayers.length <= 1) { return endGame(pin); }
+
     broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound + 1, totalRounds: game.songList.length } });
     setTimeout(() => startNewRound(pin), 5000);
 }
@@ -269,7 +273,49 @@ function startNewRound(pin) {
     game.roundTimer = setTimeout(() => evaluateRound(pin), parseInt(game.settings.guessTime) * 1000);
 }
 
-function evaluateRound(pin) { /* ... Deine Logik hier ... */ }
-function endGame(pin) { /* ... Deine Logik hier ... */ }
+function evaluateRound(pin) {
+    const game = games[pin];
+    if (!game) return;
+    clearTimeout(game.roundTimer);
+    const song = game.currentSong;
+
+    Object.values(game.players).forEach(player => {
+        const guess = game.guesses[player.ws.playerId];
+        player.lastPointsBreakdown = { artist: 0, title: 0, year: 0, total: 0 };
+        let wasCorrect = false;
+
+        if (game.gameMode === 'quiz' && guess) {
+            const normTitle = normalizeString(song.title);
+            const normArtist = normalizeString(song.artist);
+            const normGuessTitle = normalizeString(guess.title);
+            const normGuessArtist = normalizeString(guess.artist);
+
+            if (levenshteinDistance(normArtist, normGuessArtist) <= 2) player.lastPointsBreakdown.artist = 50;
+            if (levenshteinDistance(normTitle, normGuessTitle) <= 2) player.lastPointsBreakdown.title = 75;
+            if (Math.abs(parseInt(guess.year) - song.year) === 0) player.lastPointsBreakdown.year = 100;
+            
+            const roundScore = player.lastPointsBreakdown.artist + player.lastPointsBreakdown.title + player.lastPointsBreakdown.year;
+            player.lastPointsBreakdown.total = roundScore;
+            
+            if (game.settings.gameType === 'points') {
+                player.score += roundScore;
+            } else if (game.settings.gameType === 'lives' && roundScore === 0) {
+                player.lives--;
+            }
+        }
+        // Hier Logik für andere Spielmodi (timeline, popularity) einfügen...
+    });
+    
+    broadcastToLobby(pin, { type: 'round-result', payload: { song, scores: getScores(pin) } });
+    setTimeout(() => startRoundCountdown(pin), 10000); // 10 Sekunden Pause bis zur nächsten Runde
+}
+
+function endGame(pin) {
+    const game = games[pin];
+    if (!game) return;
+    game.gameState = 'FINISHED';
+    broadcastToLobby(pin, { type: 'game-over', payload: { scores: getScores(pin) } });
+    setTimeout(() => delete games[pin], 60000); // Spiel nach 1 Minute aufräumen
+}
 
 server.listen(process.env.PORT || 8080, () => { console.log(`✅ Fakester-Server läuft auf Port ${process.env.PORT || 8080}`); });

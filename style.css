@@ -142,7 +142,6 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .modal.guest-modal input, .modal.guest-modal p { margin-bottom: 10px; }
 .modal-overlay:not(.hidden) .modal { transform: scale(1); }
 .button-exit-modal { position: absolute; top: 10px; right: 15px; font-size: 2rem; background: none; border: none; color: var(--text-muted-color); cursor: pointer; }
-
 .numpad-modal h2 { font-size: 1.5rem; color: var(--text-muted-color); text-transform: uppercase; letter-spacing: 1px; }
 .numpad-modal .pin-display { display: flex; gap: 10px; justify-content: center; margin: 20px 0; }
 .numpad-modal .pin-digit { width: 50px; height: 60px; background: var(--dark-grey); border: 2px solid var(--medium-grey); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
@@ -161,7 +160,6 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .friends-list { list-style: none; display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; }
 .friends-list li { background-color: var(--dark-grey); padding: 10px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 .friends-list li:hover { background-color: var(--medium-grey); }
-
 .loading-overlay { opacity: 0; visibility: hidden; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: opacity 0.3s, visibility 0.3s; }
 .loading-overlay:not(.hidden) { opacity: 1; visibility: visible; }
 .equalizer { display: flex; gap: 5px; height: 50px; align-items: flex-end; }
