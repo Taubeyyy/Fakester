@@ -150,13 +150,27 @@ function handleWebSocketMessage(ws, { type, payload }) {
     switch (type) {
         case 'create-game':
             const newPin = generatePin();
-            ws.pin = newPin; ws.playerId = payload.user.id;
+            ws.pin = newPin; 
+            ws.playerId = payload.user.id;
+            
+            const initialSettings = {
+                deviceId: null,
+                playlistId: null,
+                songCount: 10,
+                guessTime: 30,
+                gameType: payload.gameType || 'points',
+                lives: payload.lives || 3
+            };
+
             games[newPin] = {
                 hostId: payload.user.id,
-                players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0, lives: 3, isConnected: true, isReady: false } },
-                settings: { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, gameType: 'points' },
-                hostToken: payload.token, gameState: 'LOBBY', gameMode: payload.gameMode || 'quiz'
+                players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0, lives: initialSettings.lives, isConnected: true, isReady: false } },
+                settings: initialSettings,
+                hostToken: payload.token, 
+                gameState: 'LOBBY', 
+                gameMode: payload.gameMode || 'quiz'
             };
+
             ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId: payload.user.id, isHost: true, gameMode: payload.gameMode } }));
             broadcastLobbyUpdate(newPin);
             break;
@@ -164,7 +178,7 @@ function handleWebSocketMessage(ws, { type, payload }) {
             const gameToJoin = games[payload.pin];
             if (gameToJoin && gameToJoin.gameState === 'LOBBY') {
                 ws.pin = payload.pin; ws.playerId = payload.user.id;
-                gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0, lives: 3, isConnected: true, isReady: false };
+                gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0, lives: gameToJoin.settings.lives, isConnected: true, isReady: false };
                 ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId: payload.user.id, isHost: false, gameMode: gameToJoin.gameMode } }));
                 broadcastLobbyUpdate(payload.pin);
             } else {
@@ -172,7 +186,14 @@ function handleWebSocketMessage(ws, { type, payload }) {
             }
             break;
         case 'update-settings':
-            if (game && game.hostId === playerId) { game.settings = { ...game.settings, ...payload }; broadcastLobbyUpdate(pin); }
+            if (game && game.hostId === playerId) { 
+                game.settings = { ...game.settings, ...payload }; 
+                // Wenn der Spieltyp auf "Leben" geändert wird, aktualisiere die Leben aller Spieler
+                if(payload.gameType === 'lives' || payload.lives) {
+                    Object.values(game.players).forEach(p => p.lives = game.settings.lives);
+                }
+                broadcastLobbyUpdate(pin); 
+            }
             break;
         case 'start-game': if (game && game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
         
@@ -188,7 +209,7 @@ function handleWebSocketMessage(ws, { type, payload }) {
                 game.players[playerId].isReady = true;
                 const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
                 if (allReady) {
-                    clearTimeout(game.nextRoundTimer); // Bricht den 10s Timer ab
+                    clearTimeout(game.nextRoundTimer);
                     startRoundCountdown(pin);
                 }
             }
@@ -239,13 +260,21 @@ async function startGame(pin) {
     try { await axios.put(`https://api.spotify.com/v1/me/player`, { device_ids: [game.settings.deviceId], play: false }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }); } 
     catch (e) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Ausgewähltes Gerät konnte nicht aktiviert werden.' } }); return; }
     
-    game.gameState = 'PLAYING'; game.currentRound = 0; Object.values(game.players).forEach(p => { p.score = 0; p.lives = 3; });
+    game.gameState = 'PLAYING'; 
+    game.currentRound = 0; 
+    Object.values(game.players).forEach(p => { 
+        p.score = 0; 
+        p.lives = game.settings.lives; 
+    });
+    
     const tracks = await getPlaylistTracks(game.settings.playlistId, game.hostToken);
     if (!tracks || tracks.length < 1) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer oder konnte nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
     
     game.songList = shuffleArray(tracks);
     const songCount = parseInt(game.settings.songCount);
-    if (songCount > 0) { game.songList = game.songList.slice(0, songCount); }
+    if (songCount > 0 && game.settings.gameType === 'points') { 
+        game.songList = game.songList.slice(0, songCount); 
+    }
     startRoundCountdown(pin);
 }
 
@@ -256,7 +285,7 @@ function startRoundCountdown(pin) {
     Object.values(game.players).forEach(p => p.isReady = false);
     
     if (game.settings.gameType === 'points' && game.currentRound >= game.songList.length) { return endGame(pin); }
-    const activePlayers = Object.values(game.players).filter(p => p.lives > 0);
+    const activePlayers = Object.values(game.players).filter(p => p.isConnected && p.lives > 0);
     if (game.settings.gameType === 'lives' && activePlayers.length <= 1) { return endGame(pin); }
 
     game.gameState = 'PLAYING';
@@ -295,7 +324,7 @@ function evaluateRound(pin) {
         const guess = game.guesses[player.ws.playerId] || {};
         player.lastPointsBreakdown = { artist: 0, title: 0, year: 0, total: 0 };
         
-        if (game.gameMode === 'quiz') {
+        if (game.gameMode === 'quiz' && player.lives > 0) {
             const normTitle = normalizeString(song.title);
             const normArtist = normalizeString(song.artist);
             const normGuessTitle = normalizeString(guess.title);

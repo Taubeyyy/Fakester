@@ -10,6 +10,20 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
     <link rel="stylesheet" href="style.css">
+    <style>
+        .countdown-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9998;
+            background-color: rgba(0, 0, 0, 0.8); backdrop-filter: blur(5px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            color: white; text-align: center;
+        }
+        .countdown-number { font-size: 8rem; font-weight: 800; animation: countdown-pop 1s infinite; }
+        .countdown-text { font-size: 1.5rem; margin-top: 20px; color: var(--text-muted-color); }
+        @keyframes countdown-pop {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+    </style>
 </head>
 <body>
 
@@ -106,19 +120,46 @@
                         <p>Errate Künstler, Titel und Jahr des Songs.</p>
                     </div>
                 </button>
-                <button class="mode-box" data-mode="timeline">
+                <button class="mode-box" data-mode="timeline" disabled>
                      <div class="mode-box-content">
-                        <h3>Timeline</h3>
+                        <h3>Timeline (bald)</h3>
                         <p>Sortiere Songs chronologisch.</p>
                     </div>
                 </button>
-                <button class="mode-box" data-mode="popularity">
+                <button class="mode-box" data-mode="popularity" disabled>
                      <div class="mode-box-content">
-                        <h3>Popularity</h3>
+                        <h3>Popularity (bald)</h3>
                         <p>Errate, ob der nächste Song populärer ist.</p>
                     </div>
                 </button>
             </div>
+        </div>
+    </main>
+    
+    <main id="game-type-selection-screen" class="screen">
+        <div class="container">
+            <h2>Wähle einen Spieltyp</h2>
+            <div class="game-type-container">
+                <button id="game-type-points" class="game-type-box" data-type="points">
+                    <h3>Punkte</h3>
+                    <p>Sammle die meisten Punkte in einer festen Rundenanzahl.</p>
+                </button>
+                <button id="game-type-lives" class="game-type-box" data-type="lives">
+                    <h3>Leben</h3>
+                    <p>Bleib als Letzter übrig. Falsche Antworten kosten Leben.</p>
+                </button>
+            </div>
+
+            <div id="lives-settings-container" class="setting hidden">
+                <label>Anzahl der Leben</label>
+                <div class="preset-group" id="lives-count-presets">
+                    <button class="preset-button" data-value="3">3</button>
+                    <button class="preset-button" data-value="5">5</button>
+                    <button class="preset-button" data-value="1">1</button>
+                </div>
+            </div>
+
+            <button id="create-lobby-button" class="button-primary" disabled>Lobby erstellen</button>
         </div>
     </main>
 
@@ -147,7 +188,7 @@
                 <div class="setting">
                     <label>Anzahl Songs</label>
                     <div class="preset-group" id="song-count-presets">
-                        <button class="preset-button active" data-value="10">10</button>
+                        <button class="preset-button" data-value="10">10</button>
                         <button class="preset-button" data-value="20">20</button>
                         <button class="preset-button" data-value="-1">Alle</button>
                         <button class="preset-button" data-value="custom" data-type="song-count">Custom</button>
@@ -157,20 +198,20 @@
                     <label>Ratezeit (Sekunden)</label>
                     <div class="preset-group" id="guess-time-presets">
                         <button class="preset-button" data-value="20">20s</button>
-                        <button class="preset-button active" data-value="30">30s</button>
+                        <button class="preset-button" data-value="30">30s</button>
                         <button class="preset-button" data-value="45">45s</button>
                         <button class="preset-button" data-value="custom" data-type="guess-time">Custom</button>
                     </div>
                 </div>
-                 <div class="setting">
+                 <div class="setting hidden" id="game-type-setting-lobby">
                     <label>Spieltyp</label>
                     <div class="preset-group" id="game-type-presets">
-                        <button class="preset-button active" data-value="points">Punkte</button>
+                        <button class="preset-button" data-value="points">Punkte</button>
                         <button class="preset-button" data-value="lives">Leben</button>
                     </div>
                 </div>
 
-                <button id="start-game-button" class="button-primary button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
+                <button id="start-game-button" class="button-primary button-start" disabled><i class="fa-solid fa-play"></i> Spiel starten</button>
             </div>
             <div id="guest-waiting-message" class="hidden"><p>Warte, bis der Host das Spiel startet...</p></div>
         </div>
@@ -183,10 +224,11 @@
                 <div class="timer"><div id="timer-bar" class="timer-bar"></div></div>
             </div>
             <div class="game-content">
-                <div class="album-art-container"><img id="album-art" src="placeholder.png" alt="Album Cover"></div>
-                <div id="game-guess-area" class="guess-area"></div>
+                <div class="album-art-container"><img id="album-art" src="https://i.imgur.com/3EMVPIA.png" alt="Album Cover"></div>
+                <div id="game-guess-area" class="guess-area">
+                </div>
             </div>
-            <button id="submit-guess-button" class="button-primary button-submit-guess">Antwort einloggen</button>
+            <button id="submit-guess-button" class="button-primary button-submit-guess hidden">Antwort einloggen</button>
         </div>
     </main>
 
@@ -194,7 +236,7 @@
         <div class="container text-left">
             <h2>Erfolge</h2>
             <p>Sammle Erfolge und schalte neue Titel frei.</p>
-            <div id="achievement-grid" class="achievement-grid"></div>
+            <div id="achievement-grid" class="stats-full-grid"></div>
         </div>
     </main>
 
@@ -202,9 +244,14 @@
         <div class="container text-left">
             <h2>Titel auswählen</h2>
             <p>Wähle einen Titel, der unter deinem Namen angezeigt wird.</p>
-            <div id="title-list" class="title-list"></div>
+            <div id="title-list" class="stats-full-grid"></div>
         </div>
     </main>
+
+    <div id="countdown-overlay" class="countdown-overlay hidden">
+        <div id="countdown-number" class="countdown-number">3</div>
+        <div id="countdown-text" class="countdown-text">Das Spiel beginnt...</div>
+    </div>
 
     <div id="guest-modal-overlay" class="modal-overlay hidden">
         <div class="modal guest-modal">

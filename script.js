@@ -3,6 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let achievements = [], userTitles = [], currentGame = { pin: null, playerId: null, isHost: false, gameMode: null };
 
+    // Temporäre Variablen für die Spielerstellung
+    let selectedGameMode = null;
+    let gameCreationSettings = {
+        gameType: null,
+        lives: 3
+    };
+
     const testAchievements = [
         { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel Fakester.' },
         { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig.' },
@@ -37,6 +44,13 @@ document.addEventListener('DOMContentLoaded', () => {
         customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')},
         achievements: { grid: document.getElementById('achievement-grid') },
         titles: { list: document.getElementById('title-list') },
+        gameTypeScreen: {
+            pointsBtn: document.getElementById('game-type-points'),
+            livesBtn: document.getElementById('game-type-lives'),
+            livesSettings: document.getElementById('lives-settings-container'),
+            livesPresets: document.getElementById('lives-count-presets'),
+            createLobbyBtn: document.getElementById('create-lobby-button'),
+        }
     };
 
     const showToast = (message, isError = false) => Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "var(--danger-color)" : "var(--success-color)", borderRadius: "8px" } }).showToast();
@@ -147,6 +161,8 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.lobby.hostSettings.classList.toggle('hidden', !isHost);
         elements.lobby.guestWaitingMessage.classList.toggle('hidden', isHost);
         if (!isHost) return;
+        
+        document.getElementById('game-type-setting-lobby').classList.remove('hidden');
 
         ['song-count-presets', 'guess-time-presets', 'game-type-presets'].forEach(id => {
             const container = document.getElementById(id);
@@ -324,15 +340,65 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; updatePinDisplay(); elements.joinModal.overlay.classList.remove('hidden'); });
             elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
             elements.joinModal.numpad.addEventListener('click', handleNumpadInput);
+            
             document.querySelectorAll('.mode-box').forEach(box => {
                 box.addEventListener('click', (e) => {
-                    if(e.currentTarget.disabled) return showToast('Dieser Modus ist bald verfügbar!');
-                    setLoading(true);
-                    if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
-                        ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: box.dataset.mode } }));
-                    } else { showToast('Verbindung wird hergestellt...', true); setLoading(false); connectWebSocket(); }
+                    if (e.currentTarget.disabled) return showToast('Dieser Modus ist bald verfügbar!');
+                    selectedGameMode = box.dataset.mode;
+                    elements.gameTypeScreen.pointsBtn.classList.remove('active');
+                    elements.gameTypeScreen.livesBtn.classList.remove('active');
+                    elements.gameTypeScreen.livesSettings.classList.add('hidden');
+                    elements.gameTypeScreen.createLobbyBtn.disabled = true;
+                    gameCreationSettings = { gameType: null, lives: 3 };
+                    showScreen('game-type-selection-screen');
                 });
             });
+
+            elements.gameTypeScreen.pointsBtn.addEventListener('click', () => {
+                elements.gameTypeScreen.pointsBtn.classList.add('active');
+                elements.gameTypeScreen.livesBtn.classList.remove('active');
+                elements.gameTypeScreen.livesSettings.classList.add('hidden');
+                elements.gameTypeScreen.createLobbyBtn.disabled = false;
+                gameCreationSettings.gameType = 'points';
+            });
+
+            elements.gameTypeScreen.livesBtn.addEventListener('click', () => {
+                elements.gameTypeScreen.livesBtn.classList.add('active');
+                elements.gameTypeScreen.pointsBtn.classList.remove('active');
+                elements.gameTypeScreen.livesSettings.classList.remove('hidden');
+                elements.gameTypeScreen.createLobbyBtn.disabled = false;
+                gameCreationSettings.gameType = 'lives';
+                elements.gameTypeScreen.livesPresets.querySelector('.preset-button[data-value="3"]').classList.add('active');
+            });
+
+            elements.gameTypeScreen.livesPresets.addEventListener('click', e => {
+                const btn = e.target.closest('.preset-button');
+                if (!btn) return;
+                elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                gameCreationSettings.lives = parseInt(btn.dataset.value);
+            });
+
+            elements.gameTypeScreen.createLobbyBtn.addEventListener('click', () => {
+                setLoading(true);
+                if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
+                    ws.socket.send(JSON.stringify({ 
+                        type: 'create-game', 
+                        payload: { 
+                            user: currentUser, 
+                            token: spotifyToken, 
+                            gameMode: selectedGameMode,
+                            gameType: gameCreationSettings.gameType,
+                            lives: gameCreationSettings.lives
+                        } 
+                    }));
+                } else { 
+                    showToast('Verbindung wird hergestellt...', true); 
+                    setLoading(false); 
+                    connectWebSocket(); 
+                }
+            });
+
             elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
             elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
             elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
