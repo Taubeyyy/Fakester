@@ -189,11 +189,9 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'start-game': if (game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
         case 'submit-guess':
             if (game.gameState === 'PLAYING') {
-                if (game.gameMode === 'quiz' || !game.readyPlayers.includes(playerId)) {
-                    if (!game.guesses) game.guesses = {};
-                    game.guesses[playerId] = payload.guess || payload;
-                    ws.send(JSON.stringify({ type: 'guess-received' }));
-                }
+                if (!game.guesses) game.guesses = {};
+                game.guesses[playerId] = payload.guess || payload;
+                ws.send(JSON.stringify({ type: 'guess-received' }));
             }
             break;
     }
@@ -226,7 +224,7 @@ function handlePlayerDisconnect(ws) {
 }
 
 function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]); return pin; }
-function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws.readyState === WebSocket.OPEN) { player.ws.send(messageString); } }); }
+function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws && player.ws.readyState === WebSocket.OPEN) { player.ws.send(messageString); } }); }
 function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }
 function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws.playerId, nickname: p.nickname, score: p.score, lives: p.lives, isConnected: p.isConnected })).sort((a, b) => b.score - a.score); }
 function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'toast', payload: { message, isError } })); } }
@@ -242,13 +240,15 @@ async function startGame(pin) {
     if (!tracks || tracks.length < 1) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer oder konnte nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
     
     game.songList = shuffleArray(tracks);
-    if (game.settings.songCount > 0) { game.songList = game.songList.slice(0, game.settings.songCount); }
+    const songCount = parseInt(game.settings.songCount);
+    if (songCount > 0) { game.songList = game.songList.slice(0, songCount); }
     startRoundCountdown(pin);
 }
 
 function startRoundCountdown(pin) {
     const game = games[pin];
-    if (!game || game.currentRound >= game.songList.length) { return endGame(pin); }
+    if (!game || (game.settings.gameType === 'points' && game.currentRound >= game.songList.length)) { return endGame(pin); }
+    // Logic for lives mode end condition would go here
     broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound + 1, totalRounds: game.songList.length } });
     setTimeout(() => startNewRound(pin), 5000);
 }
@@ -256,17 +256,17 @@ function startRoundCountdown(pin) {
 function startNewRound(pin) {
     const game = games[pin]; if (!game) return;
     game.currentSong = game.songList[game.currentRound];
-    game.currentRound++; game.guesses = {}; game.readyPlayers = [];
+    game.currentRound++; game.guesses = {};
     if (!game.currentSong) return endGame(pin);
     axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response?.data || err.message));
     
     let payload = {
         round: game.currentRound, totalRounds: game.songList.length,
-        scores: getScores(pin), guessTime: game.settings.guessTime,
+        scores: getScores(pin), guessTime: parseInt(game.settings.guessTime),
         gameMode: game.gameMode, song: { albumArtUrl: game.currentSong.albumArtUrl }
     };
     broadcastToLobby(pin, { type: 'new-round', payload });
-    game.roundTimer = setTimeout(() => evaluateRound(pin), game.settings.guessTime * 1000);
+    game.roundTimer = setTimeout(() => evaluateRound(pin), parseInt(game.settings.guessTime) * 1000);
 }
 
 function evaluateRound(pin) { /* ... Deine Logik hier ... */ }

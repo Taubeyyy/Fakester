@@ -19,14 +19,15 @@ document.addEventListener('DOMContentLoaded', () => {
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), },
         friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), tabs: document.querySelectorAll('.tab-button'), tabContents: document.querySelectorAll('.tab-content'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), },
         inviteFriendsModal: { overlay: document.getElementById('invite-friends-modal-overlay'), closeBtn: document.getElementById('close-invite-modal-button'), list: document.getElementById('online-friends-list'), },
-        customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), },
+        customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')},
     };
 
     const showToast = (message, isError = false) => Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "var(--danger-color)" : "var(--success-color)", borderRadius: "8px" } }).showToast();
     const showScreen = (screenId) => { elements.screens.forEach(s => s.classList.remove('active')); document.getElementById(screenId)?.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); };
     const setLoading = (isLoading) => elements.loadingOverlay.classList.toggle('hidden', !isLoading);
-    const connectWebSocket = () => { /* ... (WebSocket logic as provided before) ... */ };
-    const handleWebSocketMessage = ({ type, payload }) => { /* ... (WebSocket logic as provided before) ... */ };
+    const connectWebSocket = () => { /* WebSocket logic */ };
+    const handleWebSocketMessage = ({ type, payload }) => { /* WebSocket message handling */ };
+
     const initializeApp = async (user, isGuest = false) => {
         sessionStorage.removeItem('fakesterGame');
         currentUser = { id: user.id, username: isGuest ? user.username : user.user_metadata.username, isGuest };
@@ -35,10 +36,23 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('home-screen');
         connectWebSocket();
     };
-    const checkSpotifyStatus = async () => { /* ... */ };
-    const handleAuthAction = async (action, form) => { /* ... */ };
-    const handleLogout = async () => { /* ... */ };
-    // ... (All other helper functions remain the same)
+    
+    const checkSpotifyStatus = async () => {
+        try { const res = await fetch('/api/status'); const data = await res.json(); spotifyToken = data.loggedIn ? data.token : null; } catch { spotifyToken = null; }
+        document.getElementById('spotify-connect-button').classList.toggle('hidden', !!spotifyToken);
+        elements.home.createRoomBtn.classList.toggle('hidden', !spotifyToken);
+    };
+
+    const handleAuthAction = async (action, form) => {
+        setLoading(true);
+        const username = form.querySelector('input[type="text"]').value;
+        const password = form.querySelector('input[type="password"]').value;
+        try { const { error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } }); if (error) throw error; } 
+        catch (error) { showToast(error.message, true); } 
+        finally { setLoading(false); }
+    };
+    
+    const handleLogout = async () => { setLoading(true); if (currentUser?.isGuest) return window.location.reload(); await supabase.auth.signOut(); };
 
     const main = async () => {
         try {
@@ -48,11 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const { createClient } = window.supabase;
             supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-            // --- EVENT LISTENERS ---
+            // --- ALLE EVENT LISTENERS WERDEN HIER EINMALIG GESETZT ---
             elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
             elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
             elements.home.logoutBtn.addEventListener('click', handleLogout);
-            elements.leaveGameButton.addEventListener('click', () => { showScreen('home-screen'); });
+            elements.leaveGameButton.addEventListener('click', () => { showScreen('home-screen'); /* Hier ggf. disconnect vom Spiel senden */ });
             elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
             elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
             elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
@@ -63,16 +77,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 elements.guestModal.overlay.classList.add('hidden');
                 initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
             });
-            // ... (All other event listeners from previous version go here)
+            elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
+            elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
+            elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
+            elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
+            elements.home.friendsBtn.addEventListener('click', () => {
+                elements.friendsModal.overlay.classList.remove('hidden');
+                // loadFriendsAndRequests(); // Wird jetzt in setupFriendsModal gemacht
+            });
+            // ... (Füge hier alle weiteren Event-Listener aus den vorherigen Versionen hinzu)
+            setupFriendsModal();
+            // ... (und so weiter für alle anderen Modals und Buttons)
+
 
             // --- AUTHENTICATION LOGIC (FIXED) ---
             supabase.auth.onAuthStateChange(async (event, session) => {
-                // This event fires on SIGN_IN, SIGN_OUT, and when the page first loads (INITIAL_SESSION)
+                // Diese Logik wird nur noch für die Zustandsänderung verwendet, nicht mehr zum Anhängen von Events
                 if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
-                    // If a user session exists, initialize the app
                     await initializeApp(session.user);
                 } else if (event === 'SIGNED_OUT' || !session) {
-                    // If the user signs out or there is no session on page load, show the auth screen
                     currentUser = null;
                     showScreen('auth-screen');
                 }
