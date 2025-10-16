@@ -139,9 +139,11 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
 .modal-overlay:not(.hidden) { opacity: 1; visibility: visible; }
 .modal { background-color: var(--surface-color); padding: 20px; border-radius: var(--border-radius); width: 90%; max-width: 380px; position: relative; transform: scale(0.95); transition: transform 0.3s ease; }
-.modal.guest-modal input { margin-bottom: 10px; }
+.modal.guest-modal input, .modal.guest-modal p { margin-bottom: 10px; }
 .modal-overlay:not(.hidden) .modal { transform: scale(1); }
 .button-exit-modal { position: absolute; top: 10px; right: 15px; font-size: 2rem; background: none; border: none; color: var(--text-muted-color); cursor: pointer; }
+
+.numpad-modal h2 { font-size: 1.5rem; color: var(--text-muted-color); text-transform: uppercase; letter-spacing: 1px; }
 .numpad-modal .pin-display { display: flex; gap: 10px; justify-content: center; margin: 20px 0; }
 .numpad-modal .pin-digit { width: 50px; height: 60px; background: var(--dark-grey); border: 2px solid var(--medium-grey); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
 .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 25px; }
@@ -150,7 +152,8 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .numpad .numpad-action { font-size: 1.5rem; }
 
 .friends-modal .tabs { border-bottom: 1px solid var(--dark-grey); display: flex; margin-bottom: 15px; }
-.friends-modal .tab-button { background: none; border: none; padding: 15px; font-size: 1rem; font-weight: 700; color: var(--text-muted-color); cursor: pointer; flex: 1; border-bottom: 3px solid transparent; }
+.friends-modal .tab-button { background: none; border: none; padding: 15px; font-size: 1rem; font-weight: 700; color: var(--text-muted-color); cursor: pointer; flex: 1; border-bottom: 3px solid transparent; position: relative; }
+.friends-modal .tab-button .badge { position: absolute; top: 8px; right: 8px; }
 .friends-modal .tab-button.active { color: var(--text-color); border-bottom-color: var(--primary-color); }
 .add-friend-form { display: flex; gap: 10px; margin-bottom: 20px; }
 .add-friend-form input { flex-grow: 1; margin: 0; }
@@ -158,8 +161,9 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .friends-list { list-style: none; display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; }
 .friends-list li { background-color: var(--dark-grey); padding: 10px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
 .friends-list li:hover { background-color: var(--medium-grey); }
-.loading-overlay { opacity: 1; visibility: visible; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: opacity 0.3s, visibility 0.3s; }
-.loading-overlay.hidden { opacity: 0; visibility: hidden; }
+
+.loading-overlay { opacity: 0; visibility: hidden; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: opacity 0.3s, visibility 0.3s; }
+.loading-overlay:not(.hidden) { opacity: 1; visibility: visible; }
 .equalizer { display: flex; gap: 5px; height: 50px; align-items: flex-end; }
 .equalizer .bar { width: 8px; background-color: var(--primary-color); animation: bounce 1.2s infinite ease-in-out; }
 .equalizer .bar:nth-child(2) { animation-delay: -1.0s; }
