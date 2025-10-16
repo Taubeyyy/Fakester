@@ -34,9 +34,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('welcome-nickname').textContent = currentUser.username;
         await checkSpotifyStatus();
         showScreen('home-screen');
-        connectWebSocket();
+        // connectWebSocket(); // Connect is handled by auth state change
     };
-    
+
     const checkSpotifyStatus = async () => {
         try { const res = await fetch('/api/status'); const data = await res.json(); spotifyToken = data.loggedIn ? data.token : null; } catch { spotifyToken = null; }
         document.getElementById('spotify-connect-button').classList.toggle('hidden', !!spotifyToken);
@@ -48,11 +48,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const username = form.querySelector('input[type="text"]').value;
         const password = form.querySelector('input[type="password"]').value;
         try { const { error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } }); if (error) throw error; } 
-        catch (error) { showToast(error.message, true); } 
-        finally { setLoading(false); }
+        catch (error) { showToast(error.message, true); setLoading(false); }
     };
     
     const handleLogout = async () => { setLoading(true); if (currentUser?.isGuest) return window.location.reload(); await supabase.auth.signOut(); };
+
+    const setupFriendsModal = () => {
+        elements.home.friendsBtn.addEventListener('click', () => {
+            elements.friendsModal.overlay.classList.remove('hidden');
+            // loadFriendsAndRequests();
+        });
+        elements.friendsModal.closeBtn.addEventListener('click', () => elements.friendsModal.overlay.classList.add('hidden'));
+        elements.friendsModal.tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                elements.friendsModal.tabs.forEach(t => t.classList.remove('active'));
+                elements.friendsModal.tabContents.forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+        elements.friendsModal.addFriendBtn.addEventListener('click', () => { /* sendFriendRequest logic */ });
+    };
 
     const main = async () => {
         try {
@@ -62,11 +78,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const { createClient } = window.supabase;
             supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-            // --- ALLE EVENT LISTENERS WERDEN HIER EINMALIG GESETZT ---
+            // --- EVENT LISTENERS (KORRIGIERTE STRUKTUR) ---
             elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
             elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
             elements.home.logoutBtn.addEventListener('click', handleLogout);
-            elements.leaveGameButton.addEventListener('click', () => { showScreen('home-screen'); /* Hier ggf. disconnect vom Spiel senden */ });
+            elements.leaveGameButton.addEventListener('click', () => { showScreen('home-screen'); });
             elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
             elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
             elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
@@ -81,18 +97,12 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
             elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
             elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
-            elements.home.friendsBtn.addEventListener('click', () => {
-                elements.friendsModal.overlay.classList.remove('hidden');
-                // loadFriendsAndRequests(); // Wird jetzt in setupFriendsModal gemacht
-            });
-            // ... (Füge hier alle weiteren Event-Listener aus den vorherigen Versionen hinzu)
-            setupFriendsModal();
-            // ... (und so weiter für alle anderen Modals und Buttons)
-
+            
+            setupFriendsModal(); 
 
             // --- AUTHENTICATION LOGIC (FIXED) ---
             supabase.auth.onAuthStateChange(async (event, session) => {
-                // Diese Logik wird nur noch für die Zustandsänderung verwendet, nicht mehr zum Anhängen von Events
+                setLoading(true);
                 if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
                     await initializeApp(session.user);
                 } else if (event === 'SIGNED_OUT' || !session) {
