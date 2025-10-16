@@ -67,19 +67,11 @@ function shuffleArray(array) {
 }
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-
-app.get('/api/config', (req, res) => {
-    res.json({
-        supabaseUrl: SUPABASE_URL,
-        supabaseAnonKey: SUPABASE_ANON_KEY
-    });
-});
-
+app.get('/api/config', (req, res) => res.json({ supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY }));
 app.get('/login', (req, res) => {
     const scopes = 'user-read-private user-read-email playlist-read-private streaming user-modify-playback-state user-read-playback-state';
     res.redirect('https://accounts.spotify.com/authorize?' + new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, scope: scopes, redirect_uri: REDIRECT_URI }).toString());
 });
-
 app.get('/callback', async (req, res) => {
     const code = req.query.code || null;
     if (!code) return res.redirect('/#error=auth_failed');
@@ -89,13 +81,11 @@ app.get('/callback', async (req, res) => {
         res.redirect('/');
     } catch (error) { res.redirect('/#error=token_failed'); }
 });
-
 app.post('/logout', (req, res) => { res.clearCookie('spotify_access_token'); res.status(200).json({ message: 'Erfolgreich ausgeloggt' }); });
 app.get('/api/status', (req, res) => {
     const token = req.cookies.spotify_access_token;
     if (token) { res.json({ loggedIn: true, token: token }); } else { res.status(401).json({ loggedIn: false }); }
 });
-
 app.get('/api/playlists', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ message: "Nicht autorisiert" });
@@ -104,7 +94,6 @@ app.get('/api/playlists', async (req, res) => {
         res.json(d.data);
     } catch (e) { res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Playlists" }); }
 });
-
 app.get('/api/devices', async (req, res) => {
     const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).json({ message: "Nicht autorisiert" });
@@ -124,53 +113,32 @@ function handleWebSocketMessage(ws, { type, payload }) {
     let { pin, playerId } = ws;
     let game = games[pin];
 
-    if (type === 'register-online') {
-        ws.playerId = payload.userId;
-        onlineUsers.set(payload.userId, ws);
-        return;
-    }
+    if (type === 'register-online') { ws.playerId = payload.userId; onlineUsers.set(payload.userId, ws); return; }
     if (type === 'reconnect') {
-        const reconnectPin = payload.pin;
-        const reconnectPlayerId = payload.playerId;
-        game = games[reconnectPin];
-        if (game && game.players[reconnectPlayerId] && !game.players[reconnectPlayerId].isConnected) {
-            ws.pin = reconnectPin;
-            ws.playerId = reconnectPlayerId;
-            game.players[reconnectPlayerId].ws = ws;
-            game.players[reconnectPlayerId].isConnected = true;
+        const { pin: reconnectPin, playerId: reconnectPlayerId } = payload;
+        const gameToReconnect = games[reconnectPin];
+        if (gameToReconnect && gameToReconnect.players[reconnectPlayerId] && !gameToReconnect.players[reconnectPlayerId].isConnected) {
+            ws.pin = reconnectPin; ws.playerId = reconnectPlayerId;
+            gameToReconnect.players[reconnectPlayerId].ws = ws;
+            gameToReconnect.players[reconnectPlayerId].isConnected = true;
             onlineUsers.set(reconnectPlayerId, ws);
             showToastToPlayer(ws, 'Verbindung wiederhergestellt!');
             broadcastLobbyUpdate(reconnectPin);
         }
         return;
     }
-
     if (!game && !['create-game', 'join-game'].includes(type)) return;
 
     switch (type) {
         case 'create-game':
             const newPin = generatePin();
-            ws.pin = newPin; 
-            ws.playerId = payload.user.id;
-            
-            const initialSettings = {
-                deviceId: null,
-                playlistId: null,
-                songCount: 10,
-                guessTime: 30,
-                gameType: payload.gameType || 'points',
-                lives: payload.lives || 3
-            };
-
+            ws.pin = newPin; ws.playerId = payload.user.id;
+            const initialSettings = { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, gameType: payload.gameType || 'points', lives: payload.lives || 3 };
             games[newPin] = {
                 hostId: payload.user.id,
                 players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0, lives: initialSettings.lives, isConnected: true, isReady: false } },
-                settings: initialSettings,
-                hostToken: payload.token, 
-                gameState: 'LOBBY', 
-                gameMode: payload.gameMode || 'quiz'
+                settings: initialSettings, hostToken: payload.token, gameState: 'LOBBY', gameMode: payload.gameMode || 'quiz'
             };
-
             ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId: payload.user.id, isHost: true, gameMode: payload.gameMode } }));
             broadcastLobbyUpdate(newPin);
             break;
@@ -194,19 +162,23 @@ function handleWebSocketMessage(ws, { type, payload }) {
                 broadcastLobbyUpdate(pin); 
             }
             break;
+        case 'update-nickname':
+            if (game && game.players[playerId]) {
+                game.players[playerId].nickname = payload.newName;
+                broadcastLobbyUpdate(pin);
+            }
+            break;
         case 'start-game': if (game && game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
-        
         case 'live-guess-update':
             if (game && game.gameState === 'PLAYING') {
                 if (!game.guesses) game.guesses = {};
                 game.guesses[playerId] = payload.guess;
             }
             break;
-            
         case 'player-ready':
             if (game && game.players[playerId] && game.gameState === 'RESULTS') {
                 game.players[playerId].isReady = true;
-                const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
+                const allReady = Object.values(game.players).filter(p=>p.isConnected).every(p => p.isReady);
                 if (allReady) {
                     clearTimeout(game.nextRoundTimer);
                     startRoundCountdown(pin);
@@ -224,18 +196,17 @@ function handlePlayerDisconnect(ws) {
 
     game.players[playerId].isConnected = false;
     broadcastToLobby(pin, { type: 'toast', payload: { message: `${game.players[playerId].nickname} hat die Verbindung verloren...` } });
+    broadcastLobbyUpdate(pin);
 
     setTimeout(() => {
         const currentGame = games[pin];
         if (currentGame && currentGame.players[playerId] && !currentGame.players[playerId].isConnected) {
-            
             if (playerId === currentGame.hostId) {
                 console.log(`[${pin}] Host hat die Verbindung verloren. Spiel wird beendet.`);
                 broadcastToLobby(pin, { type: 'toast', payload: { message: 'Der Host hat das Spiel verlassen. Das Spiel wird beendet.', isError: true } });
                 endGame(pin, false);
                 return;
             }
-
             delete currentGame.players[playerId];
             if (Object.keys(currentGame.players).length === 0) {
                 delete games[pin];
@@ -244,7 +215,6 @@ function handlePlayerDisconnect(ws) {
             }
         }
     }, 30000);
-    broadcastLobbyUpdate(pin);
 }
 
 function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]); return pin; }
@@ -252,7 +222,7 @@ function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) re
 function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }
 function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws.playerId, nickname: p.nickname, score: p.score, lives: p.lives, isConnected: p.isConnected, lastPointsBreakdown: p.lastPointsBreakdown })).sort((a, b) => b.score - a.score); }
 function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'toast', payload: { message, isError } })); } }
-async function getPlaylistTracks(playlistId, token) { try { const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, { headers: { 'Authorization': `Bearer ${token}` } }); return response.data.items.map(item => item.track).filter(track => track && track.id).map(track => ({ spotifyId: track.id, title: track.name, artist: track.artists[0].name, year: parseInt(track.album.release_date.substring(0, 4)), popularity: track.popularity, albumArtUrl: track.album.images[0]?.url })); } catch (error) { console.error("Fehler beim Abrufen der Playlist-Tracks:", error.response?.data || error.message); return null; } }
+async function getPlaylistTracks(playlistId, token) { try { const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50`, { headers: { 'Authorization': `Bearer ${token}` } }); return response.data.items.map(item => item.track).filter(track => track && track.id).map(track => ({ spotifyId: track.id, title: track.name, artist: track.artists[0].name, year: parseInt(track.album.release_date.substring(0, 4)), popularity: track.popularity, albumArtUrl: track.album.images[0]?.url })); } catch (error) { console.error("Fehler beim Abrufen der Playlist-Tracks:", error.response?.data || error.message); return null; } }
 
 async function startGame(pin) {
     const game = games[pin];
@@ -261,10 +231,7 @@ async function startGame(pin) {
     
     game.gameState = 'PLAYING'; 
     game.currentRound = 0; 
-    Object.values(game.players).forEach(p => { 
-        p.score = 0; 
-        p.lives = game.settings.lives; 
-    });
+    Object.values(game.players).forEach(p => { p.score = 0; p.lives = game.settings.lives; });
     
     const tracks = await getPlaylistTracks(game.settings.playlistId, game.hostToken);
     if (!tracks || tracks.length < 1) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer oder konnte nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
@@ -280,7 +247,6 @@ async function startGame(pin) {
 function startRoundCountdown(pin) {
     const game = games[pin];
     if (!game) return;
-    
     Object.values(game.players).forEach(p => p.isReady = false);
     
     if (game.settings.gameType === 'points' && game.currentRound >= game.songList.length) { return endGame(pin); }

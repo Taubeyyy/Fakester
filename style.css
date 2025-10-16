@@ -62,16 +62,24 @@ p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 20px; }
 
 input, select.lobby-select, input.lobby-input { width: 100%; padding: 12px 15px; background-color: var(--dark-grey); border: 2px solid var(--medium-grey); border-radius: 8px; color: var(--text-color); font-size: 16px; }
 input:focus, select:focus { border-color: var(--primary-color); outline: none; }
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 30px var(--dark-grey) inset !important;
+    -webkit-text-fill-color: var(--text-color) !important;
+}
 .hidden { display: none !important; }
 
-.home-logo-container h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -2px; color: var(--text-color); }
+.home-logo-container h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: 2px; color: var(--text-muted-color); margin-bottom: 20px; }
 .auth-form { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
 .auth-toggle-text { font-size: 0.9rem; margin-top: 15px; }
+.auth-toggle-text a { color: var(--primary-color); text-decoration: none; font-weight: 700; }
 
 .home-container { justify-content: flex-start; }
 .profile-section { display: flex; align-items: center; gap: 15px; width: 100%; background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); }
+.profile-info { text-align: left; flex-grow: 1; cursor: pointer; }
 .profile-picture { width: 60px; height: 60px; border-radius: 50%; background-color: var(--dark-grey); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--text-muted-color); flex-shrink: 0;}
-.profile-info { text-align: left; flex-grow: 1; }
 .profile-title-button { background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
 .profile-title { font-size: 0.9rem; font-weight: 700; color: var(--primary-color); background: #1db95420; padding: 3px 8px; border-radius: 20px; display: inline-block; }
 .profile-actions { margin-left: auto; display: flex; gap: 10px; }
@@ -141,7 +149,7 @@ input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; background-color: rgba(0,0,0,0.8); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
 .modal-overlay:not(.hidden) { opacity: 1; visibility: visible; }
 .modal { background-color: var(--surface-color); padding: 20px; border-radius: var(--border-radius); width: 90%; max-width: 380px; position: relative; transform: scale(0.95); transition: transform 0.3s ease; }
-.modal.guest-modal input, .modal.guest-modal p { margin-bottom: 10px; }
+.modal.guest-modal input, .modal p { margin-bottom: 10px; }
 .modal-overlay:not(.hidden) .modal { transform: scale(1); }
 .button-exit-modal { position: absolute; top: 10px; right: 15px; font-size: 2rem; background: none; border: none; color: var(--text-muted-color); cursor: pointer; }
 .numpad-modal h2 { font-size: 1.5rem; color: var(--text-muted-color); text-transform: uppercase; letter-spacing: 1px; }
