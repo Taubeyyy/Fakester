@@ -175,7 +175,7 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'player-ready':
             if (game && game.players[playerId] && (game.gameState === 'RESULTS' || game.gameState === 'PLAYING')) {
                 game.players[playerId].isReady = true;
-                const activePlayers = Object.values(game.players).filter(p => p.isConnected && p.lives > 0);
+                const activePlayers = Object.values(game.players).filter(p=>p.isConnected && p.lives > 0);
                 const allReady = activePlayers.every(p => p.isReady);
                 
                 if (game.gameState === 'RESULTS' && allReady) {
@@ -338,7 +338,6 @@ function endGame(pin, cleanup = true) {
     if (!game) return;
     game.gameState = 'FINISHED';
     
-    // Stoppe die Spotify-Wiedergabe
     if (game.hostToken && game.settings.deviceId) {
         axios.put(`http://googleusercontent.com/spotify.com/7`, { device_id: game.settings.deviceId }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Pause API Fehler:`, err.response?.data || err.message));
     }

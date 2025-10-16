@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let achievements = [], userTitles = [], currentGame = { pin: null, playerId: null, isHost: false, gameMode: null };
 
+    // Temporäre Variablen für die Spielerstellung
     let selectedGameMode = null;
     let gameCreationSettings = {
         gameType: null,
@@ -327,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     deviceList.appendChild(li);
                 });
                 const activeDevice = devices.devices.find(d => d.is_active);
-                if (activeDevice) {
+                if (activeDevice && !isRefresh) {
                     ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { deviceId: activeDevice.id, deviceName: activeDevice.name } }));
                 }
             } else {
