@@ -139,15 +139,37 @@
                  <h3>Einstellungen</h3>
                 <div class="setting"><label>Wiedergabegerät</label>
                     <div class="select-with-refresh">
-                        <select id="device-select" class="lobby-select"><option>Lädt...</option></select>
+                        <select id="device-select" class="lobby-select"><option>Suche Geräte...</option></select>
                         <button id="refresh-devices-button" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
                     </div>
                 </div>
-                <div class="setting"><label>Playlist</label><select id="playlist-select" class="lobby-select"><option>Lädt...</option></select></div>
-                <div class="setting-row">
-                    <div class="setting"><label for="song-count-input">Anzahl Songs</label><input type="number" id="song-count-input" class="lobby-input" value="10" min="5" max="50"></div>
-                    <div class="setting"><label for="guess-time-input">Ratezeit (s)</label><input type="number" id="guess-time-input" class="lobby-input" value="30" min="10" max="60"></div>
+                <div class="setting"><label>Playlist</label><select id="playlist-select" class="lobby-select"><option>Lade Playlists...</option></select></div>
+                <div class="setting">
+                    <label>Anzahl Songs</label>
+                    <div class="preset-group" id="song-count-presets">
+                        <button class="preset-button active" data-value="10">10</button>
+                        <button class="preset-button" data-value="20">20</button>
+                        <button class="preset-button" data-value="-1">Alle</button>
+                        <button class="preset-button" data-value="custom" data-type="song-count">Custom</button>
+                    </div>
                 </div>
+                 <div class="setting">
+                    <label>Ratezeit (Sekunden)</label>
+                    <div class="preset-group" id="guess-time-presets">
+                        <button class="preset-button" data-value="20">20s</button>
+                        <button class="preset-button active" data-value="30">30s</button>
+                        <button class="preset-button" data-value="45">45s</button>
+                        <button class="preset-button" data-value="custom" data-type="guess-time">Custom</button>
+                    </div>
+                </div>
+                 <div class="setting">
+                    <label>Spieltyp</label>
+                    <div class="preset-group" id="game-type-presets">
+                        <button class="preset-button active" data-value="points">Punkte</button>
+                        <button class="preset-button" data-value="lives">Leben</button>
+                    </div>
+                </div>
+
                 <button id="start-game-button" class="button-primary button-start"><i class="fa-solid fa-play"></i> Spiel starten</button>
             </div>
             <div id="guest-waiting-message" class="hidden"><p>Warte, bis der Host das Spiel startet...</p></div>
@@ -158,14 +180,10 @@
         <div class="game-container">
             <div class="round-info">
                 <span>Runde <span id="current-round">1</span> / <span id="total-rounds">10</span></span>
-                <div class="timer">
-                    <div id="timer-bar" class="timer-bar"></div>
-                </div>
+                <div class="timer"><div id="timer-bar" class="timer-bar"></div></div>
             </div>
             <div class="game-content">
-                <div class="album-art-container">
-                    <img id="album-art" src="placeholder.png" alt="Album Cover">
-                </div>
+                <div class="album-art-container"><img id="album-art" src="placeholder.png" alt="Album Cover"></div>
                 <div id="game-guess-area" class="guess-area"></div>
             </div>
             <button id="submit-guess-button" class="button-primary button-submit-guess">Antwort einloggen</button>
@@ -191,6 +209,8 @@
     <div id="guest-modal-overlay" class="modal-overlay hidden"><div class="modal"><button id="close-guest-modal-button" class="button-exit-modal">×</button><h2>Als Gast spielen</h2><input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15"><button id="guest-nickname-submit" class="button-primary">Weiter</button></div></div>
     <div id="join-modal-overlay" class="modal-overlay hidden"><div class="modal numpad-modal"><button id="close-join-modal-button" class="button-exit-modal">×</button><h2>Raum beitreten</h2><div class="pin-display" id="join-pin-display"><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span></div><div id="numpad-join" class="numpad"><button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button class="numpad-action" data-action="clear">C</button><button data-key="0">0</button><button id="join-game-button" class="numpad-action" data-action="confirm"><i class="fa-solid fa-right-to-bracket"></i></button></div></div></div>
     <div id="friends-modal-overlay" class="modal-overlay hidden"><div class="modal"><button id="close-friends-modal-button" class="button-exit-modal">×</button><h2>Freunde</h2><div class="friends-content"><div class="add-friend-form"><input type="text" id="add-friend-input" placeholder="Benutzername eingeben..."><button id="add-friend-button" class="button-primary"><i class="fa-solid fa-plus"></i></button></div><div class="tabs"><button class="tab-button active" data-tab="friends-list-tab">Freunde</button><button class="tab-button" data-tab="requests-list-tab">Anfragen <span id="requests-count" class="badge hidden">0</span></button></div><div id="friends-list-tab" class="tab-content active"><ul id="friends-list" class="friends-list"></ul></div><div id="requests-list-tab" class="tab-content"><ul id="requests-list" class="requests-list"></ul></div></div></div></div>
+    <div id="invite-friends-modal-overlay" class="modal-overlay hidden"><div class="modal"><button id="close-invite-modal-button" class="button-exit-modal">×</button><h2>Freunde einladen</h2><ul id="online-friends-list" class="friends-list"></ul></div></div>
+    <div id="custom-value-modal-overlay" class="modal-overlay hidden"><div class="modal numpad-modal"><button id="close-custom-value-modal-button" class="button-exit-modal">×</button><h2 id="custom-value-title">Wert eingeben</h2><div class="pin-display" id="custom-value-display"><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span></div><div id="numpad-custom-value" class="numpad"><button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button class="numpad-action" data-action="backspace"><i class="fa-solid fa-delete-left"></i></button><button data-key="0">0</button><button class="numpad-action" data-action="confirm"><i class="fa-solid fa-check"></i></button></div></div></div>
     <div id="loading-overlay" class="loading-overlay hidden"><div class="equalizer"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
