@@ -34,7 +34,7 @@ let games = {};
 const onlineUsers = new Map();
 
 function levenshteinDistance(s1, s2) {
-    if (s1 === null || s2 === null) return 99;
+    if (!s1 || !s2) return 99;
     s1 = s1.toLowerCase(); s2 = s2.toLowerCase();
     const costs = [];
     for (let i = 0; i <= s1.length; i++) {
@@ -150,50 +150,47 @@ function handleWebSocketMessage(ws, { type, payload }) {
     switch (type) {
         case 'create-game':
             const newPin = generatePin();
-            ws.pin = newPin;
-            ws.playerId = payload.user.id;
+            ws.pin = newPin; ws.playerId = payload.user.id;
             games[newPin] = {
                 hostId: payload.user.id,
-                players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0, lives: 3, isConnected: true } },
+                players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0, lives: 3, isConnected: true, isReady: false } },
                 settings: { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, gameType: 'points' },
                 hostToken: payload.token, gameState: 'LOBBY', gameMode: payload.gameMode || 'quiz'
             };
-            ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId: payload.user.id, isHost: true } }));
+            ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId: payload.user.id, isHost: true, gameMode: payload.gameMode } }));
             broadcastLobbyUpdate(newPin);
             break;
         case 'join-game':
             const gameToJoin = games[payload.pin];
             if (gameToJoin && gameToJoin.gameState === 'LOBBY') {
-                ws.pin = payload.pin;
-                ws.playerId = payload.user.id;
-                gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0, lives: 3, isConnected: true };
-                ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId: payload.user.id, gameState: 'LOBBY', isHost: false } }));
+                ws.pin = payload.pin; ws.playerId = payload.user.id;
+                gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0, lives: 3, isConnected: true, isReady: false };
+                ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId: payload.user.id, isHost: false, gameMode: gameToJoin.gameMode } }));
                 broadcastLobbyUpdate(payload.pin);
             } else {
                 ws.send(JSON.stringify({ type: 'error', payload: { message: 'PIN ungültig oder Spiel läuft bereits.' } }));
             }
             break;
         case 'update-settings':
-            if (game && game.hostId === playerId) {
-                game.settings = { ...game.settings, ...payload };
-                broadcastLobbyUpdate(pin);
-            }
-            break;
-        case 'invite-friend':
-            if (game) {
-                const targetSocket = onlineUsers.get(payload.targetId);
-                if (targetSocket && targetSocket.readyState === WebSocket.OPEN) {
-                    targetSocket.send(JSON.stringify({ type: 'game-invite', payload: { pin: pin, hostName: game.players[game.hostId].nickname } }));
-                    showToastToPlayer(ws, 'Einladung gesendet!');
-                } else { showToastToPlayer(ws, 'Freund ist nicht online.', true); }
-            }
+            if (game && game.hostId === playerId) { game.settings = { ...game.settings, ...payload }; broadcastLobbyUpdate(pin); }
             break;
         case 'start-game': if (game && game.hostId === playerId && game.settings.playlistId && game.settings.deviceId) { startGame(pin); } break;
-        case 'submit-guess':
+        
+        case 'live-guess-update':
             if (game && game.gameState === 'PLAYING') {
                 if (!game.guesses) game.guesses = {};
-                game.guesses[playerId] = payload.guess || payload;
-                ws.send(JSON.stringify({ type: 'guess-received' }));
+                game.guesses[playerId] = payload.guess;
+            }
+            break;
+            
+        case 'player-ready':
+            if (game && game.players[playerId] && game.gameState === 'RESULTS') {
+                game.players[playerId].isReady = true;
+                const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
+                if (allReady) {
+                    clearTimeout(game.nextRoundTimer); // Bricht den 10s Timer ab
+                    startRoundCountdown(pin);
+                }
             }
             break;
     }
@@ -211,13 +208,18 @@ function handlePlayerDisconnect(ws) {
     setTimeout(() => {
         const currentGame = games[pin];
         if (currentGame && currentGame.players[playerId] && !currentGame.players[playerId].isConnected) {
+            
+            if (playerId === currentGame.hostId) {
+                console.log(`[${pin}] Host hat die Verbindung verloren. Spiel wird beendet.`);
+                broadcastToLobby(pin, { type: 'toast', payload: { message: 'Der Host hat das Spiel verlassen. Das Spiel wird beendet.', isError: true } });
+                endGame(pin, false);
+                return;
+            }
+
             delete currentGame.players[playerId];
             if (Object.keys(currentGame.players).length === 0) {
                 delete games[pin];
             } else {
-                if (playerId === currentGame.hostId) {
-                    currentGame.hostId = Object.keys(currentGame.players)[0];
-                }
                 broadcastLobbyUpdate(pin);
             }
         }
@@ -226,7 +228,7 @@ function handlePlayerDisconnect(ws) {
 }
 
 function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]); return pin; }
-function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws && player.ws.readyState === WebSocket.OPEN) { player.ws.send(messageString); } }); }
+function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws && player.ws.readyState === WebSocket.OPEN && player.isConnected) { player.ws.send(messageString); } }); }
 function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }
 function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws.playerId, nickname: p.nickname, score: p.score, lives: p.lives, isConnected: p.isConnected, lastPointsBreakdown: p.lastPointsBreakdown })).sort((a, b) => b.score - a.score); }
 function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'toast', payload: { message, isError } })); } }
@@ -249,12 +251,17 @@ async function startGame(pin) {
 
 function startRoundCountdown(pin) {
     const game = games[pin];
-    if (!game || (game.settings.gameType === 'points' && game.currentRound >= game.songList.length)) { return endGame(pin); }
+    if (!game) return;
+    
+    Object.values(game.players).forEach(p => p.isReady = false);
+    
+    if (game.settings.gameType === 'points' && game.currentRound >= game.songList.length) { return endGame(pin); }
     const activePlayers = Object.values(game.players).filter(p => p.lives > 0);
     if (game.settings.gameType === 'lives' && activePlayers.length <= 1) { return endGame(pin); }
 
+    game.gameState = 'PLAYING';
     broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound + 1, totalRounds: game.songList.length } });
-    setTimeout(() => startNewRound(pin), 5000);
+    setTimeout(() => startNewRound(pin), 4000);
 }
 
 function startNewRound(pin) {
@@ -267,7 +274,7 @@ function startNewRound(pin) {
     let payload = {
         round: game.currentRound, totalRounds: game.songList.length,
         scores: getScores(pin), guessTime: parseInt(game.settings.guessTime),
-        gameMode: game.gameMode, song: { albumArtUrl: game.currentSong.albumArtUrl }
+        gameMode: game.gameMode, song: {} 
     };
     broadcastToLobby(pin, { type: 'new-round', payload });
     game.roundTimer = setTimeout(() => evaluateRound(pin), parseInt(game.settings.guessTime) * 1000);
@@ -277,45 +284,61 @@ function evaluateRound(pin) {
     const game = games[pin];
     if (!game) return;
     clearTimeout(game.roundTimer);
+    game.gameState = 'RESULTS';
     const song = game.currentSong;
 
-    Object.values(game.players).forEach(player => {
-        const guess = game.guesses[player.ws.playerId];
-        player.lastPointsBreakdown = { artist: 0, title: 0, year: 0, total: 0 };
-        let wasCorrect = false;
+    const MAX_POINTS_ARTIST = 75;
+    const MAX_POINTS_TITLE = 100;
+    const MAX_POINTS_YEAR = 50;
 
-        if (game.gameMode === 'quiz' && guess) {
+    Object.values(game.players).forEach(player => {
+        const guess = game.guesses[player.ws.playerId] || {};
+        player.lastPointsBreakdown = { artist: 0, title: 0, year: 0, total: 0 };
+        
+        if (game.gameMode === 'quiz') {
             const normTitle = normalizeString(song.title);
             const normArtist = normalizeString(song.artist);
             const normGuessTitle = normalizeString(guess.title);
             const normGuessArtist = normalizeString(guess.artist);
 
-            if (levenshteinDistance(normArtist, normGuessArtist) <= 2) player.lastPointsBreakdown.artist = 50;
-            if (levenshteinDistance(normTitle, normGuessTitle) <= 2) player.lastPointsBreakdown.title = 75;
-            if (Math.abs(parseInt(guess.year) - song.year) === 0) player.lastPointsBreakdown.year = 100;
+            const artistDist = levenshteinDistance(normArtist, normGuessArtist);
+            if (artistDist <= 3) {
+                player.lastPointsBreakdown.artist = Math.round(MAX_POINTS_ARTIST * (1 - (artistDist / 4)));
+            }
+
+            const titleDist = levenshteinDistance(normTitle, normGuessTitle);
+            if (titleDist <= 4) {
+                player.lastPointsBreakdown.title = Math.round(MAX_POINTS_TITLE * (1 - (titleDist / 5)));
+            }
+
+            const yearDiff = Math.abs(parseInt(guess.year) - song.year);
+            if (!isNaN(yearDiff) && yearDiff <= 10) {
+                 player.lastPointsBreakdown.year = Math.round(MAX_POINTS_YEAR * (1 - (yearDiff / 11)));
+            }
             
             const roundScore = player.lastPointsBreakdown.artist + player.lastPointsBreakdown.title + player.lastPointsBreakdown.year;
             player.lastPointsBreakdown.total = roundScore;
             
             if (game.settings.gameType === 'points') {
                 player.score += roundScore;
-            } else if (game.settings.gameType === 'lives' && roundScore === 0) {
+            } else if (game.settings.gameType === 'lives' && roundScore < (MAX_POINTS_TITLE / 2)) {
                 player.lives--;
             }
         }
-        // Hier Logik für andere Spielmodi (timeline, popularity) einfügen...
     });
     
     broadcastToLobby(pin, { type: 'round-result', payload: { song, scores: getScores(pin) } });
-    setTimeout(() => startRoundCountdown(pin), 10000); // 10 Sekunden Pause bis zur nächsten Runde
+    game.nextRoundTimer = setTimeout(() => startRoundCountdown(pin), 10000);
 }
 
-function endGame(pin) {
+function endGame(pin, cleanup = true) {
     const game = games[pin];
     if (!game) return;
     game.gameState = 'FINISHED';
     broadcastToLobby(pin, { type: 'game-over', payload: { scores: getScores(pin) } });
-    setTimeout(() => delete games[pin], 60000); // Spiel nach 1 Minute aufräumen
+    if(cleanup) {
+        setTimeout(() => delete games[pin], 60000);
+    }
 }
 
 server.listen(process.env.PORT || 8080, () => { console.log(`✅ Fakester-Server läuft auf Port ${process.env.PORT || 8080}`); });

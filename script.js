@@ -1,39 +1,54 @@
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "", customValueInput = "", currentCustomType = null;
-    let achievements = [], userTitles = [], currentGame = { pin: null, playerId: null };
+    let achievements = [], userTitles = [], currentGame = { pin: null, playerId: null, isHost: false, gameMode: null };
 
-    const DATA_KEYS = { FRIEND_ID: 'data-friend-id', REQUEST_ID: 'data-request-id', SENDER_ID: 'data-sender-id' };
+    const testAchievements = [
+        { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel Fakester.' },
+        { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig.' },
+        { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' }
+    ];
+    const testTitles = [
+        { id: 1, name: 'Neuling', achievement_id: null },
+        { id: 2, name: 'Musik-Kenner', achievement_id: 2 },
+        { id: 3, name: 'Legende', achievement_id: 3 }
+    ];
+    const PLACEHOLDER_IMAGE_URL = 'https://i.imgur.com/3EMVPIA.png';
+
     const elements = {
         screens: document.querySelectorAll('.screen'),
         leaveGameButton: document.getElementById('leave-game-button'),
         loadingOverlay: document.getElementById('loading-overlay'),
+        countdownOverlay: document.getElementById('countdown-overlay'),
         auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form'), },
         home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), },
         lobby: {
             pinDisplay: document.getElementById('lobby-pin'), playerList: document.getElementById('player-list'), hostSettings: document.getElementById('host-settings'), guestWaitingMessage: document.getElementById('guest-waiting-message'),
             deviceSelect: document.getElementById('device-select'), playlistSelect: document.getElementById('playlist-select'), startGameBtn: document.getElementById('start-game-button'), inviteFriendsBtn: document.getElementById('invite-friends-button'), refreshDevicesBtn: document.getElementById('refresh-devices-button'),
+            songCountPresets: document.getElementById('song-count-presets'),
+            guessTimePresets: document.getElementById('guess-time-presets'),
+            gameTypePresets: document.getElementById('game-type-presets'),
         },
         game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), albumArt: document.getElementById('album-art'), guessArea: document.getElementById('game-guess-area'), submitBtn: document.getElementById('submit-guess-button'), },
         guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), },
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), },
-        friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), tabs: document.querySelectorAll('.tab-button'), tabContents: document.querySelectorAll('.tab-content'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), },
+        friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), tabs: document.querySelectorAll('.friends-modal .tab-button'), tabContents: document.querySelectorAll('.friends-modal .tab-content'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), },
         inviteFriendsModal: { overlay: document.getElementById('invite-friends-modal-overlay'), closeBtn: document.getElementById('close-invite-modal-button'), list: document.getElementById('online-friends-list'), },
         customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')},
+        achievements: { grid: document.getElementById('achievement-grid') },
+        titles: { list: document.getElementById('title-list') },
     };
 
-    // --- HILFSFUNKTIONEN ---
     const showToast = (message, isError = false) => Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "var(--danger-color)" : "var(--success-color)", borderRadius: "8px" } }).showToast();
     const showScreen = (screenId) => { elements.screens.forEach(s => s.classList.remove('active')); document.getElementById(screenId)?.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); };
     const setLoading = (isLoading) => elements.loadingOverlay.classList.toggle('hidden', !isLoading);
     
-    // --- APP-INITIALISIERUNG & ZUSTAND ---
     const initializeApp = async (user, isGuest = false) => {
         sessionStorage.removeItem('fakesterGame');
         currentUser = { id: user.id, username: isGuest ? user.username : user.user_metadata.username, isGuest };
         document.body.classList.toggle('is-guest', isGuest);
         document.getElementById('welcome-nickname').textContent = currentUser.username;
-        if (!isGuest) { await checkSpotifyStatus(); }
+        if (!isGuest) { await checkSpotifyStatus(); renderAchievements(); renderTitles(); }
         showScreen('home-screen');
         connectWebSocket();
     };
@@ -44,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.home.createRoomBtn.classList.toggle('hidden', !spotifyToken);
     };
 
-    // --- AUTH-LOGIK ---
     const handleAuthAction = async (action, form) => {
         setLoading(true);
         const username = form.querySelector('input[type="text"]').value;
@@ -54,11 +68,206 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const handleLogout = async () => { setLoading(true); if (currentUser?.isGuest) return window.location.reload(); await supabase.auth.signOut(); };
 
-    // --- WEBSOCKET-LOGIK ---
-    const connectWebSocket = () => { /* ... (WebSocket logic as provided before) ... */ };
-    const handleWebSocketMessage = ({ type, payload }) => { /* ... (WebSocket message handling) ... */ };
+    const connectWebSocket = () => {
+        if(ws.socket && ws.socket.readyState === WebSocket.OPEN) return;
+        const wsUrl = window.location.protocol.replace('http', 'ws') + '//' + window.location.host;
+        ws.socket = new WebSocket(wsUrl);
 
-    // --- MODAL- & BUTTON-LOGIK ---
+        ws.socket.onopen = () => {
+            console.log('✅ WebSocket-Verbindung hergestellt.');
+            if (currentUser && !currentUser.isGuest) { ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id } })); }
+            const storedGame = JSON.parse(sessionStorage.getItem('fakesterGame'));
+            if (storedGame) {
+                currentGame = storedGame;
+                ws.socket.send(JSON.stringify({ type: 'reconnect', payload: { pin: currentGame.pin, playerId: currentGame.playerId } }));
+            }
+        };
+        ws.socket.onmessage = (event) => { try { const { type, payload } = JSON.parse(event.data); handleWebSocketMessage({ type, payload }); } catch (error) { console.error('Fehler bei Nachricht:', error); } };
+        ws.socket.onclose = () => { console.warn('WebSocket-Verbindung getrennt.'); setTimeout(connectWebSocket, 3000); };
+        ws.socket.onerror = (error) => { console.error('WebSocket-Fehler:', error); showToast('Verbindungsfehler.', true); };
+    };
+
+    const handleWebSocketMessage = ({ type, payload }) => {
+        console.log(`Nachricht: ${type}`, payload);
+        setLoading(false);
+        elements.countdownOverlay.classList.add('hidden');
+
+        switch (type) {
+            case 'game-created':
+            case 'join-success':
+                currentGame = { pin: payload.pin, playerId: payload.playerId, isHost: payload.isHost, gameMode: payload.gameMode };
+                sessionStorage.setItem('fakesterGame', JSON.stringify(currentGame));
+                if (currentGame.isHost) { fetchHostData(); }
+                showScreen('lobby-screen');
+                break;
+
+            case 'lobby-update':
+                elements.lobby.pinDisplay.textContent = payload.pin;
+                renderPlayerList(payload.players, payload.hostId);
+                updateHostSettings(payload.settings, currentGame.isHost);
+                break;
+            
+            case 'round-countdown':
+                showCountdown(payload.round, payload.totalRounds);
+                break;
+            
+            case 'new-round':
+                showScreen('game-screen');
+                setupNewRound(payload);
+                break;
+
+            case 'round-result':
+                showRoundResultAndLeaderboard(payload);
+                break;
+
+            case 'toast':
+                showToast(payload.message, payload.isError);
+                break;
+
+            case 'error':
+                showToast(payload.message, true);
+                elements.joinModal.overlay.classList.add('hidden');
+                break;
+        }
+    };
+
+    function renderPlayerList(players, hostId) {
+        const playerList = elements.lobby.playerList;
+        playerList.innerHTML = '';
+        players.forEach(player => {
+            const isHost = player.id === hostId;
+            const card = document.createElement('div');
+            card.className = `player-card ${!player.isConnected ? 'disconnected' : ''}`;
+            card.innerHTML = `<i class="fa-solid fa-user player-icon ${isHost ? 'host' : ''}"></i><span class="player-name">${player.nickname}</span>`;
+            playerList.appendChild(card);
+        });
+    }
+
+    function updateHostSettings(settings, isHost) {
+        elements.lobby.hostSettings.classList.toggle('hidden', !isHost);
+        elements.lobby.guestWaitingMessage.classList.toggle('hidden', isHost);
+        if (!isHost) return;
+
+        ['song-count-presets', 'guess-time-presets', 'game-type-presets'].forEach(id => {
+            const container = document.getElementById(id);
+            let valueToMatch;
+            if (id.includes('song')) valueToMatch = settings.songCount;
+            if (id.includes('time')) valueToMatch = settings.guessTime;
+            if (id.includes('type')) valueToMatch = settings.gameType;
+            
+            container.querySelectorAll('.preset-button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.value == valueToMatch);
+            });
+        });
+
+        if (elements.lobby.deviceSelect.value !== settings.deviceId) elements.lobby.deviceSelect.value = settings.deviceId;
+        if (elements.lobby.playlistSelect.value !== settings.playlistId) elements.lobby.playlistSelect.value = settings.playlistId;
+
+        elements.lobby.startGameBtn.disabled = !(settings.deviceId && settings.playlistId);
+    }
+    
+    function showCountdown(round, total) {
+        const text = `Runde ${round} von ${total}`;
+        elements.countdownOverlay.classList.remove('hidden');
+        document.getElementById('countdown-text').textContent = text;
+        let count = 3;
+        const numEl = document.getElementById('countdown-number');
+        numEl.textContent = count;
+        const interval = setInterval(() => {
+            count--;
+            if (count > 0) numEl.textContent = count;
+            else clearInterval(interval);
+        }, 1000);
+    }
+
+    function setupNewRound(data) {
+        elements.game.round.textContent = data.round;
+        elements.game.totalRounds.textContent = data.totalRounds;
+        elements.game.albumArt.src = PLACEHOLDER_IMAGE_URL;
+        elements.game.submitBtn.classList.add('hidden');
+
+        if (data.gameMode === 'quiz') {
+            elements.game.guessArea.innerHTML = `
+                <input type="text" id="guess-title" placeholder="Titel des Songs..." autocomplete="off">
+                <input type="text" id="guess-artist" placeholder="Künstler*in" autocomplete="off">
+                <input type="number" id="guess-year" placeholder="Jahr" autocomplete="off" inputmode="numeric">`;
+            
+            ['guess-title', 'guess-artist', 'guess-year'].forEach(id => {
+                document.getElementById(id).addEventListener('input', () => {
+                    const guess = {
+                        title: document.getElementById('guess-title').value,
+                        artist: document.getElementById('guess-artist').value,
+                        year: document.getElementById('guess-year').value
+                    };
+                    ws.socket.send(JSON.stringify({type: 'live-guess-update', payload: { guess }}));
+                });
+            });
+        }
+        
+        const timerBar = elements.game.timerBar;
+        timerBar.style.transition = 'none';
+        timerBar.style.width = '100%';
+        setTimeout(() => {
+            timerBar.style.transition = `width ${data.guessTime}s linear`;
+            timerBar.style.width = '0%';
+        }, 100);
+    }
+    
+    function showRoundResultAndLeaderboard(data) {
+        elements.game.albumArt.src = data.song.albumArtUrl;
+        const me = data.scores.find(p => p.id === currentUser.id);
+        const breakdown = me ? me.lastPointsBreakdown : { artist: 0, title: 0, year: 0, total: 0 };
+
+        const leaderboardHtml = data.scores.map(p => `
+            <div class="leaderboard-row ${p.id === currentUser.id ? 'me' : ''}">
+                <span>${p.nickname}</span>
+                <span>+${p.lastPointsBreakdown.total} (${p.score})</span>
+            </div>
+        `).join('');
+
+        elements.game.guessArea.innerHTML = `
+            <div class="result-info">
+                <h2>${data.song.title}</h2>
+                <p>von ${data.song.artist} (${data.song.year})</p>
+                <div class="points-breakdown">
+                    <span>Titel: +${breakdown.title}</span>
+                    <span>Künstler: +${breakdown.artist}</span>
+                    <span>Jahr: +${breakdown.year}</span>
+                </div>
+            </div>
+            <div class="leaderboard">
+                <h3>Leaderboard</h3>
+                ${leaderboardHtml}
+            </div>
+            <button id="ready-button" class="button-primary">Bereit</button>
+        `;
+
+        document.getElementById('ready-button').addEventListener('click', (e) => {
+            e.target.disabled = true;
+            e.target.textContent = 'Warte auf andere...';
+            ws.socket.send(JSON.stringify({ type: 'player-ready' }));
+        });
+    }
+
+    async function fetchHostData() {
+        if (!spotifyToken) return;
+        const headers = { 'Authorization': `Bearer ${spotifyToken}` };
+        try {
+            const [devicesRes, playlistsRes] = await Promise.all([
+                fetch('/api/devices', { headers }),
+                fetch('/api/playlists', { headers })
+            ]);
+            const devices = await devicesRes.json();
+            const playlists = await playlistsRes.json();
+            
+            elements.lobby.deviceSelect.innerHTML = '<option value="">Gerät auswählen</option>' + devices.devices.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+            elements.lobby.playlistSelect.innerHTML = '<option value="">Playlist auswählen</option>' + playlists.items.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
+        } catch (error) {
+            showToast('Fehler beim Laden der Spotify-Daten', true);
+        }
+    }
+
     const handleNumpadInput = (e) => {
         const target = e.target.closest('button');
         if (!target) return;
@@ -69,36 +278,38 @@ document.addEventListener('DOMContentLoaded', () => {
         else if (action === 'confirm' && pinInput.length === 4) {
             setLoading(true);
             ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
-            elements.joinModal.overlay.classList.add('hidden');
         }
         updatePinDisplay();
     };
     const updatePinDisplay = () => { elements.joinModal.pinDisplay.forEach((d, i) => d.textContent = pinInput[i] || ""); };
 
-    const setupFriendsModal = () => {
-        elements.home.friendsBtn.addEventListener('click', () => {
-            elements.friendsModal.overlay.classList.remove('hidden');
-            // Hier könnte man die Freundesliste laden
-        });
-        elements.friendsModal.closeBtn.addEventListener('click', () => elements.friendsModal.overlay.classList.add('hidden'));
-        // ... (restliche Friends-Modal-Logik)
-    };
-    
-    // --- HAUPTFUNKTION (MAIN) ---
+    function renderAchievements() {
+        elements.achievements.grid.innerHTML = testAchievements.map(a => `
+            <div class="stat-card">
+                <span class="stat-value">${a.name}</span>
+                <span class="stat-label">${a.description}</span>
+            </div>`).join('');
+    }
+    function renderTitles() {
+        elements.titles.list.innerHTML = testTitles.map(t => `
+            <div class="stat-card">
+                <span class="stat-value">${t.name}</span>
+                <span class="stat-label">${t.achievement_id ? 'Freigeschaltet durch Erfolg' : 'Standard-Titel'}</span>
+            </div>`).join('');
+    }
+
     const main = async () => {
         try {
             setLoading(true);
             const response = await fetch('/api/config');
-            if (!response.ok) throw new Error('Server-Konfiguration konnte nicht geladen werden.');
+            if (!response.ok) throw new Error('Konfiguration konnte nicht geladen werden.');
             const config = await response.json();
-            const { createClient } = window.supabase;
-            supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
+            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-            // --- ALLE EVENT LISTENERS WERDEN HIER EINMALIG GESETZT ---
             elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
             elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
             elements.home.logoutBtn.addEventListener('click', handleLogout);
-            elements.leaveGameButton.addEventListener('click', () => { showScreen('home-screen'); /* Hier ggf. disconnect vom Spiel senden */ });
+            elements.leaveGameButton.addEventListener('click', () => window.location.reload());
             elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
             elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
             elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
@@ -110,32 +321,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
             });
             elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
-            elements.home.joinRoomBtn.addEventListener('click', () => {
-                pinInput = "";
-                updatePinDisplay();
-                elements.joinModal.overlay.classList.remove('hidden');
-            });
+            elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; updatePinDisplay(); elements.joinModal.overlay.classList.remove('hidden'); });
             elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
             elements.joinModal.numpad.addEventListener('click', handleNumpadInput);
             document.querySelectorAll('.mode-box').forEach(box => {
-                box.addEventListener('click', () => {
+                box.addEventListener('click', (e) => {
+                    if(e.currentTarget.disabled) return showToast('Dieser Modus ist bald verfügbar!');
                     setLoading(true);
-                    // Sicherstellen, dass WebSocket verbunden ist, bevor gesendet wird
                     if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
                         ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: box.dataset.mode } }));
-                    } else {
-                        showToast('Verbindung wird hergestellt, versuche es gleich erneut.', true);
-                        connectWebSocket(); // Erneut versuchen zu verbinden
-                    }
+                    } else { showToast('Verbindung wird hergestellt...', true); setLoading(false); connectWebSocket(); }
                 });
             });
             elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
             elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
             elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
-            
-            setupFriendsModal(); 
+            elements.lobby.refreshDevicesBtn.addEventListener('click', fetchHostData);
 
-            // --- AUTHENTICATION LOGIC (FIXED) ---
+            ['device-select', 'playlist-select'].forEach(id => {
+                document.getElementById(id).addEventListener('change', e => {
+                    const key = id.includes('device') ? 'deviceId' : 'playlistId';
+                    ws.socket.send(JSON.stringify({type: 'update-settings', payload: {[key]: e.target.value}}));
+                });
+            });
+            [elements.lobby.songCountPresets, elements.lobby.guessTimePresets, elements.lobby.gameTypePresets].forEach(container => {
+                container.addEventListener('click', e => {
+                    const btn = e.target.closest('.preset-button');
+                    if (!btn) return;
+                    const key = container.id.includes('song') ? 'songCount' : container.id.includes('time') ? 'guessTime' : 'gameType';
+                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [key]: btn.dataset.value }}));
+                });
+            });
+            elements.lobby.startGameBtn.addEventListener('click', () => {
+                ws.socket.send(JSON.stringify({ type: 'start-game' }));
+                setLoading(true);
+            });
+
             supabase.auth.onAuthStateChange(async (event, session) => {
                 setLoading(true);
                 if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
@@ -146,12 +367,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 setLoading(false);
             });
-
         } catch (error) {
             setLoading(false);
             document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>${error.message}</p></div>`;
         }
     };
-    
     main();
 });
