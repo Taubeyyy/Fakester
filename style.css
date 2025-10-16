@@ -62,7 +62,7 @@ input, select.lobby-select, input.lobby-input { width: 100%; padding: 12px 15px;
 input:focus, select:focus { border-color: var(--primary-color); outline: none; }
 .hidden { display: none !important; }
 
-.home-logo-container h1 { font-size: 4.5rem; font-weight: 800; color: var(--text-color); }
+.home-logo-container h1 { font-size: 3.5rem; font-weight: 800; letter-spacing: -2px; color: var(--text-color); }
 .auth-form { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
 .auth-toggle-text { font-size: 0.9rem; margin-top: 15px; }
 
