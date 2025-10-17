@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const main = async () => {
         try {
-            setLoading(true);
+            setLoading(true); // Show loader at the very beginning
             const response = await fetch('/api/config');
             if (!response.ok) throw new Error('Konfiguration konnte nicht geladen werden.');
             const config = await response.json();
@@ -783,23 +783,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 setLoading(true);
             });
 
+            // --- FIX STARTS HERE ---
             supabase.auth.onAuthStateChange(async (event, session) => {
-                // This logic ensures the loading overlay is always handled correctly on startup.
                 if (event === 'INITIAL_SESSION') {
-                    if (session) {
-                        await initializeApp(session.user);
-                    } else {
+                    try {
+                        if (session) {
+                            await initializeApp(session.user);
+                        } else {
+                            showScreen('auth-screen');
+                        }
+                    } catch (e) {
+                        console.error("Fehler bei der Initialisierung:", e);
                         showScreen('auth-screen');
+                    } finally {
+                        setLoading(false); // Dies ist der wichtigste Teil: Blendet den Loader immer aus
                     }
-                    setLoading(false);
                 } else if (event === 'SIGNED_IN') {
+                    setLoading(true);
                     await initializeApp(session.user);
                     setLoading(false);
                 } else if (event === 'SIGNED_OUT') {
                     currentUser = null;
                     showScreen('auth-screen');
-                    setLoading(false);
-                } else if (event === 'USER_UPDATED') {
+                } else if (event === 'USER_UPDATED' && session) {
                      const newTitleId = session.user.user_metadata.equipped_title_id || 1;
                     if (currentUser && currentUser.titleId !== newTitleId) {
                         currentUser.titleId = newTitleId;
@@ -809,6 +815,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             });
+            // --- FIX ENDS HERE ---
+
         } catch (error) {
             setLoading(false);
             document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>${error.message}</p></div>`;
