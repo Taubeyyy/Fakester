@@ -193,19 +193,21 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'live-guess-update':
             if (game && game.gameState === 'PLAYING') {
                 if (!game.guesses) game.guesses = {};
-                game.guesses[playerId] = payload.guess;
+                if (!game.guesses[playerId]) { // Only accept the first guess
+                    game.guesses[playerId] = payload.guess;
+                }
             }
             break;
         case 'player-ready':
             if (game && game.players[playerId] && (game.gameState === 'RESULTS' || game.gameState === 'PLAYING')) {
                 game.players[playerId].isReady = true;
-                const activePlayers = Object.values(game.players).filter(p=>p.isConnected && p.lives > 0);
+                const activePlayers = Object.values(game.players).filter(p=>p.isConnected && (game.settings.gameType === 'points' || p.lives > 0));
                 const allReady = activePlayers.every(p => p.isReady);
                 
                 if (game.gameState === 'RESULTS' && allReady) {
                     clearTimeout(game.nextRoundTimer);
                     startRoundCountdown(pin);
-                } else if (game.gameState === 'PLAYING' && allReady) {
+                } else if (game.gameState === 'PLAYING' && allReady && game.gameMode !== 'timeline') {
                     clearTimeout(game.roundTimer);
                     evaluateRound(pin);
                 }
@@ -249,7 +251,7 @@ function handlePlayerDisconnect(ws) {
 
 function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]); return pin; }
 function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws && player.ws.readyState === WebSocket.OPEN && player.isConnected) { player.ws.send(messageString); } }); }
-function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }
+function broadcastLobbyUpdate(pin) { const game = games[pin]; if (!game) return; const payload = { pin, hostId: game.hostId, players: getScores(pin), settings: game.settings, gameMode: game.gameMode }; broadcastToLobby(pin, { type: 'lobby-update', payload }); }
 function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws.playerId, nickname: p.nickname, score: p.score, lives: p.lives, isConnected: p.isConnected, lastPointsBreakdown: p.lastPointsBreakdown })).sort((a, b) => b.score - a.score); }
 function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: 'toast', payload: { message, isError } })); } }
 async function getPlaylistTracks(playlistId, token) { try { const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50`, { headers: { 'Authorization': `Bearer ${token}` } }); return response.data.items.map(item => item.track).filter(track => track && track.id).map(track => ({ spotifyId: track.id, title: track.name, artist: track.artists[0].name, year: parseInt(track.album.release_date.substring(0, 4)), popularity: track.popularity, albumArtUrl: track.album.images[0]?.url })); } catch (error) { console.error("Fehler beim Abrufen der Playlist-Tracks:", error.response?.data || error.message); return null; } }
@@ -261,17 +263,18 @@ async function startGame(pin) {
     
     game.gameState = 'PLAYING'; 
     game.currentRound = 0; 
-    Object.values(game.players).forEach(p => { 
-        p.score = 0; 
-        p.lives = game.settings.lives; 
-    });
+    Object.values(game.players).forEach(p => { p.score = 0; p.lives = game.settings.lives; });
     
     const tracks = await getPlaylistTracks(game.settings.playlistId, game.hostToken);
-    if (!tracks || tracks.length < 1) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist leer oder konnte nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
+    if (!tracks || tracks.length < 2) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist zu kurz oder konnte nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
     
     game.songList = shuffleArray(tracks);
+    if (game.gameMode === 'timeline') {
+        game.timeline = [game.songList.shift()];
+    }
+    
     const songCount = parseInt(game.settings.songCount);
-    if (songCount > 0 && game.settings.gameType === 'points' && game.gameMode !== 'popularity') { 
+    if (songCount > 0 && game.settings.gameType === 'points' && game.gameMode !== 'timeline') { 
         game.songList = game.songList.slice(0, songCount); 
     }
     startRoundCountdown(pin);
@@ -282,46 +285,43 @@ function startRoundCountdown(pin) {
     if (!game) return;
     Object.values(game.players).forEach(p => p.isReady = false);
     
-    if (game.settings.gameType === 'points' && game.gameMode !== 'popularity' && game.currentRound >= game.songList.length) { return endGame(pin); }
-    if (game.gameMode === 'popularity' && game.currentRound >= game.songList.length -1) { return endGame(pin); }
+    if (game.settings.gameType === 'points' && game.currentRound >= game.songList.length) { return endGame(pin); }
     const activePlayers = Object.values(game.players).filter(p => p.isConnected && p.lives > 0);
     if (game.settings.gameType === 'lives' && activePlayers.length <= 1) { return endGame(pin); }
 
     game.gameState = 'PLAYING';
     broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound + 1, totalRounds: game.settings.gameType === 'points' ? game.songList.length : 0 } });
-    setTimeout(() => startNewRound(pin), 4000);
+    setTimeout(() => startNewRound(pin), 5000);
 }
 
 function startNewRound(pin) {
     const game = games[pin]; if (!game) return;
-    game.guesses = {};
+
+    game.roundStartTime = Date.now();
+    game.currentSong = game.songList[game.currentRound];
+    if (game.gameMode !== 'timeline') game.currentRound++; 
     
-    if (game.gameMode === 'popularity') {
-        if (!game.currentSong) { game.currentSong = game.songList[game.currentRound]; game.currentRound++; }
-        game.nextSong = game.songList[game.currentRound];
-        if (!game.nextSong) return endGame(pin);
-        
-        axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response?.data || err.message));
-        
-        const payload = {
-            round: game.currentRound, totalRounds: 0, scores: getScores(pin), guessTime: parseInt(game.settings.guessTime), gameMode: game.gameMode,
-            currentSong: { title: game.currentSong.title, artist: game.currentSong.artist, albumArtUrl: game.currentSong.albumArtUrl, popularity: game.currentSong.popularity },
-            nextSong: { title: game.nextSong.title, artist: game.nextSong.artist, albumArtUrl: game.nextSong.albumArtUrl }
-        };
-        broadcastToLobby(pin, { type: 'new-round', payload });
-    } else {
-        game.currentSong = game.songList[game.currentRound];
-        game.currentRound++;
-        if (!game.currentSong) return endGame(pin);
-        axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response?.data || err.message));
-        
-        const payload = {
-            round: game.currentRound, totalRounds: game.settings.gameType === 'points' ? game.songList.length : 0,
-            scores: getScores(pin), guessTime: parseInt(game.settings.guessTime), gameMode: game.gameMode
-        };
-        broadcastToLobby(pin, { type: 'new-round', payload });
+    game.guesses = {};
+    if (!game.currentSong) return endGame(pin);
+    axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response?.data || err.message));
+    
+    let payload = {
+        round: game.currentRound + 1, totalRounds: game.settings.gameType === 'points' ? game.songList.length : 0,
+        scores: getScores(pin), guessTime: parseInt(game.settings.guessTime),
+        gameMode: game.gameMode, answerType: game.settings.answerType
+    };
+
+    if (game.gameMode === 'timeline') {
+        payload.timeline = game.timeline;
+        payload.currentSong = { ...game.currentSong, year: undefined };
+    } else if (game.gameMode === 'quiz' && game.settings.answerType === 'multiple') {
+        const correct = game.currentSong;
+        const decoys = shuffleArray(game.songList.filter(s => s.spotifyId !== correct.spotifyId)).slice(0, 3);
+        const options = shuffleArray([correct, ...decoys]);
+        payload.options = options.map(o => ({ title: o.title, artist: o.artist }));
     }
     
+    broadcastToLobby(pin, { type: 'new-round', payload });
     game.roundTimer = setTimeout(() => evaluateRound(pin), parseInt(game.settings.guessTime) * 1000);
 }
 
@@ -331,79 +331,66 @@ function evaluateRound(pin) {
     clearTimeout(game.roundTimer);
     game.gameState = 'RESULTS';
     const song = game.currentSong;
+    const guessTime = parseInt(game.settings.guessTime) * 1000;
 
     Object.values(game.players).forEach(player => {
-        if (!player.isConnected || player.lives <= 0) {
-            player.lastPointsBreakdown = { artist: 0, title: 0, year: 0, total: 0 };
-            return;
-        }
-
         const guess = game.guesses[player.ws.playerId] || {};
-        player.lastPointsBreakdown = { artist: 0, title: 0, year: 0, total: 0 };
-        let roundScore = 0;
+        player.lastPointsBreakdown = { base: 0, time: 0, total: 0 };
+        let isCorrect = false;
+
+        const timeTaken = guess.timestamp ? guess.timestamp - game.roundStartTime : guessTime;
+        const timeRemainingPercent = Math.max(0, (guessTime - timeTaken) / guessTime);
 
         if (game.gameMode === 'quiz') {
-            const normTitle = normalizeString(song.title);
-            const normArtist = normalizeString(song.artist);
-            const normGuessTitle = normalizeString(guess.title);
-            const normGuessArtist = normalizeString(guess.artist);
-
-            const artistDist = levenshteinDistance(normArtist, normGuessArtist);
-            if (artistDist <= 3) player.lastPointsBreakdown.artist = Math.round(75 * (1 - (artistDist / 4)));
-
-            const titleDist = levenshteinDistance(normTitle, normGuessTitle);
-            if (titleDist <= 4) player.lastPointsBreakdown.title = Math.round(100 * (1 - (titleDist / 5)));
-
-            const yearDiff = Math.abs(parseInt(guess.year) - song.year);
-            if (!isNaN(yearDiff) && yearDiff <= 10) player.lastPointsBreakdown.year = Math.round(50 * (1 - (yearDiff / 11)));
-            
-            roundScore = player.lastPointsBreakdown.artist + player.lastPointsBreakdown.title + player.lastPointsBreakdown.year;
-
-        } else if (game.gameMode === 'timeline') {
-            const yearDiff = Math.abs(parseInt(guess.year) - song.year);
-            if (!isNaN(yearDiff)) {
-                if (yearDiff === 0) roundScore = 150;
-                else if (yearDiff <= 2) roundScore = 75;
-                else if (yearDiff <= 5) roundScore = 50;
-                else if (yearDiff <= 10) roundScore = 25;
+            const MAX_BASE_SCORE = 100;
+            const MAX_TIME_BONUS = 50;
+            if (game.settings.answerType === 'multiple') {
+                if (guess.title === song.title && guess.artist === song.artist) {
+                    isCorrect = true;
+                    player.lastPointsBreakdown.base = MAX_BASE_SCORE;
+                    player.lastPointsBreakdown.time = Math.round(MAX_TIME_BONUS * timeRemainingPercent);
+                }
+            } else {
+                const titleDist = levenshteinDistance(normalizeString(song.title), normalizeString(guess.title));
+                const artistDist = levenshteinDistance(normalizeString(song.artist), normalizeString(guess.artist));
+                if (titleDist <= 4 && artistDist <= 3) {
+                     isCorrect = true;
+                     player.lastPointsBreakdown.base = MAX_BASE_SCORE;
+                     player.lastPointsBreakdown.time = Math.round(MAX_TIME_BONUS * timeRemainingPercent);
+                }
             }
-            player.lastPointsBreakdown.year = roundScore;
-
-        } else if (game.gameMode === 'popularity') {
-            const currentPop = game.currentSong.popularity;
-            const nextPop = game.nextSong.popularity;
-            const correctAnswer = nextPop > currentPop ? 'higher' : (nextPop < currentPop ? 'lower' : 'equal');
-            if (guess.decision === correctAnswer || (correctAnswer === 'equal' && (guess.decision === 'higher' || guess.decision === 'lower'))) {
-                roundScore = 100;
+        } else if (game.gameMode === 'timeline') {
+            const MAX_BASE_SCORE = 100;
+            const MAX_TIME_BONUS = 50;
+            const index = guess.index;
+            if (index !== undefined) {
+                const timeline = game.timeline;
+                const yearBefore = index > 0 ? timeline[index - 1].year : -Infinity;
+                const yearAfter = index < timeline.length ? timeline[index].year : Infinity;
+                if (song.year >= yearBefore && song.year <= yearAfter) {
+                    isCorrect = true;
+                    player.lastPointsBreakdown.base = MAX_BASE_SCORE;
+                    player.lastPointsBreakdown.time = Math.round(MAX_TIME_BONUS * timeRemainingPercent);
+                }
             }
         }
         
+        const roundScore = player.lastPointsBreakdown.base + player.lastPointsBreakdown.time;
         player.lastPointsBreakdown.total = roundScore;
         if (game.settings.gameType === 'points') {
             player.score += roundScore;
-        } else if (game.settings.gameType === 'lives') {
-            let lostLife = false;
-            if (game.gameMode === 'quiz' && roundScore < 50) lostLife = true;
-            if (game.gameMode === 'timeline' && roundScore < 50) lostLife = true;
-            if (game.gameMode === 'popularity' && roundScore === 0) lostLife = true;
-            if (lostLife) player.lives--;
+        } else if (game.settings.gameType === 'lives' && !isCorrect) {
+            player.lives--;
         }
     });
 
-    if (game.gameMode === 'popularity') {
-        const resultPayload = {
-            currentSong: game.currentSong,
-            nextSong: game.nextSong,
-            scores: getScores(pin),
-            gameMode: game.gameMode
-        };
-        broadcastToLobby(pin, { type: 'round-result', payload: resultPayload });
-        game.currentSong = game.nextSong; // Prepare for next round
+    if (game.gameMode === 'timeline') {
+        game.timeline.push(song);
+        game.timeline.sort((a, b) => a.year - b.year);
         game.currentRound++;
-    } else {
-        broadcastToLobby(pin, { type: 'round-result', payload: { song, scores: getScores(pin), gameMode: game.gameMode } });
     }
     
+    broadcastToLobby(pin, { type: 'round-result', payload: { song, scores: getScores(pin), gameMode: game.gameMode, timeline: game.timeline } });
     game.nextRoundTimer = setTimeout(() => startRoundCountdown(pin), 10000);
 }
 
@@ -413,7 +400,7 @@ function endGame(pin, cleanup = true) {
     game.gameState = 'FINISHED';
     
     if (game.hostToken && game.settings.deviceId) {
-        axios.put(`https://api.spotify.com/v1/me/player/pause`, { device_id: game.settings.deviceId }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Pause API Fehler:`, err.response?.data || err.message));
+        axios.put(`https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, {}, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Pause API Fehler:`, err.response?.data || err.message));
     }
 
     broadcastToLobby(pin, { type: 'game-over', payload: { scores: getScores(pin) } });

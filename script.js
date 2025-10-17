@@ -3,7 +3,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let achievements = [], userTitles = [], currentGame = { pin: null, playerId: null, isHost: false, gameMode: null };
 
-    // Temporäre Variablen für die Spielerstellung
     let selectedGameMode = null;
     let gameCreationSettings = {
         gameType: null,
@@ -39,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
             guessTimePresets: document.getElementById('guess-time-presets'),
             answerTypePresets: document.getElementById('answer-type-presets'),
         },
-        game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), albumArt: document.getElementById('album-art'), guessArea: document.getElementById('game-guess-area') },
+        game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), contentArea: document.getElementById('game-content-area') },
         guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), },
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), },
         friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button') },
@@ -84,10 +83,21 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const initializeApp = async (user, isGuest = false) => {
         sessionStorage.removeItem('fakesterGame');
-        currentUser = { id: user.id, username: isGuest ? user.username : user.user_metadata.username, isGuest };
+        currentUser = { 
+            id: user.id, 
+            username: isGuest ? user.username : user.user_metadata.username,
+            titleId: isGuest ? 1 : user.user_metadata.equipped_title_id || 1, 
+            isGuest 
+        };
         document.body.classList.toggle('is-guest', isGuest);
         document.getElementById('welcome-nickname').textContent = currentUser.username;
-        if (!isGuest) { await checkSpotifyStatus(); renderAchievements(); renderTitles(); }
+        if (!isGuest) { 
+            await checkSpotifyStatus(); 
+            renderAchievements(); 
+            renderTitles();
+            const equippedTitle = testTitles.find(t => t.id === currentUser.titleId) || testTitles[0];
+            document.getElementById('profile-title').textContent = equippedTitle.name;
+        }
         showScreen('home-screen');
         connectWebSocket();
     };
@@ -102,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setLoading(true);
         const username = form.querySelector('input[type="text"]').value;
         const password = form.querySelector('input[type="password"]').value;
-        try { const { error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username } } }); if (error) throw error; } 
+        try { const { error } = await action({ email: `${username}@fakester.app`, password, options: { data: { username, equipped_title_id: 1 } } }); if (error) throw error; } 
         catch (error) { showToast(error.message, true); setLoading(false); }
     };
     const handleLogout = async () => { setLoading(true); if (currentUser?.isGuest) return window.location.reload(); await supabase.auth.signOut(); };
@@ -143,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'lobby-update':
                 elements.lobby.pinDisplay.textContent = payload.pin;
                 renderPlayerList(payload.players, payload.hostId);
-                updateHostSettings(payload.settings, currentGame.isHost);
+                updateHostSettings(payload.settings, currentGame.isHost, payload.gameMode);
                 break;
             case 'round-countdown':
                 showCountdown(payload.round, payload.totalRounds);
@@ -161,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 switch (payload.gameState) {
                     case 'LOBBY':
                         if (currentGame.isHost) { fetchHostData(); }
-                        updateHostSettings(payload.settings, currentGame.isHost);
+                        updateHostSettings(payload.settings, currentGame.isHost, payload.gameMode);
                         renderPlayerList(payload.players, payload.hostId);
                         showScreen('lobby-screen');
                         break;
@@ -212,10 +222,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updateHostSettings(settings, isHost) {
+    function updateHostSettings(settings, isHost, gameMode) {
         elements.lobby.hostSettings.classList.toggle('hidden', !isHost);
         elements.lobby.guestWaitingMessage.classList.toggle('hidden', isHost);
         if (!isHost) return;
+
+        const answerTypeContainer = document.getElementById('answer-type-container');
+        answerTypeContainer.style.display = gameMode === 'quiz' ? 'flex' : 'none';
 
         ['song-count-presets', 'guess-time-presets', 'answer-type-presets'].forEach(id => {
             const container = document.getElementById(id);
@@ -254,7 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         elements.countdownOverlay.classList.remove('hidden');
         document.getElementById('countdown-text').textContent = text;
-        let count = 3;
+        let count = 5;
         const numEl = document.getElementById('countdown-number');
         numEl.textContent = count;
         const interval = setInterval(() => {
@@ -267,122 +280,105 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupNewRound(data) {
         elements.game.round.textContent = data.round;
         elements.game.totalRounds.textContent = data.totalRounds > 0 ? data.totalRounds : '∞';
-        elements.game.albumArt.src = PLACEHOLDER_IMAGE_URL;
+        
+        const sendGuess = (guessData) => {
+            const payload = { guess: { ...guessData, timestamp: Date.now() } };
+            ws.socket.send(JSON.stringify({ type: 'live-guess-update', payload }));
+        };
 
-        if (data.gameMode === 'quiz') {
-            elements.game.guessArea.innerHTML = `
-                <input type="text" id="guess-title" placeholder="Titel des Songs..." autocomplete="off">
-                <input type="text" id="guess-artist" placeholder="Künstler*in" autocomplete="off">
-                <input type="number" id="guess-year" placeholder="Jahr" autocomplete="off" inputmode="numeric">`;
-            
-            ['guess-title', 'guess-artist', 'guess-year'].forEach(id => {
-                document.getElementById(id).addEventListener('input', () => {
-                    const guess = {
-                        title: document.getElementById('guess-title').value,
-                        artist: document.getElementById('guess-artist').value,
-                        year: document.getElementById('guess-year').value
-                    };
-                    ws.socket.send(JSON.stringify({type: 'live-guess-update', payload: { guess }}));
-                });
-            });
-        } else if (data.gameMode === 'timeline') {
-            elements.game.guessArea.innerHTML = `
-                <p style="margin-bottom: 5px;">Aus welchem Jahr ist dieser Song?</p>
-                <input type="number" id="guess-year" placeholder="JJJJ" autocomplete="off" inputmode="numeric" style="text-align: center; font-size: 1.5rem;">`;
-            document.getElementById('guess-year').addEventListener('input', () => {
-                ws.socket.send(JSON.stringify({type: 'live-guess-update', payload: { guess: { year: document.getElementById('guess-year').value } }}));
-            });
-        } else if (data.gameMode === 'popularity') {
-            elements.game.albumArt.src = data.currentSong.albumArtUrl;
-            elements.game.guessArea.innerHTML = `
-                <div class="popularity-container">
-                    <div class="song-card current">
-                        <h3>${data.currentSong.title}</h3>
-                        <p>${data.currentSong.artist}</p>
-                        <div class="popularity-score">${data.currentSong.popularity}</div>
+        if (data.gameMode === 'timeline') {
+            elements.game.contentArea.innerHTML = `
+                <div class="timeline-guess-container">
+                    <div class="song-to-place">
+                        <div class="title">${data.currentSong.title}</div>
+                        <div class="artist">${data.currentSong.artist}</div>
                     </div>
-                    <p>Ist der nächste Song populärer oder weniger populär?</p>
-                    <div class="song-card next">
-                        <h3>${data.nextSong.title}</h3>
-                        <p>${data.nextSong.artist}</p>
-                    </div>
-                    <div class="popularity-buttons">
-                        <button class="button-secondary" id="guess-lower"><i class="fa-solid fa-arrow-down"></i> Weniger</button>
-                        <button class="button-primary" id="guess-higher"><i class="fa-solid fa-arrow-up"></i> Populärer</button>
+                    <div class="timeline-track-wrapper">
+                        <div class="timeline-track" id="timeline-track"></div>
                     </div>
                 </div>`;
-            const sendGuess = (decision) => {
-                document.querySelectorAll('.popularity-buttons button').forEach(b => b.disabled = true);
-                ws.socket.send(JSON.stringify({type: 'live-guess-update', payload: { guess: { decision } }}));
-                ws.socket.send(JSON.stringify({ type: 'player-ready' }));
-            };
-            document.getElementById('guess-lower').addEventListener('click', () => sendGuess('lower'));
-            document.getElementById('guess-higher').addEventListener('click', () => sendGuess('higher'));
+            const timelineTrack = document.getElementById('timeline-track');
+            timelineTrack.innerHTML += `<button class="drop-zone" data-index="0"><i class="fa-solid fa-plus"></i></button>`;
+            data.timeline.forEach((song, index) => {
+                timelineTrack.innerHTML += `
+                    <div class="timeline-card">
+                        <img src="${song.albumArtUrl || PLACEHOLDER_IMAGE_URL}" alt="Album Art">
+                        <div class="year">${song.year}</div>
+                    </div>
+                    <button class="drop-zone" data-index="${index + 1}"><i class="fa-solid fa-plus"></i></button>`;
+            });
+            document.querySelectorAll('.drop-zone').forEach(zone => {
+                zone.addEventListener('click', () => {
+                    document.querySelectorAll('.drop-zone').forEach(z => z.disabled = true);
+                    zone.innerHTML = `<i class="fa-solid fa-check"></i>`;
+                    sendGuess({ index: parseInt(zone.dataset.index) });
+                });
+            });
+
+        } else {
+            elements.game.contentArea.innerHTML = `
+                <div class="album-art-container"><img id="album-art" src="${PLACEHOLDER_IMAGE_URL}" alt="Album Cover"></div>
+                <div id="game-guess-area" class="guess-area"></div>`;
+            const guessArea = document.getElementById('game-guess-area');
+
+            if (data.gameMode === 'quiz' && data.answerType === 'multiple') {
+                data.options.forEach(option => {
+                    const button = document.createElement('button');
+                    button.classList.add('mc-button');
+                    button.innerHTML = `<span class="title">${option.title}</span><span class="artist">${option.artist}</span>`;
+                    button.onclick = () => {
+                        document.querySelectorAll('.mc-button').forEach(b => b.disabled = true);
+                        sendGuess(option);
+                    };
+                    guessArea.appendChild(button);
+                });
+            } else {
+                guessArea.innerHTML = `<input type="text" id="guess-title" placeholder="Titel des Songs..." autocomplete="off"><input type="text" id="guess-artist" placeholder="Künstler*in" autocomplete="off">`;
+                const titleInput = document.getElementById('guess-title');
+                const artistInput = document.getElementById('guess-artist');
+                artistInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && titleInput.value && artistInput.value) {
+                        titleInput.disabled = true;
+                        artistInput.disabled = true;
+                        sendGuess({ title: titleInput.value, artist: artistInput.value });
+                    }
+                });
+            }
         }
         
         const timerBar = elements.game.timerBar;
-        timerBar.style.transition = 'none';
-        timerBar.style.width = '100%';
-        setTimeout(() => {
-            timerBar.style.transition = `width ${data.guessTime}s linear`;
-            timerBar.style.width = '0%';
-        }, 100);
+        timerBar.style.transition = 'none'; timerBar.style.width = '100%';
+        setTimeout(() => { timerBar.style.transition = `width ${data.guessTime}s linear`; timerBar.style.width = '0%'; }, 100);
     }
     
     function showRoundResultAndLeaderboard(data) {
         const me = data.scores.find(p => p.id === currentUser.id);
-        const breakdown = me ? me.lastPointsBreakdown : { artist: 0, title: 0, year: 0, total: 0 };
+        const breakdown = me ? me.lastPointsBreakdown : { base: 0, time: 0, total: 0 };
         const leaderboardHtml = data.scores.map(p => `
             <div class="leaderboard-row ${p.id === currentUser.id ? 'me' : ''}">
                 <span>${p.nickname} ${p.lives < 1 ? ' ausgeschieden' : ''}</span>
                 <span>+${p.lastPointsBreakdown.total} (${p.score})</span>
-            </div>
-        `).join('');
+            </div>`).join('');
         
-        let resultHtml = '';
-        if (data.gameMode === 'popularity') {
-            const correct = data.nextSong.popularity > data.currentSong.popularity ? 'populärer' : 'weniger populär';
-            const resultText = me && me.lastPointsBreakdown.total > 0 ? "Richtig!" : "Falsch!";
-            elements.game.albumArt.src = data.nextSong.albumArtUrl;
-            resultHtml = `
-                <div class="popularity-container">
-                    <div class="song-card current revealed">
-                        <h3>${data.currentSong.title}</h3>
-                        <div class="popularity-score">${data.currentSong.popularity}</div>
-                    </div>
-                    <div class="vs-circle">VS</div>
-                    <div class="song-card next revealed">
-                        <h3>${data.nextSong.title}</h3>
-                        <div class="popularity-score">${data.nextSong.popularity}</div>
-                    </div>
-                    <div class="result-info">
-                        <h2>${resultText}</h2>
-                        <p>Der Song war ${correct}.</p>
-                    </div>`;
-        } else {
-            elements.game.albumArt.src = data.song.albumArtUrl;
-            let pointsHtml = '';
-            if (data.gameMode === 'quiz') {
-                pointsHtml = `<span>Titel: +${breakdown.title}</span><span>Künstler: +${breakdown.artist}</span><span>Jahr: +${breakdown.year}</span>`;
-            } else if (data.gameMode === 'timeline') {
-                pointsHtml = `<span>Punkte: +${breakdown.year}</span>`;
-            }
-            resultHtml = `
-                <div class="result-info">
-                    <h2>${data.song.title}</h2>
-                    <p>von ${data.song.artist} (${data.song.year})</p>
-                    <div class="points-breakdown">${pointsHtml}</div>
-                </div>`;
-        }
+        let resultHtml = ``;
+        const pointsHtml = `<span>Punkte: +${breakdown.base}</span><span>Zeitbonus: +${breakdown.time}</span>`;
+        const albumArt = data.song.albumArtUrl || PLACEHOLDER_IMAGE_URL;
 
-        elements.game.guessArea.innerHTML = `
+        resultHtml = `
+            <div class="result-info">
+                <img src="${albumArt}" class="result-album-art">
+                <h2>${data.song.title}</h2>
+                <p>von ${data.song.artist} (${data.song.year})</p>
+                <div class="points-breakdown">${pointsHtml}</div>
+            </div>`;
+
+        elements.game.contentArea.innerHTML = `
             ${resultHtml}
             <div class="leaderboard">
                 <h3>Leaderboard</h3>
                 ${leaderboardHtml}
             </div>
-            <button id="ready-button" class="button-primary">Bereit</button>
-        `;
+            <button id="ready-button" class="button-primary">Bereit</button>`;
 
         document.getElementById('ready-button').addEventListener('click', (e) => {
             e.target.disabled = true;
@@ -457,23 +453,39 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function renderAchievements() {
-        const userAchievements = [1]; // Mock data: User has unlocked achievement with ID 1
+        const userAchievements = [1];
         elements.achievements.grid.innerHTML = testAchievements.map(a => `
             <div class="stat-card ${userAchievements.includes(a.id) ? 'unlocked' : 'locked'}">
                 <span class="stat-value">${a.name}</span>
                 <span class="stat-label">${a.description}</span>
             </div>`).join('');
     }
+
+    async function updateTitle(titleId) {
+        if (currentUser.isGuest) return;
+        setLoading(true);
+        const { error } = await supabase.auth.updateUser({ data: { equipped_title_id: titleId } });
+        setLoading(false);
+
+        if (error) {
+            showToast('Fehler beim Speichern des Titels.', true);
+        } else {
+            currentUser.titleId = titleId;
+            const selectedTitle = testTitles.find(t => t.id == titleId);
+            document.getElementById('profile-title').textContent = selectedTitle.name;
+            showToast(`Titel "${selectedTitle.name}" ausgerüstet!`);
+        }
+    }
+
     function renderTitles() {
-        const userAchievements = [1]; // Mock data
-        const equippedTitleId = 1; // Mock data
+        const userAchievements = [1, 2];
         let finalTitles = [...testTitles];
         if (currentUser && currentUser.username.toLowerCase() === 'taubey') {
             finalTitles.push({ id: 99, name: 'Entwickler', achievement_id: null });
         }
         elements.titles.list.innerHTML = finalTitles.map(t => {
             const isUnlocked = t.achievement_id === null || userAchievements.includes(t.achievement_id);
-            const isEquipped = t.id === equippedTitleId;
+            const isEquipped = t.id === currentUser.titleId;
             const achievement = testAchievements.find(a => a.id === t.achievement_id);
             return `<div class="stat-card title-card ${isUnlocked ? 'unlocked' : 'locked'} ${isEquipped ? 'equipped' : ''}" data-title-id="${t.id}" data-unlocked="${isUnlocked}">
                         <span class="stat-value">${t.name}</span>
@@ -483,11 +495,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.querySelectorAll('.title-card[data-unlocked="true"]').forEach(card => {
             card.addEventListener('click', () => {
+                const titleId = parseInt(card.dataset.titleId);
                 document.querySelector('.title-card.equipped')?.classList.remove('equipped');
                 card.classList.add('equipped');
-                const selectedTitle = finalTitles.find(t => t.id == card.dataset.titleId);
-                document.getElementById('profile-title').textContent = selectedTitle.name;
-                showToast(`Titel "${selectedTitle.name}" ausgerüstet!`);
+                updateTitle(titleId);
             });
         });
     }
@@ -495,12 +506,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const main = async () => {
         try {
             setLoading(true);
-            // --- FIX STARTS HERE ---
             const response = await fetch('/api/config');
             if (!response.ok) throw new Error('Konfiguration konnte nicht geladen werden.');
             const config = await response.json();
             supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
-            // --- FIX ENDS HERE ---
 
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible' && (!ws.socket || ws.socket.readyState === WebSocket.CLOSED)) {
@@ -730,18 +739,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             supabase.auth.onAuthStateChange(async (event, session) => {
-                if (!currentUser) {
-                    setLoading(true);
-                    if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
-                        await initializeApp(session.user);
-                    } else if (event === 'SIGNED_OUT' || !session) {
-                        currentUser = null;
-                        showScreen('auth-screen');
-                    }
-                    setLoading(false);
-                } else if (!session) {
-                    window.location.reload();
+                setLoading(true);
+                if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
+                    if (!currentUser) await initializeApp(session.user);
+                } else if (event === 'SIGNED_OUT' || !session) {
+                    currentUser = null;
+                    showScreen('auth-screen');
                 }
+                setLoading(false);
             });
         } catch (error) {
             setLoading(false);

@@ -103,12 +103,12 @@
                 <button class="mode-box" data-mode="timeline">
                      <div class="mode-box-content">
                         <h3>Timeline</h3>
-                        <p>Errate das Erscheinungsjahr des Songs.</p>
+                        <p>Sortiere Songs chronologisch auf einem Zeitstrahl.</p>
                     </div>
                 </button>
-                <button class="mode-box" data-mode="popularity">
+                <button class="mode-box" data-mode="popularity" disabled>
                      <div class="mode-box-content">
-                        <h3>Popularity</h3>
+                        <h3>Popularity (bald)</h3>
                         <p>Errate, ob der nächste Song populärer ist (0-100).</p>
                     </div>
                 </button>
@@ -168,10 +168,10 @@
                     <button class="button-select" id="playlist-select-button">Playlist auswählen</button>
                 </div>
                 <div class="setting" id="answer-type-container">
-                    <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="'Freitext' erfordert das manuelle Eintippen der Antwort. 'Multiple Choice' gibt vier Antwortmöglichkeiten vor (bald verfügbar)."></i></label>
+                    <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="'Freitext' erfordert das manuelle Eintippen der Antwort. 'Multiple Choice' gibt vier Antwortmöglichkeiten vor."></i></label>
                     <div class="preset-group" id="answer-type-presets">
-                        <button class="preset-button active" data-value="freestyle">Freitext</button>
-                        <button class="preset-button" data-value="multiple" disabled>Multiple Choice</button>
+                        <button class="preset-button" data-value="freestyle">Freitext</button>
+                        <button class="preset-button" data-value="multiple">Multiple Choice</button>
                     </div>
                 </div>
                 <div class="setting">
@@ -205,10 +205,7 @@
                 <span>Runde <span id="current-round">1</span> / <span id="total-rounds">10</span></span>
                 <div class="timer"><div id="timer-bar" class="timer-bar"></div></div>
             </div>
-            <div class="game-content">
-                <div class="album-art-container"><img id="album-art" src="https://i.imgur.com/3EMVPIA.png" alt="Album Cover"></div>
-                <div id="game-guess-area" class="guess-area">
-                </div>
+            <div id="game-content-area" class="game-content">
             </div>
         </div>
     </main>
@@ -230,13 +227,39 @@
     </main>
 
     <div id="countdown-overlay" class="countdown-overlay hidden">
-        <div id="countdown-number" class="countdown-number">3</div>
-        <div id="countdown-text" class="countdown-text">Das Spiel beginnt...</div>
+        <div class="countdown-content">
+            <div id="countdown-text" class="countdown-text">Das Spiel beginnt...</div>
+            <div id="countdown-number" class="countdown-number">5</div>
+        </div>
     </div>
 
     <div id="guest-modal-overlay" class="modal-overlay hidden"><div class="modal guest-modal"><button id="close-guest-modal-button" class="button-exit-modal">×</button><h2>Als Gast spielen</h2><p>Gib einen Nickname ein, um fortzufahren.</p><input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15"><button id="guest-nickname-submit" class="button-primary">Weiter</button></div></div>
     <div id="join-modal-overlay" class="modal-overlay hidden"><div class="modal numpad-modal"><button id="close-join-modal-button" class="button-exit-modal">×</button><h2>Raum beitreten</h2><div class="pin-display" id="join-pin-display"><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span></div><div id="numpad-join" class="numpad"><button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button class="numpad-action" data-action="clear"><i class="fa-solid fa-delete-left"></i></button><button data-key="0">0</button><button id="join-game-button" class="numpad-action" data-action="confirm"><i class="fa-solid fa-right-to-bracket"></i></button></div></div></div>
-    <div id="friends-modal-overlay" class="modal-overlay hidden"><div class="modal friends-modal"><button id="close-friends-modal-button" class="button-exit-modal">×</button><h2>Freunde</h2><div class="friends-content"><div class="add-friend-form"><input type="text" id="add-friend-input" placeholder="Benutzername eingeben..."><button id="add-friend-button" class="button-primary"><i class="fa-solid fa-plus"></i></button></div><div class="tabs"><button class="tab-button active" data-tab="friends-list-tab">Freunde</button><button class="tab-button" data-tab="requests-list-tab">Anfragen <span id="requests-count" class="badge hidden">0</span></button></div><div id="friends-list-tab" class="tab-content active"><ul id="friends-list" class="friends-list"></ul></div><div id="requests-list-tab" class="tab-content"><ul id="requests-list" class="requests-list"></ul></div></div></div></div>
+    
+    <div id="friends-modal-overlay" class="modal-overlay hidden">
+        <div class="modal friends-modal">
+            <button id="close-friends-modal-button" class="button-exit-modal">×</button>
+            <h2>Freunde</h2>
+            <div class="friends-content">
+                <p>Füge Freunde hinzu, um sie einzuladen.</p>
+                <div class="add-friend-form">
+                    <input type="text" id="add-friend-input" placeholder="Benutzername eingeben...">
+                    <button id="add-friend-button" class="button-primary"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                <div class="tabs">
+                    <button class="tab-button active" data-tab="friends-list-tab">Freunde</button>
+                    <button class="tab-button" data-tab="requests-list-tab">Anfragen <span id="requests-count" class="badge hidden">0</span></button>
+                </div>
+                <div id="friends-list-tab" class="tab-content active">
+                    <ul id="friends-list" class="friends-list"></ul>
+                </div>
+                <div id="requests-list-tab" class="tab-content">
+                    <ul id="requests-list" class="requests-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="invite-friends-modal-overlay" class="modal-overlay hidden"><div class="modal"><button id="close-invite-modal-button" class="button-exit-modal">×</button><h2>Freunde einladen</h2><ul id="online-friends-list" class="friends-list"></ul></div></div>
     <div id="custom-value-modal-overlay" class="modal-overlay hidden"><div class="modal numpad-modal"><button id="close-custom-value-modal-button" class="button-exit-modal">×</button><h2 id="custom-value-title">Wert eingeben</h2><div class="pin-display" id="custom-value-display"><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span></div><div id="numpad-custom-value" class="numpad"><button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button class="numpad-action" data-action="backspace"><i class="fa-solid fa-delete-left"></i></button><button data-key="0">0</button><button id="confirm-custom-value-button" class="numpad-action" data-action="confirm"><i class="fa-solid fa-check"></i></button></div></div></div>
     
@@ -244,10 +267,12 @@
 
     <div id="device-select-modal-overlay" class="modal-overlay hidden">
         <div class="modal selection-modal">
-            <button id="close-device-select-modal" class="button-exit-modal">×</button>
             <div class="selection-modal-header">
                 <h2>Gerät auswählen</h2>
-                <button id="refresh-devices-button-modal" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
+                <div class="header-actions">
+                     <button id="refresh-devices-button-modal" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
+                     <button id="close-device-select-modal" class="button-icon-close">×</button>
+                </div>
             </div>
             <ul id="device-list" class="selection-list"></ul>
         </div>
