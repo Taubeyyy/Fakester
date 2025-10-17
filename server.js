@@ -6,6 +6,26 @@ const axios = require('axios');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
+// --- NEUER FEHLER-CHECK ---
+// Dieser Block überprüft, ob alle wichtigen Umgebungsvariablen gesetzt sind.
+const requiredEnvVars = [
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_KEY',
+    'SUPABASE_ANON_KEY',
+    'SPOTIFY_CLIENT_ID',
+    'SPOTIFY_CLIENT_SECRET',
+    'REDIRECT_URI'
+];
+
+const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+    console.error('FATAL ERROR: The following environment variables are missing:');
+    console.error(missingVars.join(', '));
+    process.exit(1); // Stoppt den Server mit einem Fehlercode
+}
+// --- ENDE FEHLER-CHECK ---
+
 const { createClient } = require('@supabase/supabase-js');
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
@@ -420,7 +440,9 @@ function endGame(pin, cleanup = true) {
 
     broadcastToLobby(pin, { type: 'game-over', payload: { scores: getScores(pin) } });
     if(cleanup) {
-        setTimeout(() => delete games[pin], 60000);
+        setTimeout(() => {
+            if(games[pin]) delete games[pin];
+        }, 60000);
     }
 }
 
