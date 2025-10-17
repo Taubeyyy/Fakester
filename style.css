@@ -128,7 +128,8 @@ input:-webkit-autofill:active {
 .timer-bar { width: 100%; height: 100%; background-color: var(--primary-color); border-radius: 5px; transition: width 1s linear; }
 .game-content-area { width: 100%; flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; }
 .album-art-container { width: 70%; max-width: 250px; aspect-ratio: 1/1; }
-.album-art-container img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--border-radius); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+.album-art-container img, .album-art-container .placeholder-icon { width: 100%; height: 100%; object-fit: cover; border-radius: var(--border-radius); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+.album-art-container .placeholder-icon { display: flex; align-items: center; justify-content: center; font-size: 6rem; background-color: var(--dark-grey); color: var(--medium-grey); }
 .guess-area { width: 100%; display: flex; flex-direction: column; gap: 15px; }
 .mc-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
 .mc-option-button { background-color: var(--dark-grey); color: var(--text-color); padding: 12px; border: 2px solid var(--medium-grey); border-radius: 8px; font-size: 0.9rem; font-family: 'Montserrat', sans-serif; cursor: pointer; }
@@ -202,6 +203,7 @@ input:-webkit-autofill:active {
 .modal { background-color: var(--surface-color); padding: 20px; border-radius: var(--border-radius); width: 90%; max-width: 380px; position: relative; transform: scale(0.95); transition: transform 0.3s ease; }
 .modal p { margin-bottom: 10px; }
 .modal.change-name-modal input { margin-bottom: 20px; }
+.modal.guest-modal input { margin-bottom: 20px; }
 .modal-overlay:not(.hidden) .modal { transform: scale(1); }
 .button-exit-modal { position: absolute; top: 10px; right: 15px; font-size: 2rem; background: none; border: none; color: var(--text-muted-color); cursor: pointer; }
 .numpad-modal h2, .selection-modal h2 { font-size: 1.5rem; color: var(--text-muted-color); text-transform: uppercase; letter-spacing: 1px; }
@@ -215,7 +217,7 @@ input:-webkit-autofill:active {
 .selection-modal { display: flex; flex-direction: column; }
 .selection-modal-header { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 15px; flex-shrink: 0; }
 .selection-modal-header h2 { margin-bottom: 0; }
-.selection-list { list-style: none; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.selection-list { list-style: none; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
 .selection-list li { padding: 15px; background-color: var(--dark-grey); border-radius: 8px; cursor: pointer; transition: background-color 0.2s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .selection-list li:hover { background-color: var(--medium-grey); }
 .selection-list li.selected { background-color: var(--primary-color); color: #000; font-weight: 700; }
@@ -232,7 +234,7 @@ input:-webkit-autofill:active {
 
 .countdown-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    z-index: 9000; background-color: rgba(0, 0, 0, 0.85);
+    z-index: 9000; background-color: #000;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     color: white;
 }
@@ -251,3 +253,15 @@ input:-webkit-autofill:active {
 .leaderboard-row.me { background: var(--primary-color); color: #000; }
 .fade-in { animation: fadeIn 0.5s ease-in-out; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.friends-modal .tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid var(--dark-grey); }
+.friends-modal .tab-button { background: none; border: none; color: var(--text-muted-color); padding: 10px 15px; cursor: pointer; font-family: 'Montserrat', sans-serif; font-size: 1rem; font-weight: 700; border-bottom: 2px solid transparent; }
+.friends-modal .tab-button.active { color: var(--text-color); border-bottom-color: var(--primary-color); }
+.friends-modal .tab-content { display: none; }
+.friends-modal .tab-content.active { display: block; }
+.friends-modal .add-friend-form { display: flex; gap: 10px; margin-bottom: 20px; }
+.friends-modal .add-friend-form input { flex-grow: 1; }
+.friends-modal .add-friend-form button { flex-shrink: 0; width: 50px; height: 50px; border-radius: 50%; padding: 0; font-size: 1.2rem; }
+.friends-modal ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.friends-modal li { display: flex; align-items: center; justify-content: space-between; background-color: var(--dark-grey); padding: 10px 15px; border-radius: 8px; }
+.friends-modal .friend-actions button { width: 35px; height: 35px; font-size: 0.9rem; }

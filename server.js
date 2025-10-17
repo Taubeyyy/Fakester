@@ -190,12 +190,16 @@ function handleWebSocketMessage(ws, data) {
                  }
                 break;
             case 'player-ready':
-                if (game && game.players[playerId] && game.gameState === 'RESULTS') {
+                if (game && game.players[playerId]) {
                     game.players[playerId].isReady = true;
                     const activePlayers = Object.values(game.players).filter(p=>p.isConnected && p.lives > 0);
                     if (activePlayers.every(p => p.isReady)) {
-                        clearTimeout(game.nextRoundTimer);
-                        startRoundCountdown(pin);
+                        if (game.gameState === 'RESULTS') {
+                            clearTimeout(game.nextRoundTimer);
+                            startRoundCountdown(pin);
+                        } else if (game.gameState === 'PRE_ROUND') {
+                             startRoundCountdown(pin);
+                        }
                     }
                 }
                 break;
@@ -212,6 +216,11 @@ function handlePlayerDisconnect(ws) {
     if (!game || !game.players[playerId]) return;
 
     game.players[playerId].isConnected = false;
+    
+    // If the host disconnects, stop the music immediately
+    if (playerId === game.hostId) {
+        spotifyApiCall('put', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.hostToken).catch(() => {});
+    }
 
     if (game.gameState === 'LOBBY') {
         broadcastToLobby(pin, { type: 'toast', payload: { message: `${game.players[playerId].nickname} hat die Verbindung verloren...` } });
@@ -255,8 +264,6 @@ async function startGame(pin) {
     const game = games[pin];
     await spotifyApiCall('put', `https://api.spotify.com/v1/me/player`, game.hostToken, { device_ids: [game.settings.deviceId], play: false });
     
-    game.gameState = 'PLAYING'; 
-    game.currentRound = 0; 
     Object.values(game.players).forEach(p => { p.score = 0; p.lives = game.settings.lives; p.timeline = []; p.hasGuessed = false; });
     
     const tracks = await getPlaylistTracks(game.settings.playlistId, game.hostToken);
@@ -264,17 +271,24 @@ async function startGame(pin) {
     
     game.songList = shuffleArray(tracks);
     const songCount = parseInt(game.settings.songCount);
+    game.totalRounds = (songCount > 0 && game.settings.gameType === 'points') ? songCount : game.songList.length;
+    
     if (songCount > 0 && game.settings.gameType === 'points') { 
         game.songList = game.songList.slice(0, songCount); 
+        game.totalRounds = game.songList.length;
     }
 
     if(game.gameMode === 'timeline' || game.gameMode === 'popularity') {
+       game.gameState = 'PRE_ROUND';
        const firstSong = game.songList.shift();
        Object.values(game.players).forEach(p => p.timeline.push(firstSong));
        await spotifyApiCall('put', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.hostToken, { uris: [`spotify:track:${firstSong.spotifyId}`] });
+       broadcastToLobby(pin, { type: 'game-starting', payload: { firstSong, guessTime: game.settings.guessTime } });
+    } else {
+        game.gameState = 'PLAYING';
+        game.currentRound = 0; 
+        startRoundCountdown(pin);
     }
-    
-    startRoundCountdown(pin);
 }
 
 function startRoundCountdown(pin) {
@@ -282,13 +296,13 @@ function startRoundCountdown(pin) {
     if (!game) return;
     Object.values(game.players).forEach(p => { p.isReady = false; p.hasGuessed = false; });
     
-    if (game.settings.gameType === 'points' && game.currentRound >= game.songList.length) { return endGame(pin); }
+    if (game.settings.gameType === 'points' && game.currentRound >= game.totalRounds) { return endGame(pin); }
     const activePlayers = Object.values(game.players).filter(p => p.isConnected && p.lives > 0);
     if (game.settings.gameType === 'lives' && activePlayers.length <= 1) { return endGame(pin); }
 
     game.gameState = 'PLAYING';
     game.currentRound++;
-    broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound, totalRounds: game.settings.gameType === 'points' ? game.songList.length : 0 } });
+    broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound, totalRounds: game.totalRounds } });
     setTimeout(() => startNewRound(pin), 4000);
 }
 
@@ -304,7 +318,7 @@ async function startNewRound(pin) {
     const mcOptions = game.settings.answerType === 'multiple' ? generateMultipleChoiceOptions(game.songList, game.currentSong) : null;
 
     const payload = {
-        round: game.currentRound, totalRounds: game.settings.gameType === 'points' ? game.songList.length : 0,
+        round: game.currentRound, totalRounds: game.totalRounds,
         scores: getScores(pin), guessTime: parseInt(game.settings.guessTime), gameMode: game.gameMode
     };
     
@@ -336,11 +350,13 @@ function handleTimelineGuess(pin, playerId, { index }) {
     let points = 0;
     if (isCorrect) {
         points = 100;
-        player.timeline.splice(index, 0, songToPlace);
         if (game.settings.gameType === 'points') player.score += points;
     } else {
         if (game.settings.gameType === 'lives') player.lives--;
     }
+    
+    // Always insert at the correct position for the next round
+    player.timeline.splice(finalCorrectIndex, 0, songToPlace);
     player.lastPointsBreakdown = { total: points };
     
     player.ws.send(JSON.stringify({type: 'round-result', payload: { wasCorrect: isCorrect, song: songToPlace, scores: getScores(pin), correctIndex: finalCorrectIndex, userIndex: index }}));
@@ -359,11 +375,12 @@ function handlePopularityGuess(pin, playerId, { guess }) {
     let points = 0;
     if (isCorrect) {
         points = 100;
-        player.timeline.push(currentSong);
         if (game.settings.gameType === 'points') player.score += points;
     } else {
         if (game.settings.gameType === 'lives') player.lives--;
     }
+    
+    player.timeline.push(currentSong);
     player.lastPointsBreakdown = { total: points };
 
     player.ws.send(JSON.stringify({type: 'round-result', payload: { wasCorrect: isCorrect, song: currentSong, scores: getScores(pin) }}));
@@ -375,7 +392,7 @@ function checkRoundEnd(pin) {
     if (!game) return;
     const activePlayers = Object.values(game.players).filter(p => p.isConnected && p.lives > 0);
     if (activePlayers.every(p => p.hasGuessed)) {
-        game.nextRoundTimer = setTimeout(() => startRoundCountdown(pin), 5000);
+        game.nextRoundTimer = setTimeout(() => startRoundCountdown(pin), 6000); // Increased time to see result
     }
 }
 

@@ -1,31 +1,41 @@
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "", customValueInput = "", currentCustomType = null;
-    let achievements = [], userTitles = [], userUnlockedAchievementIds = [1, 3], userEquippedTitleId = 3; // Dummy data
+    
+    // Dummy Data for Achievements & Titles
+    let userUnlockedAchievementIds = [1, 3];
+    
     let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] };
     let screenHistory = ['auth-screen'];
 
-    // Temporäre Variablen für die Spielerstellung
+    // Temporary variables for game creation
     let selectedGameMode = null;
     let gameCreationSettings = {
         gameType: null,
         lives: 3
     };
 
-    const testAchievements = [
+    const achievementsList = [
         { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' },
         { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig.' },
         { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' },
         { id: 4, name: 'Historiker', description: 'Gewinne eine Timeline-Runde.' },
-        { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' }
+        { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' },
+        { id: 6, name: 'Musik-Lexikon', description: 'Beantworte 500 Fragen richtig.'},
+        { id: 7, name: 'Unbesiegbar', description: 'Gewinne 5 Spiele in Folge.'},
+        { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt.'}
     ];
-    const testTitles = [
+    const titlesList = [
         { id: 1, name: 'Neuling', achievement_id: null },
         { id: 2, name: 'Musik-Kenner', achievement_id: 2 },
         { id: 3, name: 'Legende', achievement_id: 3 },
-        { id: 4, name: 'Zeitreisender', achievement_id: 4 }
+        { id: 4, name: 'Zeitreisender', achievement_id: 4 },
+        { id: 5, name: 'Star-Experte', achievement_id: 5 },
+        { id: 6, name: 'Maestro', achievement_id: 6 },
+        { id: 7, name: 'Champion', achievement_id: 7 },
+        { id: 8, name: 'Orakel', achievement_id: 8 }
     ];
-    const PLACEHOLDER_IMAGE_URL = 'https://i.imgur.com/3EMVPIA.png';
+    const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
     const elements = {
         screens: document.querySelectorAll('.screen'),
@@ -76,15 +86,18 @@ document.addEventListener('DOMContentLoaded', () => {
             closeBtn: document.getElementById('close-playlist-select-modal'),
             list: document.getElementById('playlist-list'),
             search: document.getElementById('playlist-search'),
+        },
+        stats: {
+            gamesPlayed: document.getElementById('stat-games-played'), wins: document.getElementById('stat-wins'), winrate: document.getElementById('stat-winrate'),
+            highscore: document.getElementById('stat-highscore'), correctAnswers: document.getElementById('stat-correct-answers'), avgScore: document.getElementById('stat-avg-score'),
+            gamesPlayedPreview: document.getElementById('stat-games-played-preview'), winsPreview: document.getElementById('stat-wins-preview'), correctAnswersPreview: document.getElementById('stat-correct-answers-preview'),
         }
     };
 
     const showToast = (message, isError = false) => Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "var(--danger-color)" : "var(--success-color)", borderRadius: "8px" } }).showToast();
     const showScreen = (screenId) => {
         const currentScreen = screenHistory[screenHistory.length - 1];
-        if (screenId !== currentScreen) {
-            screenHistory.push(screenId);
-        }
+        if (screenId !== currentScreen) screenHistory.push(screenId);
         elements.screens.forEach(s => s.classList.remove('active'));
         document.getElementById(screenId)?.classList.add('active');
         const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId);
@@ -108,11 +121,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.toggle('is-guest', isGuest);
         document.getElementById('welcome-nickname').textContent = currentUser.username;
         if (!isGuest) { 
+            if (currentUser.username.toLowerCase() === 'taubey') {
+                userUnlockedAchievementIds = achievementsList.map(a => a.id);
+            }
             await checkSpotifyStatus(); 
             renderAchievements(); 
             renderTitles();
-            const equippedTitle = testTitles.find(t => t.id === userEquippedTitleId);
-            if(equippedTitle) document.getElementById('profile-title').textContent = equippedTitle.name;
+            updateStatsDisplay();
+            const storedTitleId = localStorage.getItem('fakesterEquippedTitle');
+            if(storedTitleId) equipTitle(parseInt(storedTitleId));
         }
         showScreen('home-screen');
         connectWebSocket();
@@ -163,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleWebSocketMessage = ({ type, payload }) => {
         console.log(`Nachricht: ${type}`, payload);
         setLoading(false);
-        elements.countdownOverlay.classList.add('hidden');
+        if (type !== 'round-countdown') elements.countdownOverlay.classList.add('hidden');
 
         switch (type) {
             case 'game-created':
@@ -178,6 +195,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 elements.lobby.pinDisplay.textContent = payload.pin;
                 renderPlayerList(payload.players, payload.hostId);
                 updateHostSettings(payload.settings, currentGame.isHost);
+                break;
+            case 'game-starting':
+                showScreen('game-screen');
+                setupPreRound(payload);
                 break;
             case 'round-countdown':
                 showCountdown(payload.round, payload.totalRounds);
@@ -287,13 +308,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 1000);
     }
 
+    function setupPreRound(data) {
+        const gameArea = elements.game.gameContentArea;
+        const { firstSong, guessTime } = data;
+        elements.game.round.textContent = 'Start';
+        elements.game.totalRounds.textContent = 'Song';
+
+        gameArea.innerHTML = `
+            <div class="result-info">
+                <h2>${firstSong.title}</h2>
+                <p>von ${firstSong.artist} (${firstSong.year})</p>
+                ${currentGame.gameMode === 'popularity' ? `<p>Popularität: ${firstSong.popularity}</p>` : ''}
+            </div>
+            <div class="timeline-scroll-container">
+                <div class="timeline-track" style="justify-content: center;">
+                    <div class="timeline-card">
+                        <img src="${firstSong.albumArtUrl || ''}" alt="Album Art">
+                        <div class="year">${firstSong.year}</div>
+                    </div>
+                </div>
+            </div>
+            <button id="ready-button" class="button-primary">Bereit</button>
+        `;
+
+        document.getElementById('ready-button').addEventListener('click', (e) => {
+            e.target.disabled = true;
+            e.target.textContent = 'Warte auf andere...';
+            ws.socket.send(JSON.stringify({ type: 'player-ready' }));
+        });
+        
+        const timerBar = elements.game.timerBar;
+        timerBar.style.transition = 'none';
+        timerBar.style.width = '100%';
+        setTimeout(() => {
+            timerBar.style.transition = `width ${guessTime}s linear`;
+            timerBar.style.width = '0%';
+        }, 100);
+    }
+
     function setupNewRound(data) {
         elements.game.round.textContent = data.round;
         elements.game.totalRounds.textContent = data.totalRounds > 0 ? data.totalRounds : '∞';
         
         const gameArea = elements.game.gameContentArea;
         if (data.gameMode === 'quiz') {
-            gameArea.innerHTML = `<div class="album-art-container"><img id="album-art" src="${PLACEHOLDER_IMAGE_URL}" alt="Album Cover"></div><div id="game-guess-area" class="guess-area"></div>`;
+            gameArea.innerHTML = `<div class="album-art-container">${PLACEHOLDER_ICON}</div><div id="game-guess-area" class="guess-area"></div>`;
             const guessArea = document.getElementById('game-guess-area');
             if (data.mcOptions) {
                 guessArea.innerHTML = ['title', 'artist', 'year'].map(key => `
@@ -330,7 +389,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let timelineHtml = '<div class="timeline-drop-zone" data-index="0"><i class="fa-solid fa-plus"></i></div>';
             timelineHtml += data.timeline.map((song, i) => `
                 <div class="timeline-card">
-                    <img src="${song.albumArtUrl || PLACEHOLDER_IMAGE_URL}" alt="Album Art">
+                    <img src="${song.albumArtUrl || ''}" alt="Album Art">
                     <div class="year">${song.year}</div>
                 </div>
                 <div class="timeline-drop-zone" data-index="${i + 1}"><i class="fa-solid fa-plus"></i></div>
@@ -351,12 +410,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     ws.socket.send(JSON.stringify({ type: 'submit-guess', payload: { index: parseInt(zone.dataset.index) } }));
                 });
             });
+            document.querySelector('.timeline-scroll-container').scrollLeft = (document.querySelector('.timeline-track').scrollWidth - document.querySelector('.timeline-scroll-container').clientWidth) / 2;
         } else if (data.gameMode === 'popularity') {
             const lastSong = data.timeline[data.timeline.length - 1];
             gameArea.innerHTML = `
                 <div class="popularity-container">
                     <div class="popularity-card">
-                        <img src="${lastSong.albumArtUrl || PLACEHOLDER_IMAGE_URL}">
+                        <img src="${lastSong.albumArtUrl || ''}">
                         <div class="popularity-card-info">
                             <h3>${lastSong.title}</h3>
                             <p>${lastSong.artist}</p>
@@ -406,7 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <button id="ready-button" class="button-primary">Weiter</button>`;
 
         if (currentGame.gameMode === 'quiz') {
-            document.getElementById('album-art').src = data.song.albumArtUrl;
+            gameArea.querySelector('.album-art-container').innerHTML = `<img id="album-art" src="${data.song.albumArtUrl}" alt="Album Cover">`;
             const breakdown = me ? me.lastPointsBreakdown : { artist: 0, title: 0, year: 0, total: 0 };
             document.getElementById('game-guess-area').innerHTML = `
                 <div class="result-info">
@@ -423,14 +483,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let timelineHtml = timeline.map(song => `
                 <div class="timeline-card ${song.status || ''}" ${song.status ? `id="newly-placed-card"` : ''}>
-                    <img src="${song.albumArtUrl || PLACEHOLDER_IMAGE_URL}" alt="Album Art">
+                    <img src="${song.albumArtUrl || ''}" alt="Album Art">
                     <div class="year">${song.year}</div>
                 </div>`).join('');
             
             if (!data.wasCorrect) {
                 const ghostCard = `<div class="timeline-card ghost"><div class="year">${data.song.year}</div></div>`;
                 const tempEl = document.createElement('div');
-                let cardsHtml = timeline.map(s => `<div class="timeline-card ${s.status || ''}"><img src="${s.albumArtUrl || PLACEHOLDER_IMAGE_URL}"><div class="year">${s.year}</div></div>`).join('');
+                let cardsHtml = timeline.map(s => `<div class="timeline-card ${s.status || ''}"><img src="${s.albumArtUrl || ''}"><div class="year">${s.year}</div></div>`).join('');
                 tempEl.innerHTML = cardsHtml;
                 const cards = tempEl.querySelectorAll('.timeline-card');
                 
@@ -531,22 +591,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateCustomValueDisplay = () => { elements.customValueModal.display.forEach((d, i) => d.textContent = customValueInput[i] || ""); };
 
     function renderAchievements() {
-        elements.achievements.grid.innerHTML = testAchievements.map(a => {
+        elements.achievements.grid.innerHTML = achievementsList.map(a => {
             const isUnlocked = userUnlockedAchievementIds.includes(a.id);
             return `<div class="stat-card ${!isUnlocked ? 'locked' : ''}"><span class="stat-value">${a.name}</span><span class="stat-label">${a.description}</span></div>`;
         }).join('');
     }
+
+    function equipTitle(titleId) {
+        const title = titlesList.find(t => t.id === titleId);
+        if (title) {
+            localStorage.setItem('fakesterEquippedTitle', titleId);
+            document.getElementById('profile-title').textContent = title.name;
+        }
+        renderTitles();
+    }
+
     function renderTitles() {
-        let finalTitles = [...testTitles];
+        const equippedTitleId = parseInt(localStorage.getItem('fakesterEquippedTitle')) || 1;
+        let finalTitles = [...titlesList];
         if (currentUser && currentUser.username.toLowerCase() === 'taubey') {
             finalTitles.push({ id: 99, name: 'Entwickler', achievement_id: null });
         }
         elements.titles.list.innerHTML = finalTitles.map(t => {
             const isUnlocked = !t.achievement_id || userUnlockedAchievementIds.includes(t.achievement_id);
             if (!isUnlocked) return ''; 
-            const isEquipped = t.id === userEquippedTitleId;
-            return `<div class="title-card ${isEquipped ? 'equipped' : ''}" data-title-id="${t.id}"><span class="stat-value">${t.name}</span><span class="stat-label">${t.achievement_id ? `Freigeschaltet: ${testAchievements.find(a=>a.id === t.achievement_id).name}` : 'Spezial-Titel'}</span></div>`;
+            const isEquipped = t.id === equippedTitleId;
+            return `<div class="title-card ${isEquipped ? 'equipped' : ''}" data-title-id="${t.id}"><span class="stat-value">${t.name}</span><span class="stat-label">${t.achievement_id ? `Freigeschaltet: ${achievementsList.find(a=>a.id === t.achievement_id).name}` : 'Spezial-Titel'}</span></div>`;
         }).join('');
+    }
+
+    function updateStatsDisplay() {
+        // Dummy data for now - replace with actual data fetching
+        const statsData = { games: 23, wins: 12, highscore: 1850, correct: 178, avgScore: 1230 };
+        elements.stats.gamesPlayed.textContent = statsData.games;
+        elements.stats.wins.textContent = statsData.wins;
+        elements.stats.winrate.textContent = statsData.games > 0 ? `${Math.round((statsData.wins / statsData.games) * 100)}%` : '0%';
+        elements.stats.highscore.textContent = statsData.highscore;
+        elements.stats.correctAnswers.textContent = statsData.correct;
+        elements.stats.avgScore.textContent = statsData.avgScore;
+        elements.stats.gamesPlayedPreview.textContent = statsData.games;
+        elements.stats.winsPreview.textContent = statsData.wins;
+        elements.stats.correctAnswersPreview.textContent = statsData.correct;
     }
     
     // =========================================================================================
@@ -559,19 +644,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const config = await response.json();
             supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-            // Bind all event listeners to the document body for delegation
             document.body.addEventListener('click', async (e) => {
                 const target = e.target;
-                const button = target.closest('button');
                 
-                // Modals & General UI
                 if (target.closest('#leave-game-button')) {
                     if (document.getElementById('lobby-screen').classList.contains('active')) {
-                        localStorage.removeItem('fakesterGame');
-                        window.location.reload();
-                    } else {
-                        goBack();
-                    }
+                        localStorage.removeItem('fakesterGame'); window.location.reload();
+                    } else { goBack(); }
                 }
                 if (target.closest('.help-icon')) showToast(target.closest('.help-icon').title);
                 if (target.closest('#guest-mode-button')) elements.guestModal.overlay.classList.remove('hidden');
@@ -591,7 +670,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (target.closest('#friends-button')) elements.friendsModal.overlay.classList.remove('hidden');
                 if (target.closest('#close-friends-modal-button')) elements.friendsModal.overlay.classList.add('hidden');
                 
-                // Home Screen
                 if (target.closest('#username-container')) {
                     if(currentUser && !currentUser.isGuest) {
                         elements.changeNameModal.input.value = currentUser.username;
@@ -607,7 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(newName.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
                     if(newName === currentUser.username) return elements.changeNameModal.overlay.classList.add('hidden');
                     setLoading(true);
-                    const { data, error } = await supabase.auth.updateUser({ data: { username: newName } });
+                    const { error } = await supabase.auth.updateUser({ data: { username: newName } });
                     setLoading(false);
                     if(error) { showToast(error.message, true); } 
                     else {
@@ -623,16 +701,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (target.closest('#stats-button')) showScreen('stats-screen');
                 if (target.closest('#show-create-button-action')) showScreen('mode-selection-screen');
                 
-                // Title Selection
                 const titleCard = target.closest('.title-card');
-                if (titleCard) {
-                    userEquippedTitleId = parseInt(titleCard.dataset.titleId);
-                    document.getElementById('profile-title').textContent = titleCard.querySelector('.stat-value').textContent;
-                    renderTitles();
-                    showToast('Titel ausgerüstet!');
-                }
+                if (titleCard) equipTitle(parseInt(titleCard.dataset.titleId));
                 
-                // Game Creation Flow
                 const modeBox = target.closest('.mode-box');
                 if (modeBox) {
                     selectedGameMode = modeBox.dataset.mode;
@@ -668,7 +739,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: selectedGameMode, gameType: gameCreationSettings.gameType, lives: gameCreationSettings.lives } }));
                 }
 
-                // Lobby Actions
                 if (target.closest('#device-select-button')) elements.deviceSelectModal.overlay.classList.remove('hidden');
                 if (target.closest('#close-device-select-modal')) elements.deviceSelectModal.overlay.classList.add('hidden');
                 if (target.closest('#refresh-devices-button-modal')) fetchHostData(true);
@@ -691,7 +761,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const type = presetBtn.dataset.type;
                     let title = 'Wert eingeben';
                     if (type === 'song-count') title = 'Anzahl Songs';
-                    if (type === 'guess-time') title = 'Ratezeit (s)';
+                    else if (type === 'guess-time') title = 'Ratezeit (s)';
                     openCustomValueModal(type, title);
                 } else if (presetBtn && !presetBtn.closest('#lives-count-presets')) {
                     const container = presetBtn.parentElement;
@@ -733,9 +803,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const value = parseInt(customValueInput);
                 if (currentCustomType === 'lives') {
                     gameCreationSettings.lives = value;
-                    elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
                     const customBtn = elements.gameTypeScreen.livesPresets.querySelector('[data-value="custom"]');
-                    if(customBtn) { customBtn.classList.add('active'); customBtn.textContent = value; }
+                    if(customBtn) { customBtn.textContent = value; }
                 } else {
                     ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [currentCustomType.replace('song-count', 'songCount').replace('guess-time', 'guessTime')]: value }}));
                 }
