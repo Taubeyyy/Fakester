@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const main = async () => {
         try {
-            setLoading(true); // Show loader at the very beginning
+            setLoading(true);
             const response = await fetch('/api/config');
             if (!response.ok) throw new Error('Konfiguration konnte nicht geladen werden.');
             const config = await response.json();
@@ -783,8 +783,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 setLoading(true);
             });
 
-            // --- FIX STARTS HERE ---
+            // --- ROBUST AUTH STATE HANDLING ---
             supabase.auth.onAuthStateChange(async (event, session) => {
+                // This event fires once on page load with the current session or null
                 if (event === 'INITIAL_SESSION') {
                     try {
                         if (session) {
@@ -793,15 +794,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             showScreen('auth-screen');
                         }
                     } catch (e) {
-                        console.error("Fehler bei der Initialisierung:", e);
-                        showScreen('auth-screen');
+                        console.error("Fehler bei der App-Initialisierung:", e);
+                        showScreen('auth-screen'); // Fallback to login on error
                     } finally {
-                        setLoading(false); // Dies ist der wichtigste Teil: Blendet den Loader immer aus
+                        // This is crucial: always hide the loader after the initial check
+                        setLoading(false); 
                     }
-                } else if (event === 'SIGNED_IN') {
-                    setLoading(true);
+                } 
+                // Handle subsequent logins and logouts without showing the main loader
+                else if (event === 'SIGNED_IN') {
                     await initializeApp(session.user);
-                    setLoading(false);
                 } else if (event === 'SIGNED_OUT') {
                     currentUser = null;
                     showScreen('auth-screen');
@@ -815,7 +817,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             });
-            // --- FIX ENDS HERE ---
 
         } catch (error) {
             setLoading(false);
@@ -824,3 +825,4 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     main();
 });
+
