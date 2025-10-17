@@ -784,25 +784,30 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             supabase.auth.onAuthStateChange(async (event, session) => {
-                setLoading(true);
-                if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
-                    if (!currentUser || currentUser.id !== session.user.id) {
-                         await initializeApp(session.user);
+                // This logic ensures the loading overlay is always handled correctly on startup.
+                if (event === 'INITIAL_SESSION') {
+                    if (session) {
+                        await initializeApp(session.user);
                     } else {
-                        // Handle title update without full re-initialization
-                        const newTitleId = session.user.user_metadata.equipped_title_id || 1;
-                        if (currentUser.titleId !== newTitleId) {
-                            currentUser.titleId = newTitleId;
-                            const equippedTitle = testTitles.find(t => t.id === currentUser.titleId) || testTitles[0];
-                            document.getElementById('profile-title').textContent = equippedTitle.name;
-                            renderTitles();
-                        }
+                        showScreen('auth-screen');
                     }
-                } else if (event === 'SIGNED_OUT' || !session) {
+                    setLoading(false);
+                } else if (event === 'SIGNED_IN') {
+                    await initializeApp(session.user);
+                    setLoading(false);
+                } else if (event === 'SIGNED_OUT') {
                     currentUser = null;
                     showScreen('auth-screen');
+                    setLoading(false);
+                } else if (event === 'USER_UPDATED') {
+                     const newTitleId = session.user.user_metadata.equipped_title_id || 1;
+                    if (currentUser && currentUser.titleId !== newTitleId) {
+                        currentUser.titleId = newTitleId;
+                        const equippedTitle = testTitles.find(t => t.id === currentUser.titleId) || testTitles[0];
+                        document.getElementById('profile-title').textContent = equippedTitle.name;
+                        renderTitles();
+                    }
                 }
-                setLoading(false);
             });
         } catch (error) {
             setLoading(false);
