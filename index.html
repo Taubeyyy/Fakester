@@ -45,13 +45,18 @@
     <main id="home-screen" class="screen">
         <div class="home-container">
             <div class="profile-section">
-                <div class="profile-picture"><i class="fa-solid fa-user"></i></div>
+                <button id="profile-picture-button" class="profile-picture guest-hidden"><i id="profile-icon" class="fa-solid fa-user"></i></button>
+                <div class="profile-picture is-guest"><i class="fa-solid fa-user-secret"></i></div>
                 <div class="profile-info">
                     <div id="username-container" class="username-container">
                         <h2 id="welcome-nickname"></h2>
                         <i class="fa-solid fa-pencil edit-icon guest-hidden"></i>
                     </div>
                     <button class="profile-title-button"><span id="profile-title" class="profile-title">Neuling</span></button>
+                    <div class="level-progress-container guest-hidden">
+                        <span class="level-text">Level <span id="profile-level">1</span></span>
+                        <div class="xp-bar"><div id="profile-xp-fill" class="xp-fill"></div></div>
+                    </div>
                 </div>
                 <div class="profile-actions">
                     <button id="friends-button" class="button-icon guest-hidden" title="Freunde"><i class="fa-solid fa-user-group"></i></button>
@@ -224,6 +229,14 @@
             <h2>Titel auswählen</h2>
             <p>Wähle einen Titel, der unter deinem Namen angezeigt wird.</p>
             <div id="title-list" class="stats-full-grid"></div>
+        </div>
+    </main>
+
+    <main id="icon-selection-screen" class="screen">
+        <div class="container text-left">
+            <h2>Icon auswählen</h2>
+            <p>Wähle ein Icon, das dein Profilbild ziert.</p>
+            <div id="icon-list" class="icon-grid"></div>
         </div>
     </main>
 

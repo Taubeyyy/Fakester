@@ -25,6 +25,7 @@ body {
     touch-action: manipulation;
 }
 body.is-guest .guest-hidden { display: none !important; }
+body:not(.is-guest) .is-guest { display: none !important; }
 
 .app-background { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-image: radial-gradient(ellipse 80% 50% at 5% 95%, rgba(29, 185, 84, 0.2), transparent); z-index: -1; }
 .app-header { width: 100%; padding: 15px 20px; z-index: 10; display: flex; align-items: center; justify-content: space-between; position: relative; }
@@ -90,14 +91,19 @@ input:-webkit-autofill:active {
 
 .home-container { justify-content: flex-start; }
 .profile-section { display: flex; align-items: center; gap: 15px; width: 100%; background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); }
-.profile-picture { width: 60px; height: 60px; border-radius: 50%; background-color: var(--dark-grey); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--text-muted-color); flex-shrink: 0;}
-.profile-info { text-align: left; flex-grow: 1; }
+.profile-picture { width: 60px; height: 60px; border-radius: 50%; background-color: var(--dark-grey); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--text-muted-color); flex-shrink: 0; border: none; cursor: pointer; }
+.profile-info { text-align: left; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
 .username-container { position: relative; display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .username-container h2 { margin-bottom: 0; }
 .edit-icon { font-size: 0.9rem; color: var(--text-muted-color); transform: translateY(-10px) translateX(-2px); }
 .profile-title-button { background: none; border: none; padding: 0; cursor: pointer; text-align: left; margin-top: 4px; }
 .profile-title { font-size: 0.9rem; font-weight: 700; color: var(--primary-color); background: #1db95420; padding: 3px 8px; border-radius: 20px; display: inline-block; }
 .profile-actions { margin-left: auto; display: flex; gap: 10px; }
+
+.level-progress-container { margin-top: 8px; }
+.level-text { font-size: 0.8rem; color: var(--text-muted-color); font-weight: 700; }
+.xp-bar { width: 100%; height: 6px; background-color: var(--dark-grey); border-radius: 3px; margin-top: 4px; overflow: hidden; }
+.xp-fill { width: 50%; height: 100%; background-color: var(--primary-color); border-radius: 3px; transition: width 0.5s ease-out; }
 
 .stats-overview-card { 
     background-color: var(--surface-color); padding: 20px; border-radius: var(--border-radius); width: 100%; cursor: pointer; 
@@ -112,16 +118,16 @@ input:-webkit-autofill:active {
 .home-actions { display: flex; flex-direction: column; gap: 15px; width: 100%; margin-top: 20px; }
 .corner-button { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background-color: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; font-size: 1rem; z-index: 100; }
 
-.stats-full-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; }
-.stat-card, .title-card { background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); text-align: center; position: relative; border: 2px solid transparent; transition: border-color 0.3s; cursor: default; }
+.stats-full-grid, .icon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; }
+.stat-card, .title-card, .icon-card { background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); text-align: center; position: relative; border: 2px solid transparent; transition: border-color 0.3s; cursor: default; }
 .stat-card .stat-value, .title-card .stat-value { font-size: 1.2rem; font-weight: 800; color: var(--primary-color); display: block; margin-bottom: 5px; }
-.stat-card .stat-label, .title-card .stat-label { font-size: 0.7rem; color: var(--text-muted-color); }
-.stat-card.locked { background-color: var(--dark-grey); opacity: 0.6; }
-.stat-card.locked .stat-value { color: var(--text-muted-color); }
-.stat-card.locked::after { content: '\f023'; font-family: 'Font Awesome 6 Free'; font-weight: 900; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2rem; color: rgba(255,255,255,0.2); }
-.title-card { cursor: pointer; }
-.title-card.equipped { border-color: var(--primary-color); }
-
+.stat-card .stat-label, .title-card .stat-label, .icon-card .stat-label { font-size: 0.7rem; color: var(--text-muted-color); }
+.stat-card.locked, .icon-card.locked { background-color: var(--dark-grey); opacity: 0.6; }
+.stat-card.locked .stat-value, .icon-card.locked .icon-preview { color: var(--text-muted-color); }
+.stat-card.locked::after, .icon-card.locked::after { content: '\f023'; font-family: 'Font Awesome 6 Free'; font-weight: 900; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2rem; color: rgba(255,255,255,0.2); }
+.title-card, .icon-card { cursor: pointer; }
+.title-card.equipped, .icon-card.equipped { border-color: var(--primary-color); }
+.icon-card .icon-preview { font-size: 3rem; color: var(--primary-color); margin-bottom: 10px; }
 
 .game-container { height: 100%; justify-content: space-between; }
 .round-info { width: 100%; }
@@ -269,6 +275,8 @@ input:-webkit-autofill:active {
 .friends-modal .add-friend-form button { flex-shrink: 0; width: 50px; height: 50px; border-radius: 50%; padding: 0; font-size: 1.2rem; }
 .friends-modal ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
 .friends-modal li { display: flex; align-items: center; justify-content: space-between; background-color: var(--dark-grey); padding: 10px 15px; border-radius: 8px; }
+.friends-modal .friend-info { text-align: left; }
+.friends-modal .friend-status { font-size: 0.8rem; color: var(--text-muted-color); }
 .friends-modal .friend-actions button { width: 35px; height: 35px; font-size: 0.9rem; }
 
 #invite-popup-container { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 380px; z-index: 10001; }

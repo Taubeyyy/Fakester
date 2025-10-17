@@ -2,8 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "", customValueInput = "", currentCustomType = null;
     
-    // Dummy Data for Achievements & Titles
-    let userUnlockedAchievementIds = [1, 3];
+    // Dummy Data for Progression & Social
+    let userUnlockedAchievementIds = [1, 3]; 
+    let friendsList = [
+        { id: 'friend-1', username: 'Jonas', status: 'online'},
+        { id: 'friend-2', username: 'Lena', status: 'offline'},
+        { id: 'friend-3', username: 'Tubey', status: 'request_sent'}
+    ];
     
     let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] };
     let screenHistory = ['auth-screen'];
@@ -26,15 +31,28 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt.'}
     ];
     const titlesList = [
-        { id: 1, name: 'Neuling', achievement_id: null },
-        { id: 2, name: 'Musik-Kenner', achievement_id: 2 },
-        { id: 3, name: 'Legende', achievement_id: 3 },
-        { id: 4, name: 'Zeitreisender', achievement_id: 4 },
-        { id: 5, name: 'Star-Experte', achievement_id: 5 },
-        { id: 6, name: 'Maestro', achievement_id: 6 },
-        { id: 7, name: 'Champion', achievement_id: 7 },
-        { id: 8, name: 'Orakel', achievement_id: 8 }
+        { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1 },
+        { id: 2, name: 'Musik-Kenner', unlockType: 'achievement', unlockValue: 2 },
+        { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3 },
+        { id: 4, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4 },
+        { id: 5, 'name': 'Star-Experte', unlockType: 'achievement', unlockValue: 5 },
+        { id: 10, name: 'Kenner', unlockType: 'level', unlockValue: 10 },
+        { id: 11, name: 'Experte', unlockType: 'level', unlockValue: 20 },
+        { id: 12, name: 'Meister', unlockType: 'level', unlockValue: 30 },
+        { id: 99, name: 'Entwickler', unlockType: 'special', unlockValue: 'Taubey' }
     ];
+    
+    const iconsList = [
+        { id: 1, iconClass: 'fa-user', unlockType: 'level', unlockValue: 1, description: 'Standard-Icon' },
+        { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5' },
+        { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10' },
+        { id: 4, iconClass: 'fa-trophy', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15' },
+        { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20' },
+        { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser' },
+        { id: 7, iconClass: 'fa-guitar', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger' },
+        { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 25, description: 'Erreiche Level 25' },
+    ];
+
     const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
     const elements = {
@@ -43,7 +61,14 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingOverlay: document.getElementById('loading-overlay'),
         countdownOverlay: document.getElementById('countdown-overlay'),
         auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form'), },
-        home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), },
+        home: { 
+            logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), 
+            createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), 
+            usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), 
+            friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'),
+            profilePictureBtn: document.getElementById('profile-picture-button'), profileIcon: document.getElementById('profile-icon'),
+            profileLevel: document.getElementById('profile-level'), profileXpFill: document.getElementById('profile-xp-fill')
+        },
         lobby: {
             pinDisplay: document.getElementById('lobby-pin'), playerList: document.getElementById('player-list'), hostSettings: document.getElementById('host-settings'), guestWaitingMessage: document.getElementById('guest-waiting-message'),
             deviceSelectBtn: document.getElementById('device-select-button'),
@@ -58,10 +83,12 @@ document.addEventListener('DOMContentLoaded', () => {
         game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), gameContentArea: document.getElementById('game-content-area') },
         guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), },
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), },
-        friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button') },
+        friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), friendsList: document.getElementById('friends-list') },
+        inviteFriendsModal: { overlay: document.getElementById('invite-friends-modal-overlay'), closeBtn: document.getElementById('close-invite-modal-button'), list: document.getElementById('online-friends-list') },
         customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')},
         achievements: { grid: document.getElementById('achievement-grid') },
         titles: { list: document.getElementById('title-list') },
+        icons: { list: document.getElementById('icon-list') },
         gameTypeScreen: {
             pointsBtn: document.getElementById('game-type-points'),
             livesBtn: document.getElementById('game-type-lives'),
@@ -133,9 +160,13 @@ document.addEventListener('DOMContentLoaded', () => {
             await checkSpotifyStatus(); 
             renderAchievements(); 
             renderTitles();
+            renderIcons();
             updateStatsDisplay();
             const storedTitleId = localStorage.getItem('fakesterEquippedTitle');
             if(storedTitleId) equipTitle(parseInt(storedTitleId));
+            const storedIconId = localStorage.getItem('fakesterEquippedIcon');
+            if(storedIconId) equipIcon(parseInt(storedIconId));
+            updatePlayerProgress(0, false); // Initialize with 0 XP
         }
         showScreen('home-screen');
         connectWebSocket();
@@ -218,7 +249,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
             case 'game-over':
                 localStorage.removeItem('fakesterGame');
-                showToast('Das Spiel ist vorbei!', false);
+                const myFinalScore = payload.scores.find(s => s.id === currentUser.id)?.score || 0;
+                showToast(`Spiel vorbei! Du hast ${myFinalScore} XP erhalten!`);
+                updatePlayerProgress(myFinalScore);
                 setTimeout(() => {
                     screenHistory = ['home-screen'];
                     showScreen('home-screen');
@@ -647,15 +680,84 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderTitles() {
         const equippedTitleId = parseInt(localStorage.getItem('fakesterEquippedTitle')) || 1;
         let finalTitles = [...titlesList];
-        if (currentUser && currentUser.username.toLowerCase() === 'taubey') {
-            finalTitles.push({ id: 99, name: 'Entwickler', achievement_id: null });
-        }
+        
         elements.titles.list.innerHTML = finalTitles.map(t => {
-            const isUnlocked = !t.achievement_id || userUnlockedAchievementIds.includes(t.achievement_id);
+            let isUnlocked = false;
+            if(t.unlockType === 'level') isUnlocked = (parseInt(localStorage.getItem('fakesterLevel')) || 1) >= t.unlockValue;
+            else if(t.unlockType === 'achievement') isUnlocked = userUnlockedAchievementIds.includes(t.unlockValue);
+            else if(t.unlockType === 'special') isUnlocked = currentUser.username.toLowerCase() === t.unlockValue.toLowerCase();
+
+            if (currentUser.username.toLowerCase() === 'taubey') isUnlocked = true;
             if (!isUnlocked) return ''; 
+
             const isEquipped = t.id === equippedTitleId;
             return `<div class="title-card ${isEquipped ? 'equipped' : ''}" data-title-id="${t.id}"><span class="stat-value">${t.name}</span><span class="stat-label">${t.achievement_id ? `Freigeschaltet: ${achievementsList.find(a=>a.id === t.achievement_id).name}` : 'Spezial-Titel'}</span></div>`;
         }).join('');
+    }
+
+    function equipIcon(iconId) {
+        const icon = iconsList.find(i => i.id === iconId);
+        if(icon){
+            localStorage.setItem('fakesterEquippedIcon', iconId);
+            elements.home.profileIcon.className = `fa-solid ${icon.iconClass}`;
+        }
+        renderIcons();
+    }
+
+    function renderIcons() {
+        const equippedIconId = parseInt(localStorage.getItem('fakesterEquippedIcon')) || 1;
+        const currentLevel = parseInt(localStorage.getItem('fakesterLevel')) || 1;
+        elements.icons.list.innerHTML = iconsList.map(icon => {
+            let isUnlocked = false;
+            if (icon.unlockType === 'level') {
+                isUnlocked = currentLevel >= icon.unlockValue;
+            } else if (icon.unlockType === 'achievement') {
+                isUnlocked = userUnlockedAchievementIds.includes(icon.unlockValue);
+            }
+             if (currentUser.username.toLowerCase() === 'taubey') isUnlocked = true;
+
+            const isEquipped = icon.id === equippedIconId;
+            return `
+                <div class="icon-card ${!isUnlocked ? 'locked' : ''} ${isEquipped ? 'equipped' : ''}" data-icon-id="${icon.id}">
+                    <div class="icon-preview"><i class="fa-solid ${icon.iconClass}"></i></div>
+                    <span class="stat-label">${isUnlocked ? 'Verfügbar' : icon.description}</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function getLevelForXp(xp) {
+        return Math.floor(Math.pow(xp / 100, 0.7)) + 1;
+    }
+
+    function getXpForLevel(level) {
+        return Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100);
+    }
+
+    function updatePlayerProgress(xpGained, showNotification = true) {
+        let currentXp = parseInt(localStorage.getItem('fakesterXp')) || 0;
+        const currentLevel = getLevelForXp(currentXp);
+
+        currentXp += xpGained;
+        localStorage.setItem('fakesterXp', currentXp);
+
+        const newLevel = getLevelForXp(currentXp);
+        
+        const xpForCurrentLevel = getXpForLevel(newLevel);
+        const xpForNextLevel = getXpForLevel(newLevel + 1);
+        const xpInCurrentLevel = currentXp - xpForCurrentLevel;
+        const xpNeededForNextLevel = xpForNextLevel - xpForCurrentLevel;
+        const xpPercentage = (xpInCurrentLevel / xpNeededForNextLevel) * 100;
+
+        elements.home.profileLevel.textContent = newLevel;
+        elements.home.profileXpFill.style.width = `${xpPercentage}%`;
+
+        if (showNotification && newLevel > currentLevel) {
+            showToast(`Level Up! Du hast Level ${newLevel} erreicht!`);
+            // Check for unlocks
+            renderIcons();
+            renderTitles();
+        }
     }
 
     function updateStatsDisplay() {
@@ -691,6 +793,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.appendChild(popup);
     }
+    
+    function renderFriendsList() {
+        elements.friendsModal.friendsList.innerHTML = friendsList.map(friend => `
+            <li>
+                <div class="friend-info">
+                    <span>${friend.username}</span>
+                    <span class="friend-status">${friend.status === 'request_sent' ? 'Anfrage gesendet' : friend.status}</span>
+                </div>
+                <div class="friend-actions">
+                    <button class="button-icon button-small" disabled><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </li>
+        `).join('');
+    }
+
     // =========================================================================================
     // MAIN APP INITIALIZATION AND EVENT LISTENERS
     // =========================================================================================
@@ -735,9 +852,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     elements.joinModal.overlay.classList.remove('hidden');
                 }
                 if (target.closest('#close-join-modal-button')) elements.joinModal.overlay.classList.add('hidden');
-                if (target.closest('#friends-button')) elements.friendsModal.overlay.classList.remove('hidden');
+                if (target.closest('#friends-button')) {
+                    renderFriendsList();
+                    elements.friendsModal.overlay.classList.remove('hidden');
+                }
+                if (target.closest('#add-friend-button')) {
+                    const friendName = elements.friendsModal.addFriendInput.value.trim();
+                    if (friendName.length < 3) return showToast('Name ist zu kurz.', true);
+                    if (friendsList.some(f => f.username.toLowerCase() === friendName.toLowerCase())) return showToast(`Du bist bereits mit ${friendName} befreundet oder hast eine Anfrage gesendet.`, true);
+                    
+                    // This is a placeholder for real backend logic
+                    ws.socket.send(JSON.stringify({ type: 'add-friend', payload: { friendName }}));
+                    showToast(`Freundschaftsanfrage an ${friendName} gesendet.`);
+                    friendsList.push({ id: `friend-${Date.now()}`, username: friendName, status: 'request_sent' });
+                    renderFriendsList();
+                    elements.friendsModal.addFriendInput.value = '';
+                }
                 if (target.closest('#close-friends-modal-button')) elements.friendsModal.overlay.classList.add('hidden');
-                
+                if (target.closest('#invite-friends-button')) {
+                    const onlineFriends = friendsList.filter(f => f.status === 'online');
+                    elements.inviteFriendsModal.list.innerHTML = onlineFriends.map(f => `<li><span>${f.username}</span><button class="button-primary button-small" data-friend-id="${f.id}" data-friend-name="${f.username}">Einladen</button></li>`).join('');
+                    elements.inviteFriendsModal.overlay.classList.remove('hidden');
+                }
+                if (target.closest('#close-invite-modal-button')) elements.inviteFriendsModal.overlay.classList.add('hidden');
+                const inviteBtn = target.closest('#online-friends-list button');
+                if(inviteBtn) {
+                    ws.socket.send(JSON.stringify({ type: 'invite-friend', payload: { friendId: inviteBtn.dataset.friendId, friendName: inviteBtn.dataset.friendName } }));
+                }
+
                 if (target.closest('#username-container')) {
                     if(currentUser && !currentUser.isGuest) {
                         elements.changeNameModal.input.value = currentUser.username;
@@ -746,6 +888,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                  if (target.closest('.profile-title-button')) {
                     if (currentUser && !currentUser.isGuest) showScreen('title-selection-screen');
+                }
+                 if (target.closest('#profile-picture-button')) {
+                    if (currentUser && !currentUser.isGuest) showScreen('icon-selection-screen');
                 }
                 if (target.closest('#close-change-name-modal-button')) elements.changeNameModal.overlay.classList.add('hidden');
                 if (target.closest('#change-name-submit')) {
@@ -771,6 +916,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const titleCard = target.closest('.title-card');
                 if (titleCard) equipTitle(parseInt(titleCard.dataset.titleId));
+                
+                const iconCard = target.closest('.icon-card:not(.locked)');
+                if (iconCard) equipIcon(parseInt(iconCard.dataset.iconId));
                 
                 const modeBox = target.closest('.mode-box');
                 if (modeBox) {
@@ -903,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } else if (event === 'SIGNED_OUT' || (!session && !storedGame)) {
                     currentUser = null;
-                    localStorage.removeItem('fakesterGame');
+                    localStorage.clear(); // Clear all local storage on logout
                     screenHistory = ['auth-screen'];
                     showScreen('auth-screen');
                 }

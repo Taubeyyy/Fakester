@@ -140,7 +140,7 @@ function handleWebSocketMessage(ws, data) {
             }
             return;
         }
-        if (!game && !['create-game', 'join-game', 'invite-response'].includes(type)) return;
+        if (!game && !['create-game', 'join-game', 'invite-response', 'add-friend'].includes(type)) return;
 
         switch (type) {
             case 'create-game':
@@ -224,6 +224,12 @@ function handleWebSocketMessage(ws, data) {
                         joinGame(friendWs, payload.user, payload.pin);
                     }
                 }
+                break;
+            case 'add-friend':
+                // Placeholder for real database logic
+                console.log(`User ${playerId} wants to add friend with name ${payload.friendName}`);
+                // In a real app, you'd look up the user by name, create a friend request in DB,
+                // and then send a notification to the target user if they are online.
                 break;
         }
     } catch(e) {
