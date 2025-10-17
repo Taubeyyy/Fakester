@@ -181,10 +181,10 @@ input:-webkit-autofill:active {
 .selection-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .selection-modal-header h2 { margin-bottom: 0; }
 .selection-modal-header .header-actions { display: flex; align-items: center; gap: 15px; }
-.selection-list { list-style: none; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-.selection-list li { padding: 15px; background-color: var(--dark-grey); border-radius: 8px; cursor: pointer; transition: background-color 0.2s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.selection-list li:hover { background-color: var(--medium-grey); }
-.selection-list li.selected { background-color: var(--primary-color); color: #000; font-weight: 700; }
+.selection-list { list-style: none; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 5px; }
+.selection-list li { padding: 15px; background-color: var(--dark-grey); border: 2px solid var(--dark-grey); border-radius: 8px; cursor: pointer; transition: all 0.2s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
+.selection-list li:hover { background-color: var(--medium-grey); border-color: var(--medium-grey); }
+.selection-list li.selected { background-color: var(--primary-color); border-color: var(--primary-color); color: #000; font-weight: 700; }
 
 .loading-overlay { opacity: 0; visibility: hidden; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: opacity 0.3s, visibility 0.3s; }
 .loading-overlay:not(.hidden) { opacity: 1; visibility: visible; }
@@ -242,8 +242,15 @@ input:-webkit-autofill:active {
 .song-to-place .artist { font-size: 0.9rem; color: var(--text-muted-color); }
 .timeline-track-wrapper { overflow-x: auto; width: 100%; padding: 10px 0; }
 .timeline-track { display: flex; align-items: center; gap: 10px; padding: 0 40px; width: max-content; }
-.timeline-card { width: 120px; flex-shrink: 0; text-align: center; }
-.timeline-card img { width: 100%; aspect-ratio: 1/1; border-radius: 8px; object-fit: cover; }
-.timeline-card .year { font-size: 1.2rem; font-weight: 800; color: var(--primary-color); margin-top: 5px; }
-.drop-zone { width: 50px; height: 100px; border-radius: 50px; background: var(--dark-grey); border: 2px dashed var(--medium-grey); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; transition: all 0.2s ease; flex-shrink: 0; }
+.timeline-card { width: 120px; flex-shrink: 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.timeline-card img { width: 100%; height: 120px; aspect-ratio: 1/1; border-radius: 8px; object-fit: cover; }
+.timeline-card .year { font-size: 1.2rem; font-weight: 800; color: var(--primary-color); }
+.timeline-card .song-info { font-size: 0.7rem; color: var(--text-muted-color); width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drop-zone { width: 120px; height: 120px; border-radius: var(--border-radius); background: var(--dark-grey); border: 2px dashed var(--medium-grey); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 2.5rem; transition: all 0.2s ease; flex-shrink: 0; color: var(--medium-grey); }
 .drop-zone:hover { background: var(--primary-color); color: #000; border-color: var(--primary-color); }
+
+.custom-confirm-modal { text-align: center; }
+.custom-confirm-modal h2 { margin-bottom: 10px; }
+.custom-confirm-modal p { color: var(--text-muted-color); margin-bottom: 25px; }
+.custom-confirm-actions { display: flex; gap: 15px; width: 100%; }
+.custom-confirm-actions button { flex: 1; }

@@ -74,6 +74,13 @@ document.addEventListener('DOMContentLoaded', () => {
             closeBtn: document.getElementById('close-info-modal-button'),
             title: document.getElementById('info-modal-title'),
             text: document.getElementById('info-modal-text'),
+        },
+        customConfirmModal: {
+            overlay: document.getElementById('custom-confirm-modal-overlay'),
+            title: document.getElementById('custom-confirm-title'),
+            text: document.getElementById('custom-confirm-text'),
+            okBtn: document.getElementById('custom-confirm-ok'),
+            cancelBtn: document.getElementById('custom-confirm-cancel'),
         }
     };
 
@@ -81,6 +88,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const showScreen = (screenId) => { elements.screens.forEach(s => s.classList.remove('active')); document.getElementById(screenId)?.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); };
     const setLoading = (isLoading) => elements.loadingOverlay.classList.toggle('hidden', !isLoading);
     
+    const showCustomConfirm = (title, text) => {
+        return new Promise((resolve) => {
+            elements.customConfirmModal.title.textContent = title;
+            elements.customConfirmModal.text.textContent = text;
+            elements.customConfirmModal.overlay.classList.remove('hidden');
+
+            elements.customConfirmModal.okBtn.onclick = () => {
+                elements.customConfirmModal.overlay.classList.add('hidden');
+                resolve(true);
+            };
+            elements.customConfirmModal.cancelBtn.onclick = () => {
+                elements.customConfirmModal.overlay.classList.add('hidden');
+                resolve(false);
+            };
+        });
+    };
+
     const initializeApp = async (user, isGuest = false) => {
         sessionStorage.removeItem('fakesterGame');
         currentUser = { 
@@ -93,6 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('welcome-nickname').textContent = currentUser.username;
         if (!isGuest) { 
             await checkSpotifyStatus(); 
+            const { data: stats } = await supabase.from('profiles').select('games_played, wins, correct_answers').eq('id', currentUser.id).single();
+            if (stats) {
+                document.getElementById('stat-games-played-preview').textContent = stats.games_played || 0;
+                document.getElementById('stat-wins-preview').textContent = stats.wins || 0;
+                document.getElementById('stat-correct-answers-preview').textContent = stats.correct_answers || 0;
+            }
+
             renderAchievements(); 
             renderTitles();
             const equippedTitle = testTitles.find(t => t.id === currentUser.titleId) || testTitles[0];
@@ -304,6 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="timeline-card">
                         <img src="${song.albumArtUrl || PLACEHOLDER_IMAGE_URL}" alt="Album Art">
                         <div class="year">${song.year}</div>
+                        <div class="song-info">${song.title}</div>
                     </div>
                     <button class="drop-zone" data-index="${index + 1}"><i class="fa-solid fa-plus"></i></button>`;
             });
@@ -471,7 +503,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Fehler beim Speichern des Titels.', true);
         } else {
             currentUser.titleId = titleId;
-            const selectedTitle = testTitles.find(t => t.id == titleId);
+            const selectedTitle = testTitles.find(t => t.id == titleId) || testTitles[0];
             document.getElementById('profile-title').textContent = selectedTitle.name;
             showToast(`Titel "${selectedTitle.name}" ausgerüstet!`);
         }
@@ -518,12 +550,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            elements.leaveGameButton.addEventListener('click', () => {
+            elements.leaveGameButton.addEventListener('click', async () => {
                 const activeScreen = document.querySelector('.screen.active').id;
                 switch (activeScreen) {
                     case 'lobby-screen':
                     case 'game-screen':
-                        if (confirm('Möchtest du das aktuelle Spiel wirklich verlassen?')) {
+                        const confirmed = await showCustomConfirm('Spiel verlassen', 'Möchtest du das aktuelle Spiel wirklich verlassen? Dies wird als Niederlage gewertet.');
+                        if (confirmed) {
                             sessionStorage.removeItem('fakesterGame');
                             window.location.reload();
                         }
@@ -538,6 +571,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         showScreen('home-screen');
                         break;
                 }
+            });
+            
+            const friendsModal = document.querySelector('.friends-modal');
+            const tabButtons = friendsModal.querySelectorAll('.tab-button');
+            const tabContents = friendsModal.querySelectorAll('.tab-content');
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    document.getElementById(button.dataset.tab).classList.add('active');
+                });
             });
 
             document.querySelectorAll('.help-icon').forEach(icon => {
@@ -740,8 +785,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             supabase.auth.onAuthStateChange(async (event, session) => {
                 setLoading(true);
-                if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
-                    if (!currentUser) await initializeApp(session.user);
+                if (session && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
+                    if (!currentUser || currentUser.id !== session.user.id) {
+                         await initializeApp(session.user);
+                    } else {
+                        // Handle title update without full re-initialization
+                        const newTitleId = session.user.user_metadata.equipped_title_id || 1;
+                        if (currentUser.titleId !== newTitleId) {
+                            currentUser.titleId = newTitleId;
+                            const equippedTitle = testTitles.find(t => t.id === currentUser.titleId) || testTitles[0];
+                            document.getElementById('profile-title').textContent = equippedTitle.name;
+                            renderTitles();
+                        }
+                    }
                 } else if (event === 'SIGNED_OUT' || !session) {
                     currentUser = null;
                     showScreen('auth-screen');

@@ -126,21 +126,15 @@ function handleWebSocketMessage(ws, { type, payload }) {
                 pin: reconnectPin, playerId: reconnectPlayerId, isHost: gameToReconnect.hostId === reconnectPlayerId,
                 gameMode: gameToReconnect.gameMode, gameState: gameToReconnect.gameState, settings: gameToReconnect.settings,
                 players: getScores(reconnectPin), currentRound: gameToReconnect.currentRound,
-                totalRounds: gameToReconnect.settings.gameType === 'points' && gameToReconnect.songList ? gameToReconnect.songList.length : 0
+                totalRounds: gameToReconnect.songList ? gameToReconnect.songList.length : 0
             };
 
-            if (gameToReconnect.gameState === 'PLAYING') {
-                statePayload.guessTime = parseInt(gameToReconnect.settings.guessTime);
-                 if(gameToReconnect.gameMode === 'popularity') {
-                    statePayload.currentSong = { title: gameToReconnect.currentSong.title, artist: gameToReconnect.currentSong.artist, albumArtUrl: gameToReconnect.currentSong.albumArtUrl, popularity: gameToReconnect.currentSong.popularity };
-                    statePayload.nextSong = { title: gameToReconnect.nextSong.title, artist: gameToReconnect.nextSong.artist, albumArtUrl: gameToReconnect.nextSong.albumArtUrl };
-                }
-            } else if (gameToReconnect.gameState === 'RESULTS') {
-                statePayload.song = gameToReconnect.currentSong;
-                statePayload.scores = getScores(reconnectPin);
-                if(gameToReconnect.gameMode === 'popularity') {
-                    statePayload.currentSong = game.songList[game.currentRound - 2];
-                    statePayload.nextSong = game.songList[game.currentRound - 1];
+            if (gameToReconnect.gameState === 'PLAYING' || gameToReconnect.gameState === 'RESULTS') {
+                 if(gameToReconnect.gameMode === 'timeline') {
+                    statePayload.timeline = gameToReconnect.timeline;
+                    statePayload.currentSong = { ...gameToReconnect.currentSong, year: undefined };
+                } else if (gameToReconnect.gameState === 'RESULTS') {
+                    statePayload.song = gameToReconnect.currentSong;
                 }
             }
             ws.send(JSON.stringify({ type: 'reconnect-success', payload: statePayload }));
@@ -157,7 +151,7 @@ function handleWebSocketMessage(ws, { type, payload }) {
             const initialSettings = { deviceId: null, playlistId: null, songCount: 10, guessTime: 30, gameType: payload.gameType || 'points', lives: payload.lives || 3, answerType: 'freestyle' };
             games[newPin] = {
                 hostId: payload.user.id,
-                players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0, lives: initialSettings.lives, isConnected: true, isReady: false } },
+                players: { [payload.user.id]: { ws, nickname: payload.user.username, score: 0, lives: initialSettings.lives, isConnected: true, isReady: false, isGuest: payload.user.isGuest } },
                 settings: initialSettings, hostToken: payload.token, gameState: 'LOBBY', gameMode: payload.gameMode || 'quiz'
             };
             ws.send(JSON.stringify({ type: 'game-created', payload: { pin: newPin, playerId: payload.user.id, isHost: true, gameMode: payload.gameMode } }));
@@ -167,7 +161,7 @@ function handleWebSocketMessage(ws, { type, payload }) {
             const gameToJoin = games[payload.pin];
             if (gameToJoin && gameToJoin.gameState === 'LOBBY') {
                 ws.pin = payload.pin; ws.playerId = payload.user.id;
-                gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0, lives: gameToJoin.settings.lives, isConnected: true, isReady: false };
+                gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0, lives: gameToJoin.settings.lives, isConnected: true, isReady: false, isGuest: payload.user.isGuest };
                 ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId: payload.user.id, isHost: false, gameMode: gameToJoin.gameMode } }));
                 broadcastLobbyUpdate(payload.pin);
             } else {
@@ -193,7 +187,7 @@ function handleWebSocketMessage(ws, { type, payload }) {
         case 'live-guess-update':
             if (game && game.gameState === 'PLAYING') {
                 if (!game.guesses) game.guesses = {};
-                if (!game.guesses[playerId]) { // Only accept the first guess
+                if (!game.guesses[playerId]) {
                     game.guesses[playerId] = payload.guess;
                 }
             }
@@ -216,16 +210,33 @@ function handleWebSocketMessage(ws, { type, payload }) {
     }
 }
 
-function handlePlayerDisconnect(ws) {
+async function handlePlayerDisconnect(ws) {
     const { pin, playerId } = ws;
     onlineUsers.delete(playerId);
     const game = games[pin];
-    if (!game || !game.players[playerId]) return;
+    if (!game || !game.players[playerId] || !game.players[playerId].isConnected) return;
 
-    game.players[playerId].isConnected = false;
+    const disconnectingPlayer = game.players[playerId];
+    disconnectingPlayer.isConnected = false;
 
-    if (game.gameState === 'LOBBY' || game.gameState === 'PLAYING' || game.gameState === 'RESULTS') {
-        broadcastToLobby(pin, { type: 'toast', payload: { message: `${game.players[playerId].nickname} hat die Verbindung verloren...` } });
+    if (game.gameState === 'PLAYING' || game.gameState === 'RESULTS') {
+        if (!disconnectingPlayer.isGuest) {
+            try {
+                const { error } = await supabase.rpc('update_user_stats', {
+                    user_id: playerId,
+                    wins_increment: 0,
+                    games_played_increment: 1,
+                    correct_answers_increment: 0 
+                });
+                if (error) throw error;
+            } catch (error) {
+                console.error("Error updating stats on disconnect:", error.message);
+            }
+        }
+    }
+
+    if (game.gameState !== 'FINISHED') {
+        broadcastToLobby(pin, { type: 'toast', payload: { message: `${disconnectingPlayer.nickname} hat die Verbindung verloren...` } });
     }
     broadcastLobbyUpdate(pin);
 
@@ -235,13 +246,13 @@ function handlePlayerDisconnect(ws) {
             if (playerId === currentGame.hostId) {
                 console.log(`[${pin}] Host hat die Verbindung verloren. Spiel wird beendet.`);
                 broadcastToLobby(pin, { type: 'toast', payload: { message: 'Der Host hat das Spiel verlassen. Das Spiel wird beendet.', isError: true } });
-                endGame(pin, false);
+                endGame(pin, true);
                 return;
             }
             delete currentGame.players[playerId];
             if (Object.values(currentGame.players).filter(p => p.isConnected).length === 0) {
                 console.log(`[${pin}] Alle Spieler haben die Verbindung verloren. Spiel wird beendet.`);
-                delete games[pin];
+                endGame(pin, true);
             } else {
                 broadcastLobbyUpdate(pin);
             }
@@ -269,13 +280,17 @@ async function startGame(pin) {
     if (!tracks || tracks.length < 2) { broadcastToLobby(pin, { type: 'error', payload: { message: 'Playlist ist zu kurz oder konnte nicht geladen werden.' } }); game.gameState = 'LOBBY'; return; }
     
     game.songList = shuffleArray(tracks);
+    const songCount = parseInt(game.settings.songCount);
+
     if (game.gameMode === 'timeline') {
         game.timeline = [game.songList.shift()];
-    }
-    
-    const songCount = parseInt(game.settings.songCount);
-    if (songCount > 0 && game.settings.gameType === 'points' && game.gameMode !== 'timeline') { 
-        game.songList = game.songList.slice(0, songCount); 
+        if (songCount > 0) {
+            game.songList = game.songList.slice(0, songCount);
+        }
+    } else {
+        if (songCount > 0) {
+            game.songList = game.songList.slice(0, songCount); 
+        }
     }
     startRoundCountdown(pin);
 }
@@ -290,7 +305,7 @@ function startRoundCountdown(pin) {
     if (game.settings.gameType === 'lives' && activePlayers.length <= 1) { return endGame(pin); }
 
     game.gameState = 'PLAYING';
-    broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound + 1, totalRounds: game.settings.gameType === 'points' ? game.songList.length : 0 } });
+    broadcastToLobby(pin, { type: 'round-countdown', payload: { round: game.currentRound + 1, totalRounds: game.songList.length } });
     setTimeout(() => startNewRound(pin), 5000);
 }
 
@@ -302,11 +317,11 @@ function startNewRound(pin) {
     if (game.gameMode !== 'timeline') game.currentRound++; 
     
     game.guesses = {};
-    if (!game.currentSong) return endGame(pin);
+    if (!game.currentSong) { return endGame(pin); }
     axios.put(`https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, { uris: [`spotify:track:${game.currentSong.spotifyId}`] }, { headers: { 'Authorization': `Bearer ${game.hostToken}` } }).catch(err => console.error(`[${pin}] Spotify Play API Fehler:`, err.response?.data || err.message));
     
     let payload = {
-        round: game.currentRound + 1, totalRounds: game.settings.gameType === 'points' ? game.songList.length : 0,
+        round: game.currentRound + 1, totalRounds: game.songList.length,
         scores: getScores(pin), guessTime: parseInt(game.settings.guessTime),
         gameMode: game.gameMode, answerType: game.settings.answerType
     };

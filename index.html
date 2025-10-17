@@ -97,7 +97,7 @@
                 <button class="mode-box" data-mode="quiz">
                     <div class="mode-box-content">
                         <h3>Fakester Original</h3>
-                        <p>Errate Künstler, Titel und Jahr des Songs.</p>
+                        <p>Errate Künstler und Titel des Songs.</p>
                     </div>
                 </button>
                 <button class="mode-box" data-mode="timeline">
@@ -160,7 +160,7 @@
             <div id="host-settings" class="hidden">
                  <h3>Einstellungen</h3>
                 <div class="setting">
-                    <label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" title="Starte Spotify auf einem Gerät und spiele kurz etwas ab, falls es hier nicht erscheint. Lade die Liste dann neu."></i></label>
+                    <label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" title="Starte Spotify auf einem Gerät und spiele kurz etwas ab, falls es hier nicht erscheint. Lade die Liste dann neu. Bei Wiedergabefehlern: Nächsten Song in Spotify starten und hier neu versuchen."></i></label>
                     <button class="button-select" id="device-select-button">Gerät auswählen</button>
                 </div>
                 <div class="setting">
@@ -175,7 +175,7 @@
                     </div>
                 </div>
                 <div class="setting">
-                    <label>Anzahl Songs <i class="fa-solid fa-circle-question help-icon" title="Bestimmt, wie viele Runden im Punkte-Modus gespielt werden."></i></label>
+                    <label>Anzahl Songs <i class="fa-solid fa-circle-question help-icon" title="Bestimmt, wie viele Runden gespielt werden."></i></label>
                     <div class="preset-group" id="song-count-presets">
                         <button class="preset-button" data-value="10">10</button>
                         <button class="preset-button" data-value="20">20</button>
@@ -279,8 +279,12 @@
     </div>
     <div id="playlist-select-modal-overlay" class="modal-overlay hidden">
         <div class="modal selection-modal">
-            <button id="close-playlist-select-modal" class="button-exit-modal">×</button>
-            <h2>Playlist auswählen</h2>
+            <div class="selection-modal-header">
+                <h2>Playlist auswählen</h2>
+                <div class="header-actions">
+                    <button id="close-playlist-select-modal" class="button-icon-close">×</button>
+                </div>
+            </div>
             <ul id="playlist-list" class="selection-list"></ul>
         </div>
     </div>
@@ -290,6 +294,17 @@
             <button id="close-info-modal-button" class="button-exit-modal">×</button>
             <h2 id="info-modal-title">Info</h2>
             <p id="info-modal-text"></p>
+        </div>
+    </div>
+    
+    <div id="custom-confirm-modal-overlay" class="modal-overlay hidden">
+        <div class="modal custom-confirm-modal">
+            <h2 id="custom-confirm-title">Bestätigen</h2>
+            <p id="custom-confirm-text"></p>
+            <div class="custom-confirm-actions">
+                <button id="custom-confirm-cancel" class="button-secondary">Abbrechen</button>
+                <button id="custom-confirm-ok" class="button-primary">OK</button>
+            </div>
         </div>
     </div>
 
