@@ -253,11 +253,27 @@
     <div id="playlist-select-modal-overlay" class="modal-overlay hidden">
         <div class="modal selection-modal">
             <button id="close-playlist-select-modal" class="button-exit-modal">×</button>
-            <h2>Playlist auswählen</h2>
+            <div class="selection-modal-header">
+                <h2>Playlist auswählen</h2>
+            </div>
             <input type="text" id="playlist-search" placeholder="Playlist suchen..." class="lobby-input">
             <ul id="playlist-list" class="selection-list"></ul>
+            <div class="pagination-controls" id="playlist-pagination"></div>
         </div>
     </div>
+
+    <div id="leave-confirm-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <h2>Spiel verlassen?</h2>
+            <p>Bist du sicher, dass du das laufende Spiel verlassen möchtest? Dein Fortschritt geht verloren.</p>
+            <div class="modal-actions">
+                <button id="cancel-leave-button" class="button-secondary">Abbrechen</button>
+                <button id="confirm-leave-button" class="button-danger">Verlassen</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="invite-popup-container"></div>
 
     <div id="loading-overlay" class="loading-overlay"><div class="equalizer"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div></div>
 

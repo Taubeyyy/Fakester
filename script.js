@@ -86,6 +86,12 @@ document.addEventListener('DOMContentLoaded', () => {
             closeBtn: document.getElementById('close-playlist-select-modal'),
             list: document.getElementById('playlist-list'),
             search: document.getElementById('playlist-search'),
+            pagination: document.getElementById('playlist-pagination'),
+        },
+        leaveConfirmModal: {
+            overlay: document.getElementById('leave-confirm-modal-overlay'),
+            confirmBtn: document.getElementById('confirm-leave-button'),
+            cancelBtn: document.getElementById('cancel-leave-button'),
         },
         stats: {
             gamesPlayed: document.getElementById('stat-games-played'), wins: document.getElementById('stat-wins'), winrate: document.getElementById('stat-winrate'),
@@ -217,6 +223,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     screenHistory = ['home-screen'];
                     showScreen('home-screen');
                 }, 5000);
+                break;
+            case 'invite-received':
+                showInvitePopup(payload.from, payload.pin);
                 break;
             case 'toast':
                 showToast(payload.message, payload.isError);
@@ -356,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const guessArea = document.getElementById('game-guess-area');
             if (data.mcOptions) {
                 guessArea.innerHTML = ['title', 'artist', 'year'].map(key => `
-                    <div>
+                    <div class="mc-group">
                         <label>${key.charAt(0).toUpperCase() + key.slice(1)}</label>
                         <div class="mc-options-grid" id="mc-${key}">
                             ${data.mcOptions[key].map(opt => `<button class="mc-option-button" data-key="${key}" data-value="${opt}">${opt}</button>`).join('')}
@@ -561,17 +570,46 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 deviceList.innerHTML = '<li>Keine aktiven Geräte gefunden.</li>';
             }
-
-            const playlistList = elements.playlistSelectModal.list;
-            playlistList.innerHTML = '';
-            playlists.items.forEach(p => {
-                const li = document.createElement('li');
-                li.textContent = p.name; li.dataset.id = p.id; li.dataset.name = p.name;
-                playlistList.appendChild(li);
-            });
+            
+            renderPaginatedPlaylists(playlists.items);
 
         } catch (error) { showToast('Fehler beim Laden der Spotify-Daten.', true); } 
         finally { if(isRefresh) setLoading(false); }
+    }
+    
+    let allPlaylists = [];
+    let currentPage = 1;
+    const itemsPerPage = 8;
+    function renderPaginatedPlaylists(playlists, page = 1) {
+        allPlaylists = playlists;
+        currentPage = page;
+        
+        const listEl = elements.playlistSelectModal.list;
+        const paginationEl = elements.playlistSelectModal.pagination;
+        listEl.innerHTML = '';
+        paginationEl.innerHTML = '';
+
+        const searchTerm = elements.playlistSelectModal.search.value.toLowerCase();
+        const filteredPlaylists = allPlaylists.filter(p => p.name.toLowerCase().includes(searchTerm));
+
+        const totalPages = Math.ceil(filteredPlaylists.length / itemsPerPage);
+        const start = (currentPage - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        const paginatedItems = filteredPlaylists.slice(start, end);
+
+        paginatedItems.forEach(p => {
+            const li = document.createElement('li');
+            li.textContent = p.name; li.dataset.id = p.id; li.dataset.name = p.name;
+            listEl.appendChild(li);
+        });
+
+        if (totalPages > 1) {
+            paginationEl.innerHTML = `
+                <button id="prev-page" class="button-icon" ${currentPage === 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-left"></i></button>
+                <span>Seite ${currentPage} / ${totalPages}</span>
+                <button id="next-page" class="button-icon" ${currentPage === totalPages ? 'disabled' : ''}><i class="fa-solid fa-chevron-right"></i></button>
+            `;
+        }
     }
 
     function openCustomValueModal(type, title) {
@@ -634,6 +672,25 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.stats.correctAnswersPreview.textContent = statsData.correct;
     }
     
+    function showInvitePopup(from, pin) {
+        const container = document.getElementById('invite-popup-container');
+        const popup = document.createElement('div');
+        popup.className = 'invite-popup';
+        popup.innerHTML = `
+            <p><strong>${from}</strong> hat dich in eine Lobby eingeladen!</p>
+            <div class="modal-actions">
+                <button class="button-danger">Ablehnen</button>
+                <button class="button-primary">Annehmen</button>
+            </div>`;
+        
+        popup.querySelector('.button-danger').addEventListener('click', () => popup.remove());
+        popup.querySelector('.button-primary').addEventListener('click', () => {
+            ws.socket.send(JSON.stringify({ type: 'invite-response', payload: { accepted: true, pin, user: currentUser }}));
+            popup.remove();
+        });
+
+        container.appendChild(popup);
+    }
     // =========================================================================================
     // MAIN APP INITIALIZATION AND EVENT LISTENERS
     // =========================================================================================
@@ -648,10 +705,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const target = e.target;
                 
                 if (target.closest('#leave-game-button')) {
-                    if (document.getElementById('lobby-screen').classList.contains('active')) {
-                        localStorage.removeItem('fakesterGame'); window.location.reload();
-                    } else { goBack(); }
+                    const inGame = document.getElementById('lobby-screen').classList.contains('active') || document.getElementById('game-screen').classList.contains('active');
+                    if (inGame) {
+                        elements.leaveConfirmModal.overlay.classList.remove('hidden');
+                    } else {
+                        goBack();
+                    }
                 }
+                if (target.closest('#confirm-leave-button')) {
+                    localStorage.removeItem('fakesterGame');
+                    window.location.reload();
+                }
+                if (target.closest('#cancel-leave-button')) {
+                    elements.leaveConfirmModal.overlay.classList.add('hidden');
+                }
+
                 if (target.closest('.help-icon')) showToast(target.closest('.help-icon').title);
                 if (target.closest('#guest-mode-button')) elements.guestModal.overlay.classList.remove('hidden');
                 if (target.closest('#close-guest-modal-button')) elements.guestModal.overlay.classList.add('hidden');
@@ -811,11 +879,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 elements.customValueModal.overlay.classList.add('hidden');
             });
             
-            elements.playlistSelectModal.search.addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase();
-                elements.playlistSelectModal.list.querySelectorAll('li').forEach(li => {
-                    li.classList.toggle('hidden', !li.textContent.toLowerCase().includes(searchTerm));
-                });
+            elements.playlistSelectModal.search.addEventListener('input', () => renderPaginatedPlaylists(allPlaylists));
+            elements.playlistSelectModal.pagination.addEventListener('click', (e) => {
+                if (e.target.closest('#next-page')) {
+                    renderPaginatedPlaylists(allPlaylists, currentPage + 1);
+                } else if (e.target.closest('#prev-page')) {
+                    renderPaginatedPlaylists(allPlaylists, currentPage - 1);
+                }
             });
 
             elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });

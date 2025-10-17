@@ -50,14 +50,15 @@ body:has(#auth-screen.active) .app-header { display: none; }
 h2 { font-size: 1.8rem; margin-bottom: 10px; font-weight: 800; }
 p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 20px; }
 
-.button-primary, .button-secondary {
+.button-primary, .button-secondary, .button-danger {
     display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 24px; border: none; border-radius: 50px;
     font-size: 16px; font-weight: 700; cursor: pointer; text-decoration: none; width: 100%; transition: transform 0.1s ease, background-color 0.2s ease;
 }
-.button-primary:active, .button-secondary:active { transform: scale(0.97); }
+.button-primary:active, .button-secondary:active, .button-danger:active { transform: scale(0.97); }
 .button-primary { background-color: var(--primary-color); color: #000; }
 .button-primary:disabled { background-color: var(--medium-grey); color: var(--text-muted-color); cursor: not-allowed; }
 .button-secondary { background-color: var(--dark-grey); color: var(--text-color); }
+.button-danger { background-color: var(--danger-color); color: var(--text-color); }
 .button-icon { background: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease; }
 .button-icon:hover { background-color: var(--medium-grey); }
 .button-small { padding: 8px 16px; font-size: 0.9rem; width: auto; }
@@ -131,6 +132,8 @@ input:-webkit-autofill:active {
 .album-art-container img, .album-art-container .placeholder-icon { width: 100%; height: 100%; object-fit: cover; border-radius: var(--border-radius); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
 .album-art-container .placeholder-icon { display: flex; align-items: center; justify-content: center; font-size: 6rem; background-color: var(--dark-grey); color: var(--medium-grey); }
 .guess-area { width: 100%; display: flex; flex-direction: column; gap: 15px; }
+.mc-group { margin-bottom: 15px; }
+.mc-group label { display: block; text-align: left; margin-bottom: 8px; font-weight: 700; color: var(--text-muted-color); }
 .mc-options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
 .mc-option-button { background-color: var(--dark-grey); color: var(--text-color); padding: 12px; border: 2px solid var(--medium-grey); border-radius: 8px; font-size: 0.9rem; font-family: 'Montserrat', sans-serif; cursor: pointer; }
 .mc-option-button.selected { background-color: var(--primary-color); color: #000; border-color: var(--primary-color); font-weight: 700;}
@@ -202,9 +205,9 @@ input:-webkit-autofill:active {
 .modal-overlay:not(.hidden) { opacity: 1; visibility: visible; }
 .modal { background-color: var(--surface-color); padding: 20px; border-radius: var(--border-radius); width: 90%; max-width: 380px; position: relative; transform: scale(0.95); transition: transform 0.3s ease; }
 .modal p { margin-bottom: 10px; }
-.modal.change-name-modal input { margin-bottom: 20px; }
-.modal.guest-modal input { margin-bottom: 20px; }
+.modal.change-name-modal input, .modal.guest-modal input { margin-bottom: 20px; }
 .modal-overlay:not(.hidden) .modal { transform: scale(1); }
+.modal-actions { display: flex; gap: 10px; margin-top: 20px; }
 .button-exit-modal { position: absolute; top: 10px; right: 15px; font-size: 2rem; background: none; border: none; color: var(--text-muted-color); cursor: pointer; }
 .numpad-modal h2, .selection-modal h2 { font-size: 1.5rem; color: var(--text-muted-color); text-transform: uppercase; letter-spacing: 1px; }
 .numpad-modal .pin-display { display: flex; gap: 10px; justify-content: center; margin: 20px 0; }
@@ -217,11 +220,13 @@ input:-webkit-autofill:active {
 .selection-modal { display: flex; flex-direction: column; }
 .selection-modal-header { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 15px; flex-shrink: 0; }
 .selection-modal-header h2 { margin-bottom: 0; }
-.selection-list { list-style: none; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+.selection-list { list-style: none; min-height: 100px; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
 .selection-list li { padding: 15px; background-color: var(--dark-grey); border-radius: 8px; cursor: pointer; transition: background-color 0.2s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .selection-list li:hover { background-color: var(--medium-grey); }
 .selection-list li.selected { background-color: var(--primary-color); color: #000; font-weight: 700; }
 #playlist-search { margin-bottom: 15px; }
+.pagination-controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-top: 20px; }
+.pagination-controls button { width: 50px; height: 50px; border-radius: 50%; }
 
 .loading-overlay { opacity: 0; visibility: hidden; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background-color: rgba(0, 0, 0, 0.7); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px); transition: opacity 0.3s, visibility 0.3s; }
 .loading-overlay:not(.hidden) { opacity: 1; visibility: visible; }
@@ -265,3 +270,17 @@ input:-webkit-autofill:active {
 .friends-modal ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
 .friends-modal li { display: flex; align-items: center; justify-content: space-between; background-color: var(--dark-grey); padding: 10px 15px; border-radius: 8px; }
 .friends-modal .friend-actions button { width: 35px; height: 35px; font-size: 0.9rem; }
+
+#invite-popup-container { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 380px; z-index: 10001; }
+.invite-popup {
+    background-color: var(--dark-grey);
+    color: var(--text-color);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+}
+.invite-popup p { margin: 0 0 15px 0; }
+.invite-popup p strong { color: var(--primary-color); }

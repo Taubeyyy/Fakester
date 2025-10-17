@@ -28,7 +28,7 @@ app.use(cookieParser());
 app.use(express.json());
 
 let games = {};
-const onlineUsers = new Map();
+const onlineUsers = new Map(); // Maps userId to WebSocket object
 
 function levenshteinDistance(s1, s2) {
     if (!s1 || !s2) return 99;
@@ -106,6 +106,19 @@ wss.on('connection', ws => {
     ws.on('close', () => handlePlayerDisconnect(ws));
 });
 
+function joinGame(ws, user, pin) {
+    const gameToJoin = games[pin];
+    if (gameToJoin && gameToJoin.gameState === 'LOBBY') {
+        ws.pin = pin; 
+        ws.playerId = user.id;
+        gameToJoin.players[user.id] = { ws, nickname: user.username, score: 0, lives: gameToJoin.settings.lives, isConnected: true, isReady: false, timeline: [] };
+        ws.send(JSON.stringify({ type: 'join-success', payload: { pin: pin, playerId: user.id, isHost: false, gameMode: gameToJoin.gameMode } }));
+        broadcastLobbyUpdate(pin);
+    } else {
+        ws.send(JSON.stringify({ type: 'error', payload: { message: 'Lobby nicht gefunden oder Spiel läuft bereits.' } }));
+    }
+}
+
 function handleWebSocketMessage(ws, data) {
     console.log('Nachricht empfangen:', JSON.stringify(data, null, 2));
     try {
@@ -127,7 +140,7 @@ function handleWebSocketMessage(ws, data) {
             }
             return;
         }
-        if (!game && !['create-game', 'join-game'].includes(type)) return;
+        if (!game && !['create-game', 'join-game', 'invite-response'].includes(type)) return;
 
         switch (type) {
             case 'create-game':
@@ -147,15 +160,7 @@ function handleWebSocketMessage(ws, data) {
                     ws.send(JSON.stringify({ type: 'error', payload: { message: 'Ungültige Anfrage.' } }));
                     return;
                 }
-                const gameToJoin = games[payload.pin];
-                if (gameToJoin && gameToJoin.gameState === 'LOBBY') {
-                    ws.pin = payload.pin; ws.playerId = payload.user.id;
-                    gameToJoin.players[payload.user.id] = { ws, nickname: payload.user.username, score: 0, lives: gameToJoin.settings.lives, isConnected: true, isReady: false, timeline: [] };
-                    ws.send(JSON.stringify({ type: 'join-success', payload: { pin: payload.pin, playerId: payload.user.id, isHost: false, gameMode: gameToJoin.gameMode } }));
-                    broadcastLobbyUpdate(payload.pin);
-                } else {
-                    ws.send(JSON.stringify({ type: 'error', payload: { message: 'PIN ungültig oder Spiel läuft bereits.' } }));
-                }
+                joinGame(ws, payload.user, payload.pin);
                 break;
             case 'update-settings':
                 if (game && game.hostId === playerId) { 
@@ -200,6 +205,23 @@ function handleWebSocketMessage(ws, data) {
                         } else if (game.gameState === 'PRE_ROUND') {
                              startRoundCountdown(pin);
                         }
+                    }
+                }
+                break;
+            case 'invite-friend':
+                const friendWs = onlineUsers.get(payload.friendId);
+                if (friendWs && friendWs.readyState === WebSocket.OPEN) {
+                    friendWs.send(JSON.stringify({ type: 'invite-received', payload: { from: game.players[playerId].nickname, pin: pin } }));
+                    showToastToPlayer(ws, `Einladung an ${payload.friendName} gesendet.`);
+                } else {
+                    showToastToPlayer(ws, `${payload.friendName} ist nicht online.`, true);
+                }
+                break;
+            case 'invite-response':
+                if (payload.accepted) {
+                    const friendWs = onlineUsers.get(payload.user.id);
+                    if (friendWs) {
+                        joinGame(friendWs, payload.user, payload.pin);
                     }
                 }
                 break;
