@@ -547,17 +547,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const isEquipped = t.id === userEquippedTitleId;
             return `<div class="title-card ${isEquipped ? 'equipped' : ''}" data-title-id="${t.id}"><span class="stat-value">${t.name}</span><span class="stat-label">${t.achievement_id ? `Freigeschaltet: ${testAchievements.find(a=>a.id === t.achievement_id).name}` : 'Spezial-Titel'}</span></div>`;
         }).join('');
-
-        document.querySelectorAll('.title-card').forEach(card => {
-            card.addEventListener('click', () => {
-                userEquippedTitleId = parseInt(card.dataset.titleId);
-                document.getElementById('profile-title').textContent = card.querySelector('.stat-value').textContent;
-                renderTitles();
-                showToast('Titel ausgerüstet!');
-            });
-        });
     }
-
+    
+    // =========================================================================================
+    // MAIN APP INITIALIZATION AND EVENT LISTENERS
+    // =========================================================================================
     const main = async () => {
         try {
             const response = await fetch('/api/config');
@@ -565,33 +559,155 @@ document.addEventListener('DOMContentLoaded', () => {
             const config = await response.json();
             supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-            document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (!ws.socket || ws.socket.readyState === WebSocket.CLOSED)) connectWebSocket(); });
-            document.addEventListener('click', (e) => { const helpIcon = e.target.closest('.help-icon'); if (helpIcon && helpIcon.title) showToast(helpIcon.title); });
-            elements.leaveGameButton.addEventListener('click', () => { if(document.getElementById('lobby-screen').classList.contains('active')) { localStorage.removeItem('fakesterGame'); window.location.reload(); } else { goBack(); } });
-            
-            elements.playlistSelectModal.search.addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase();
-                elements.playlistSelectModal.list.querySelectorAll('li').forEach(li => {
-                    li.classList.toggle('hidden', !li.textContent.toLowerCase().includes(searchTerm));
-                });
+            // Bind all event listeners to the document body for delegation
+            document.body.addEventListener('click', async (e) => {
+                const target = e.target;
+                const button = target.closest('button');
+                
+                // Modals & General UI
+                if (target.closest('#leave-game-button')) {
+                    if (document.getElementById('lobby-screen').classList.contains('active')) {
+                        localStorage.removeItem('fakesterGame');
+                        window.location.reload();
+                    } else {
+                        goBack();
+                    }
+                }
+                if (target.closest('.help-icon')) showToast(target.closest('.help-icon').title);
+                if (target.closest('#guest-mode-button')) elements.guestModal.overlay.classList.remove('hidden');
+                if (target.closest('#close-guest-modal-button')) elements.guestModal.overlay.classList.add('hidden');
+                if (target.closest('#guest-nickname-submit')) {
+                    const name = document.getElementById('guest-nickname-input').value.trim();
+                    if (name.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
+                    elements.guestModal.overlay.classList.add('hidden');
+                    initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
+                }
+                if (target.closest('#show-join-button')) {
+                    pinInput = ""; 
+                    document.querySelectorAll('#join-pin-display .pin-digit').forEach(d => d.textContent = ""); 
+                    elements.joinModal.overlay.classList.remove('hidden');
+                }
+                if (target.closest('#close-join-modal-button')) elements.joinModal.overlay.classList.add('hidden');
+                if (target.closest('#friends-button')) elements.friendsModal.overlay.classList.remove('hidden');
+                if (target.closest('#close-friends-modal-button')) elements.friendsModal.overlay.classList.add('hidden');
+                
+                // Home Screen
+                if (target.closest('#username-container')) {
+                    if(currentUser && !currentUser.isGuest) {
+                        elements.changeNameModal.input.value = currentUser.username;
+                        elements.changeNameModal.overlay.classList.remove('hidden');
+                    }
+                }
+                 if (target.closest('.profile-title-button')) {
+                    if (currentUser && !currentUser.isGuest) showScreen('title-selection-screen');
+                }
+                if (target.closest('#close-change-name-modal-button')) elements.changeNameModal.overlay.classList.add('hidden');
+                if (target.closest('#change-name-submit')) {
+                    const newName = elements.changeNameModal.input.value.trim();
+                    if(newName.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
+                    if(newName === currentUser.username) return elements.changeNameModal.overlay.classList.add('hidden');
+                    setLoading(true);
+                    const { data, error } = await supabase.auth.updateUser({ data: { username: newName } });
+                    setLoading(false);
+                    if(error) { showToast(error.message, true); } 
+                    else {
+                        currentUser.username = newName;
+                        document.getElementById('welcome-nickname').textContent = newName;
+                        ws.socket.send(JSON.stringify({ type: 'update-nickname', payload: { newName } }));
+                        showToast('Name erfolgreich geändert!');
+                        elements.changeNameModal.overlay.classList.add('hidden');
+                    }
+                }
+                if (target.closest('#corner-logout-button')) handleLogout();
+                if (target.closest('#achievements-button')) showScreen('achievements-screen');
+                if (target.closest('#stats-button')) showScreen('stats-screen');
+                if (target.closest('#show-create-button-action')) showScreen('mode-selection-screen');
+                
+                // Title Selection
+                const titleCard = target.closest('.title-card');
+                if (titleCard) {
+                    userEquippedTitleId = parseInt(titleCard.dataset.titleId);
+                    document.getElementById('profile-title').textContent = titleCard.querySelector('.stat-value').textContent;
+                    renderTitles();
+                    showToast('Titel ausgerüstet!');
+                }
+                
+                // Game Creation Flow
+                const modeBox = target.closest('.mode-box');
+                if (modeBox) {
+                    selectedGameMode = modeBox.dataset.mode;
+                    showScreen('game-type-selection-screen');
+                    elements.gameTypeScreen.pointsBtn.classList.remove('active');
+                    elements.gameTypeScreen.livesBtn.classList.remove('active');
+                    elements.gameTypeScreen.createLobbyBtn.disabled = true;
+                }
+                if (target.closest('#game-type-points')) {
+                    elements.gameTypeScreen.pointsBtn.classList.add('active'); elements.gameTypeScreen.livesBtn.classList.remove('active');
+                    elements.gameTypeScreen.livesSettings.classList.add('hidden'); elements.gameTypeScreen.createLobbyBtn.disabled = false;
+                    gameCreationSettings.gameType = 'points';
+                }
+                 if (target.closest('#game-type-lives')) {
+                    elements.gameTypeScreen.livesBtn.classList.add('active'); elements.gameTypeScreen.pointsBtn.classList.remove('active');
+                    elements.gameTypeScreen.livesSettings.classList.remove('hidden'); elements.gameTypeScreen.createLobbyBtn.disabled = false;
+                    gameCreationSettings.gameType = 'lives';
+                    elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active'));
+                    elements.gameTypeScreen.livesPresets.querySelector('[data-value="3"]').classList.add('active');
+                }
+                 if (target.closest('#lives-count-presets .preset-button')) {
+                    const btn = target.closest('#lives-count-presets .preset-button');
+                    if (btn.dataset.value === 'custom') {
+                        openCustomValueModal('lives', 'Anzahl Leben');
+                    } else {
+                        elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        gameCreationSettings.lives = parseInt(btn.dataset.value);
+                    }
+                }
+                if (target.closest('#create-lobby-button')) {
+                    setLoading(true);
+                    ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: selectedGameMode, gameType: gameCreationSettings.gameType, lives: gameCreationSettings.lives } }));
+                }
+
+                // Lobby Actions
+                if (target.closest('#device-select-button')) elements.deviceSelectModal.overlay.classList.remove('hidden');
+                if (target.closest('#close-device-select-modal')) elements.deviceSelectModal.overlay.classList.add('hidden');
+                if (target.closest('#refresh-devices-button-modal')) fetchHostData(true);
+                const deviceLi = target.closest('#device-list li');
+                if (deviceLi && deviceLi.dataset.id) {
+                    ws.socket.send(JSON.stringify({type: 'update-settings', payload: { deviceId: deviceLi.dataset.id, deviceName: deviceLi.dataset.name }}));
+                    elements.deviceSelectModal.overlay.classList.add('hidden');
+                }
+                
+                if (target.closest('#playlist-select-button')) elements.playlistSelectModal.overlay.classList.remove('hidden');
+                if (target.closest('#close-playlist-select-modal')) elements.playlistSelectModal.overlay.classList.add('hidden');
+                const playlistLi = target.closest('#playlist-list li');
+                if (playlistLi && playlistLi.dataset.id) {
+                    ws.socket.send(JSON.stringify({type: 'update-settings', payload: { playlistId: playlistLi.dataset.id, playlistName: playlistLi.dataset.name }}));
+                    elements.playlistSelectModal.overlay.classList.add('hidden');
+                }
+                
+                const presetBtn = target.closest('.preset-button');
+                if (presetBtn && presetBtn.dataset.value === 'custom' && !presetBtn.closest('#lives-count-presets')) {
+                    const type = presetBtn.dataset.type;
+                    let title = 'Wert eingeben';
+                    if (type === 'song-count') title = 'Anzahl Songs';
+                    if (type === 'guess-time') title = 'Ratezeit (s)';
+                    openCustomValueModal(type, title);
+                } else if (presetBtn && !presetBtn.closest('#lives-count-presets')) {
+                    const container = presetBtn.parentElement;
+                    let key;
+                    if (container.id.includes('song')) key = 'songCount';
+                    else if (container.id.includes('time')) key = 'guessTime';
+                    else if (container.id.includes('answer')) key = 'answerType';
+                    if(key) ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [key]: presetBtn.dataset.value }}));
+                }
+                
+                if (target.closest('#start-game-button')) {
+                    ws.socket.send(JSON.stringify({ type: 'start-game' }));
+                    setLoading(true);
+                }
             });
 
-            elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
-            elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
-            elements.home.logoutBtn.addEventListener('click', handleLogout);
-            elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
-            elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
-            
-            elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
-            elements.guestModal.closeBtn.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
-            elements.guestModal.submitBtn.addEventListener('click', () => {
-                const name = document.getElementById('guest-nickname-input').value.trim();
-                if (name.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
-                elements.guestModal.overlay.classList.add('hidden');
-                initializeApp({ id: 'guest-' + Date.now(), username: name }, true);
-            });
-            elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; document.querySelectorAll('#join-pin-display .pin-digit').forEach(d => d.textContent = ""); elements.joinModal.overlay.classList.remove('hidden'); });
-            elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
             elements.joinModal.numpad.addEventListener('click', (e) => {
                 const target = e.target.closest('button'); if (!target) return;
                 const key = target.dataset.key; const action = target.dataset.action;
@@ -608,50 +724,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 document.querySelectorAll('#join-pin-display .pin-digit').forEach((d, i) => d.textContent = pinInput[i] || "");
             });
-
-            elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
-            document.querySelectorAll('.mode-box').forEach(box => {
-                box.addEventListener('click', () => { selectedGameMode = box.dataset.mode; showScreen('game-type-selection-screen'); });
+            
+            elements.customValueModal.numpad.addEventListener('click', handleCustomNumpad);
+            elements.customValueModal.closeBtn.addEventListener('click', () => elements.customValueModal.overlay.classList.add('hidden'));
+            elements.customValueModal.numpad.querySelector('[data-action="backspace"]').addEventListener('click', () => { customValueInput = customValueInput.slice(0, -1); updateCustomValueDisplay(); });
+            elements.customValueModal.confirmBtn.addEventListener('click', () => {
+                if (!customValueInput) return;
+                const value = parseInt(customValueInput);
+                if (currentCustomType === 'lives') {
+                    gameCreationSettings.lives = value;
+                    elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
+                    const customBtn = elements.gameTypeScreen.livesPresets.querySelector('[data-value="custom"]');
+                    if(customBtn) { customBtn.classList.add('active'); customBtn.textContent = value; }
+                } else {
+                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [currentCustomType.replace('song-count', 'songCount').replace('guess-time', 'guessTime')]: value }}));
+                }
+                elements.customValueModal.overlay.classList.add('hidden');
             });
             
-            elements.gameTypeScreen.pointsBtn.addEventListener('click', () => {
-                elements.gameTypeScreen.pointsBtn.classList.add('active'); elements.gameTypeScreen.livesBtn.classList.remove('active');
-                elements.gameTypeScreen.livesSettings.classList.add('hidden'); elements.gameTypeScreen.createLobbyBtn.disabled = false;
-                gameCreationSettings.gameType = 'points';
-            });
-             elements.gameTypeScreen.livesBtn.addEventListener('click', () => {
-                elements.gameTypeScreen.livesBtn.classList.add('active'); elements.gameTypeScreen.pointsBtn.classList.remove('active');
-                elements.gameTypeScreen.livesSettings.classList.remove('hidden'); elements.gameTypeScreen.createLobbyBtn.disabled = false;
-                gameCreationSettings.gameType = 'lives';
-                elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active'));
-                elements.gameTypeScreen.livesPresets.querySelector('[data-value="3"]').classList.add('active');
+            elements.playlistSelectModal.search.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                elements.playlistSelectModal.list.querySelectorAll('li').forEach(li => {
+                    li.classList.toggle('hidden', !li.textContent.toLowerCase().includes(searchTerm));
+                });
             });
 
-            elements.gameTypeScreen.createLobbyBtn.addEventListener('click', () => {
-                setLoading(true);
-                ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: selectedGameMode, gameType: gameCreationSettings.gameType, lives: gameCreationSettings.lives } }));
-            });
-
-            elements.lobby.deviceSelectBtn.addEventListener('click', () => elements.deviceSelectModal.overlay.classList.remove('hidden'));
-            elements.deviceSelectModal.closeBtn.addEventListener('click', () => elements.deviceSelectModal.overlay.classList.add('hidden'));
-            elements.deviceSelectModal.refreshBtn.addEventListener('click', () => fetchHostData(true));
-            elements.deviceSelectModal.list.addEventListener('click', (e) => {
-                const li = e.target.closest('li'); if(!li || !li.dataset.id) return;
-                ws.socket.send(JSON.stringify({type: 'update-settings', payload: { deviceId: li.dataset.id, deviceName: li.dataset.name }}));
-                elements.deviceSelectModal.overlay.classList.add('hidden');
-            });
-            elements.lobby.playlistSelectBtn.addEventListener('click', () => elements.playlistSelectModal.overlay.classList.remove('hidden'));
-            elements.playlistSelectModal.closeBtn.addEventListener('click', () => elements.playlistSelectModal.overlay.classList.add('hidden'));
-            elements.playlistSelectModal.list.addEventListener('click', (e) => {
-                const li = e.target.closest('li'); if(!li || !li.dataset.id) return;
-                ws.socket.send(JSON.stringify({type: 'update-settings', payload: { playlistId: li.dataset.id, playlistName: li.dataset.name }}));
-                elements.playlistSelectModal.overlay.classList.add('hidden');
-            });
-
-            elements.lobby.startGameBtn.addEventListener('click', () => {
-                ws.socket.send(JSON.stringify({ type: 'start-game' }));
-                setLoading(true);
-            });
+            elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
+            elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
+            elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
+            elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
+            
+            document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (!ws.socket || ws.socket.readyState === WebSocket.CLOSED)) connectWebSocket(); });
 
             supabase.auth.onAuthStateChange(async (event, session) => {
                 const storedGame = localStorage.getItem('fakesterGame');
