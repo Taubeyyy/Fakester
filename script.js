@@ -86,9 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const showToast = (message, isError = false) => Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "var(--danger-color)" : "var(--success-color)", borderRadius: "8px" } }).showToast();
     const showScreen = (screenId) => { elements.screens.forEach(s => s.classList.remove('active')); document.getElementById(screenId)?.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); };
-    const setLoading = (isLoading) => {
-        elements.loadingOverlay.classList.toggle('hidden', !isLoading);
-    };
+    const setLoading = (isLoading) => { elements.loadingOverlay.classList.toggle('hidden', !isLoading); };
     
     const showCustomConfirm = (title, text) => {
         return new Promise((resolve) => {
@@ -548,12 +546,12 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch('/api/config');
             if (!response.ok) {
-                throw new Error('Konfiguration konnte nicht geladen werden.');
+                throw new Error('Konfiguration konnte nicht geladen werden. Der Server ist möglicherweise offline.');
             }
             const config = await response.json();
             supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-            // Alle Event-Listener hier einrichten
+            // --- ALLE EVENT-LISTENER WERDEN JETZT HIER REGISTRIERT ---
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'visible' && (!ws.socket || ws.socket.readyState === WebSocket.CLOSED)) {
                     connectWebSocket();
@@ -575,6 +573,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     showScreen('home-screen');
                 }
             });
+            
+            // Auth Buttons
+            elements.auth.loginForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.currentTarget); });
+            elements.auth.registerForm.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.currentTarget); });
+            elements.auth.showRegister.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
+            elements.auth.showLogin.addEventListener('click', (e) => { e.preventDefault(); elements.auth.registerForm.classList.add('hidden'); elements.auth.loginForm.classList.remove('hidden'); });
+            
+            // Gast Modus
+            elements.guestModal.openBtn.addEventListener('click', () => elements.guestModal.overlay.classList.remove('hidden'));
+            elements.guestModal.closeBtn.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
+            elements.guestModal.submitBtn.addEventListener('click', () => {
+                const name = document.getElementById('guest-nickname-input').value.trim();
+                if (name.length < 3) return showToast('Name muss mind. 3 Zeichen haben.', true);
+                elements.guestModal.overlay.classList.add('hidden');
+                setLoading(true);
+                initializeApp({ id: 'guest-' + Date.now(), username: name, user_metadata: {} }, true).finally(() => setLoading(false));
+            });
+
+            // Friends Modal Tabs
             const friendsModal = document.querySelector('.friends-modal');
             const tabButtons = friendsModal.querySelectorAll('.tab-button');
             const tabContents = friendsModal.querySelectorAll('.tab-content');
@@ -586,22 +603,58 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById(button.dataset.tab).classList.add('active');
                 });
             });
-            // ... (alle anderen Listener hier einfügen) ...
 
-            // --- NEUE, VEREINFACHTE AUTH-LOGIK ---
-            supabase.auth.onAuthStateChange(async (_event, session) => {
-                const user = session?.user;
-                if (user) {
-                    if (!currentUser || currentUser.id !== user.id) {
-                         await initializeApp(user);
-                    }
-                } else {
+            // Help Icons
+            document.querySelectorAll('.help-icon').forEach(icon => {
+                icon.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    elements.infoModal.text.innerHTML = icon.getAttribute('title');
+                    elements.infoModal.overlay.classList.remove('hidden');
+                });
+            });
+            elements.infoModal.closeBtn.addEventListener('click', () => elements.infoModal.overlay.classList.add('hidden'));
+            
+            // ... (Hier alle anderen Event-Listener einfügen, die nicht Auth-bezogen sind)
+            // Dies stellt sicher, dass sie alle registriert sind, bevor die App interagiert.
+            elements.home.logoutBtn.addEventListener('click', handleLogout);
+            elements.home.joinRoomBtn.addEventListener('click', () => { pinInput = ""; document.querySelectorAll('#join-pin-display .pin-digit').forEach(d => d.textContent = ""); elements.joinModal.overlay.classList.remove('hidden'); });
+            elements.joinModal.closeBtn.addEventListener('click', () => elements.joinModal.overlay.classList.add('hidden'));
+            elements.joinModal.numpad.addEventListener('click', (e) => {
+                const target = e.target.closest('button');
+                if (!target) return;
+                const key = target.dataset.key;
+                const action = target.dataset.action;
+                if (key && pinInput.length < 4) { pinInput += key; } 
+                else if (action === 'clear') { pinInput = ""; } 
+                else if (action === 'confirm' && pinInput.length === 4) {
+                    setLoading(true);
+                    ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
+                }
+                document.querySelectorAll('#join-pin-display .pin-digit').forEach((d, i) => d.textContent = pinInput[i] || "");
+            });
+
+
+            // --- ROBUSTE AUTH-LOGIK BEIM START ---
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                if (event === 'SIGNED_IN') {
+                    setLoading(true);
+                    await initializeApp(session.user);
+                    setLoading(false);
+                } else if (event === 'SIGNED_OUT') {
                     currentUser = null;
                     showScreen('auth-screen');
+                } else if (event === 'USER_UPDATED' && session) {
+                    const newTitleId = session.user.user_metadata.equipped_title_id || 1;
+                    if (currentUser && currentUser.titleId !== newTitleId) {
+                        currentUser.titleId = newTitleId;
+                        const equippedTitle = testTitles.find(t => t.id === currentUser.titleId) || testTitles[0];
+                        document.getElementById('profile-title').textContent = equippedTitle.name;
+                        renderTitles();
+                    }
                 }
             });
 
-            // Führe die erste Session-Prüfung manuell durch.
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
                 await initializeApp(session.user);
@@ -611,9 +664,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Ein kritischer Fehler ist beim Start aufgetreten:", error);
-            showScreen('auth-screen');
+            document.body.innerHTML = `<div style="color:white;text-align:center;padding:40px;"><h1>Fehler</h1><p>${error.message}</p><p>Bitte lade die Seite neu. Wenn das Problem weiterhin besteht, überprüfe die Server-Logs.</p></div>`;
         } finally {
-            // Dies ist der wichtigste Teil: Der Ladebildschirm wird immer ausgeblendet.
             setLoading(false);
         }
     };
