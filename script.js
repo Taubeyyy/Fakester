@@ -17,6 +17,10 @@
         lives: 3
     };
 
+    // NEU: Globale Variablen für Playlist-Pagination
+    let allPlaylists = [], currentPage = 1, itemsPerPage = 10;
+
+
     // --- On-Page Konsole Setup ---
     const consoleOutput = document.getElementById('console-output');
     const onPageConsole = document.getElementById('on-page-console');
@@ -58,6 +62,7 @@
     console.error = (...args) => { originalConsole.error(...args); logToPage('error', args); };
     console.info = (...args) => { originalConsole.info(...args); logToPage('info', args); };
 
+    // Console-Listener SIND BEREITS VORHANDEN und korrekt
     toggleConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.toggle('hidden'));
     closeConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.add('hidden'));
     clearConsoleBtn?.addEventListener('click', () => { if(consoleOutput) consoleOutput.innerHTML = ''; });
@@ -132,8 +137,6 @@
         { id: 10, iconClass: 'fa-fire', unlockType: 'level', unlockValue: 40, description: 'Erreiche Level 40' },
         { id: 11, iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45' },
         { id: 12, iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50' },
-        { id: 16, name: 'Icon-Liebhaber', unlockType: 'achievement', unlockValue: 16 }, // Achievement für Icons -> Das sollte ein Icon sein, nicht 'name'
-        // Korrigiert: Beispiel-Icon für Achievement 16
         { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber'},
 
         { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon' }
@@ -160,6 +163,9 @@
             levelProgressBtn: document.getElementById('level-progress-button'),
             profileXpText: document.getElementById('profile-xp-text') // NEU: XP Text Element
         },
+        modeSelection: {
+            container: document.getElementById('mode-selection-screen').querySelector('.mode-selection-container')
+        },
         lobby: {
             pinDisplay: document.getElementById('lobby-pin'), playerList: document.getElementById('player-list'), hostSettings: document.getElementById('host-settings'), guestWaitingMessage: document.getElementById('guest-waiting-message'),
             deviceSelectBtn: document.getElementById('device-select-button'),
@@ -172,22 +178,24 @@
             answerTypePresets: document.getElementById('answer-type-presets'),
         },
         game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), gameContentArea: document.getElementById('game-content-area') },
-        guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), },
+        guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), input: document.getElementById('guest-nickname-input') },
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), },
         friendsModal: {
             overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'),
             addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'),
             friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'),
-            requestsCount: document.getElementById('requests-count'), tabs: document.querySelectorAll('.friends-modal .tab-button'),
+            requestsCount: document.getElementById('requests-count'), tabsContainer: document.querySelector('.friends-modal .tabs'),
+            tabs: document.querySelectorAll('.friends-modal .tab-button'),
             tabContents: document.querySelectorAll('.friends-modal .tab-content')
         },
         inviteFriendsModal: { overlay: document.getElementById('invite-friends-modal-overlay'), closeBtn: document.getElementById('close-invite-modal-button'), list: document.getElementById('online-friends-list') },
         customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')},
-        achievements: { grid: document.getElementById('achievement-grid') },
-        levelProgress: { list: document.getElementById('level-progress-list') }, // NEU
-        titles: { list: document.getElementById('title-list') },
-        icons: { list: document.getElementById('icon-list') },
+        achievements: { grid: document.getElementById('achievement-grid'), screen: document.getElementById('achievements-screen') },
+        levelProgress: { list: document.getElementById('level-progress-list'), screen: document.getElementById('level-progress-screen') },
+        titles: { list: document.getElementById('title-list'), screen: document.getElementById('title-selection-screen') },
+        icons: { list: document.getElementById('icon-list'), screen: document.getElementById('icon-selection-screen') },
         gameTypeScreen: {
+            screen: document.getElementById('game-type-selection-screen'),
             pointsBtn: document.getElementById('game-type-points'),
             livesBtn: document.getElementById('game-type-lives'),
             livesSettings: document.getElementById('lives-settings-container'),
@@ -226,6 +234,7 @@
             cancelBtn: document.getElementById('confirm-action-cancel-button'),
         },
         stats: {
+            screen: document.getElementById('stats-screen'),
             gamesPlayed: document.getElementById('stat-games-played'), wins: document.getElementById('stat-wins'), winrate: document.getElementById('stat-winrate'),
             highscore: document.getElementById('stat-highscore'), correctAnswers: document.getElementById('stat-correct-answers'), avgScore: document.getElementById('stat-avg-score'),
             gamesPlayedPreview: document.getElementById('stat-games-played-preview'), winsPreview: document.getElementById('stat-wins-preview'), correctAnswersPreview: document.getElementById('stat-correct-answers-preview'),
@@ -254,10 +263,29 @@
     };
     const goBack = () => {
         if (screenHistory.length > 1) {
-            screenHistory.pop();
-            const previousScreenId = screenHistory[screenHistory.length - 1];
-             console.log(`Navigating back to screen: ${previousScreenId}`);
-            showScreen(previousScreenId); // Use showScreen to handle button visibility
+            const currentScreenId = screenHistory.pop(); // Entferne aktuellen Screen
+            const previousScreenId = screenHistory[screenHistory.length - 1]; // Hol den letzten
+            console.log(`Navigating back to screen: ${previousScreenId}`);
+
+            // Speziallogik für Spiel-Screens
+            if (['game-screen', 'lobby-screen'].includes(currentScreenId)) {
+                elements.leaveConfirmModal.overlay.classList.remove('hidden');
+                screenHistory.push(currentScreenId); // Füge Screen wieder hinzu, da Abbruch möglich
+                return;
+            }
+
+            // Standard-Navigation
+            const targetScreen = document.getElementById(previousScreenId);
+            if (!targetScreen) {
+                 console.error(`Back navigation failed: Screen "${previousScreenId}" not found!`);
+                 screenHistory = ['auth-screen']; // Reset
+                 window.location.reload();
+                 return;
+            }
+            elements.screens.forEach(s => s.classList.remove('active'));
+            targetScreen.classList.add('active');
+            const showLeaveButton = !['auth-screen', 'home-screen'].includes(previousScreenId);
+            elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton);
         }
     };
     const setLoading = (isLoading) => {
@@ -274,7 +302,7 @@
     // --- Helper Functions ---
     // (isItemUnlocked, getUnlockDescription remain the same)
     function isItemUnlocked(item, currentLevel) {
-        if (!item || currentUser?.isGuest) return false;
+        if (!item || !currentUser || currentUser.isGuest) return false;
         // Dev bypass
         if (currentUser.username.toLowerCase() === 'taubey') return true;
 
@@ -441,6 +469,7 @@
                 throw error;
             }
              console.log(`${isRegister ? 'Signup' : 'Login'} successful for user: ${username}`, data);
+             // initializeApp wird jetzt vom onAuthStateChange Listener aufgerufen
         } catch (error) {
             let message = "Anmeldung fehlgeschlagen.";
             if (error.message.includes("Invalid login credentials")) message = "Ungültiger Benutzername oder Passwort.";
@@ -449,6 +478,7 @@
             else message = error.message;
             console.error('Authentication failed:', message);
             showToast(message, true);
+        } finally {
             setLoading(false);
         }
     };
@@ -464,10 +494,33 @@
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
             console.log("Supabase signOut successful.");
+            // Aufräumen passiert im onAuthStateChange Listener
         } catch (error) {
             console.error("Error during logout:", error);
             showToast("Ausloggen fehlgeschlagen.", true);
              setLoading(false);
+        }
+    };
+
+    // --- Client-Side Achievement Vergabe ---
+    const awardClientSideAchievement = async (achievementId) => {
+        if (currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return;
+
+        console.log(`Awarding client-side achievement: ${achievementId}`);
+        const { error } = await supabase
+            .from('user_achievements')
+            .insert({ user_id: currentUser.id, achievement_id: achievementId });
+        
+        if (error) {
+            console.error(`Fehler beim Speichern von Client-Achievement ${achievementId}:`, error);
+        } else {
+            userUnlockedAchievementIds.push(achievementId);
+            const achievement = achievementsList.find(a => a.id === achievementId);
+            showToast(`Erfolg freigeschaltet: ${achievement?.name || ''}!`);
+            // UI-Updates, die davon abhängen
+            renderAchievements();
+            renderTitles();
+            renderIcons();
         }
     };
 
@@ -577,7 +630,7 @@
                     updatePlayerProgress(myFinalScore); // Fetch updated stats from DB
                 }
                 setTimeout(() => {
-                    screenHistory = ['home-screen']; // Reset history
+                    screenHistory = ['auth-screen', 'home-screen']; // Reset history
                     showScreen('home-screen');
                 }, 7000); // Longer delay to see scores
                 break;
@@ -882,7 +935,8 @@
             return;
         }
         console.log("Latest profile data fetched:", data);
-        userProfile = data; // Lokales Profil komplett aktualisieren
+        // WICHTIG: userProfile aktualisieren
+        userProfile = { ...userProfile, ...data }; // Merge, um equip_id etc. zu behalten
 
         // Achievements auch neu laden, da Server welche verliehen haben könnte
         console.log("Fetching updated achievements...");
@@ -901,6 +955,7 @@
 
         // Jetzt die Anzeige aktualisieren
         updatePlayerProgressDisplay();
+        updateStatsDisplay(); // Stats auch aktualisieren
 
         // Auf Level Up prüfen
         const newLevel = getLevelForXp(userProfile.xp || 0);
@@ -931,7 +986,9 @@
         elements.stats.highscore.textContent = highscore || 0;
         elements.stats.correctAnswers.textContent = correct_answers || 0;
         // Simple Avg Score: Highscore / Games Played might not be the best metric
-        elements.stats.avgScore.textContent = (games_played || 0) > 0 ? Math.round((highscore || 0) / (games_played || 0)) : 0;
+        // Bessere Metrik: Total XP / Games Played (da XP = Score)
+        elements.stats.avgScore.textContent = (games_played || 0) > 0 ? Math.round((userProfile.xp || 0) / (games_played || 0)) : 0;
+
 
         elements.stats.gamesPlayedPreview.textContent = games_played || 0;
         elements.stats.winsPreview.textContent = wins || 0;
@@ -980,6 +1037,7 @@
             <button id="ready-button" class="button-primary">Bereit</button>
         `;
 
+        // Event-Listener MUSS hier hinzugefügt werden, da der Knopf neu erstellt wurde
         document.getElementById('ready-button').addEventListener('click', (e) => {
             e.target.disabled = true;
             e.target.textContent = 'Warte auf andere...';
@@ -1015,8 +1073,10 @@
                         </div>
                     </div>`).join('');
 
-                document.querySelectorAll('.mc-option-button').forEach(btn => {
-                    btn.addEventListener('click', () => {
+                // Dynamischer Event Listener (Delegation)
+                guessArea.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('mc-option-button')) {
+                        const btn = e.target;
                         document.querySelectorAll(`#mc-${btn.dataset.key} .mc-option-button`).forEach(b => b.classList.remove('selected'));
                         btn.classList.add('selected');
                         const guess = {
@@ -1027,17 +1087,20 @@
                         if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
                              ws.socket.send(JSON.stringify({ type: 'live-guess-update', payload: { guess } }));
                         }
-                    });
+                    }
                 });
+
             } else {
                 guessArea.innerHTML = `<input type="text" id="guess-title" placeholder="Titel des Songs..." autocomplete="off"><input type="text" id="guess-artist" placeholder="Künstler*in" autocomplete="off"><input type="number" id="guess-year" placeholder="Jahr" autocomplete="off" inputmode="numeric">`;
-                ['guess-title', 'guess-artist', 'guess-year'].forEach(id => {
-                    document.getElementById(id).addEventListener('input', () => {
-                        const guess = { title: document.getElementById('guess-title').value, artist: document.getElementById('guess-artist').value, year: document.getElementById('guess-year').value };
+                
+                // Dynamischer Event Listener (Delegation)
+                guessArea.addEventListener('input', (e) => {
+                    if (e.target.tagName === 'INPUT') {
+                         const guess = { title: document.getElementById('guess-title').value, artist: document.getElementById('guess-artist').value, year: document.getElementById('guess-year').value };
                          if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
                              ws.socket.send(JSON.stringify({ type: 'live-guess-update', payload: { guess } }));
                          }
-                    });
+                    }
                 });
             }
         } else if (data.gameMode === 'timeline') {
@@ -1060,14 +1123,17 @@
                     <div class="timeline-track">${timelineHtml}</div>
                 </div>`;
 
-            document.querySelectorAll('.timeline-drop-zone').forEach(zone => {
-                zone.addEventListener('click', () => {
+            // Dynamischer Event Listener (Delegation)
+            gameArea.addEventListener('click', (e) => {
+                const zone = e.target.closest('.timeline-drop-zone');
+                if (zone) {
                     gameArea.innerHTML = `<p class="fade-in">Warte auf andere Spieler...</p>`;
                     if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
                         ws.socket.send(JSON.stringify({ type: 'submit-guess', payload: { index: parseInt(zone.dataset.index) } }));
                     }
-                });
+                }
             });
+
              // Scroll to middle
              requestAnimationFrame(() => { // Ensure elements are rendered
                  const scrollContainer = document.querySelector('.timeline-scroll-container');
@@ -1103,13 +1169,15 @@
                     </div>
                 </div>`;
 
-            document.querySelectorAll('.guess-button').forEach(btn => {
-                btn.addEventListener('click', () => {
+            // Dynamischer Event Listener (Delegation)
+            gameArea.addEventListener('click', (e) => {
+                const btn = e.target.closest('.guess-button');
+                if(btn) {
                      gameArea.innerHTML = `<p>Warte auf andere Spieler...</p>`;
                      if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
                         ws.socket.send(JSON.stringify({type: 'submit-guess', payload: { guess: btn.dataset.guess }}));
                     }
-                });
+                }
             });
         }
 
@@ -1206,14 +1274,11 @@
                      // Render existing card from the previous round
                      if (i < lastTimelineSafe.length) {
                            const song = lastTimelineSafe[i];
-                           // Skip rendering the original card if we just rendered the incorrect placement at this index
-                           if (i !== data.userIndex || !incorrectRendered) {
-                               timelineHtml += `
-                                <div class="timeline-card">
-                                    <img src="${song.albumArtUrl || './placeholder.png'}" alt="Album Art" onerror="this.src='./placeholder.png'">
-                                    <div class="year">${song.year}</div>
-                                </div>`;
-                           }
+                           timelineHtml += `
+                            <div class="timeline-card">
+                                <img src="${song.albumArtUrl || './placeholder.png'}" alt="Album Art" onerror="this.src='./placeholder.png'">
+                                <div class="year">${song.year}</div>
+                            </div>`;
                      }
                  }
                   // Ensure ghost card is rendered if correct index was at the very end
@@ -1244,7 +1309,7 @@
                     <p>Popularität: ${data.song?.popularity ?? '?'}</p> </div>${leaderboardHtml}`;
         }
 
-        // Add event listener to the "Weiter" button
+        // Add event listener to the "Weiter" button (muss dynamisch sein)
         const readyButton = document.getElementById('ready-button');
          if (readyButton) {
             readyButton.addEventListener('click', (e) => {
@@ -1392,9 +1457,9 @@
             if (!playlistsRes.ok) throw new Error(`Failed to fetch playlists: ${playlistsRes.status}`);
 
             const devices = await devicesRes.json();
-            const playlists = await playlistsRes.json();
+            const playlistsData = await playlistsRes.json();
              console.log("Devices fetched:", devices);
-             console.log("Playlists fetched:", playlists);
+             console.log("Playlists fetched:", playlistsData);
 
             const deviceList = elements.deviceSelectModal.list;
             deviceList.innerHTML = ''; // Clear previous list
@@ -1416,7 +1481,9 @@
                 deviceList.innerHTML = '<li>Keine aktiven Geräte gefunden.</li>';
             }
 
-            renderPaginatedPlaylists(playlists.items || []); // Handle empty items array
+            // Speichere alle Playlists global und rendere die erste Seite
+            allPlaylists = playlistsData.items || [];
+            renderPaginatedPlaylists(allPlaylists, 1); // Handle empty items array
 
         } catch (error) {
             console.error('Error fetching Spotify data:', error);
@@ -1426,8 +1493,8 @@
         }
     }
      // ... (renderPaginatedPlaylists, openCustomValueModal, showInvitePopup bleiben gleich) ...
-     function renderPaginatedPlaylists(playlists, page = 1) {
-        allPlaylists = playlists;
+     function renderPaginatedPlaylists(playlistsToRender, page = 1) {
+        // allPlaylists ist bereits global
         currentPage = page;
 
         const listEl = elements.playlistSelectModal.list;
@@ -1436,10 +1503,10 @@
         paginationEl.innerHTML = '';
 
         const searchTerm = elements.playlistSelectModal.search.value.toLowerCase();
-        const filteredPlaylists = allPlaylists.filter(p => p.name.toLowerCase().includes(searchTerm));
+        const filteredPlaylists = playlistsToRender.filter(p => p.name.toLowerCase().includes(searchTerm));
 
         const totalPages = Math.ceil(filteredPlaylists.length / itemsPerPage);
-         currentPage = Math.max(1, Math.min(page, totalPages)); // Ensure currentPage is valid
+         currentPage = Math.max(1, Math.min(page, totalPages || 1)); // Ensure currentPage is valid
 
         const start = (currentPage - 1) * itemsPerPage;
         const end = start + itemsPerPage;
@@ -1493,6 +1560,7 @@
                 <button class="button-primary accept-invite">Annehmen</button>
             </div>`;
 
+        // Dynamische Listener für den Popup
         popup.querySelector('.decline-invite').addEventListener('click', () => popup.remove());
         popup.querySelector('.accept-invite').addEventListener('click', () => {
             if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
@@ -1512,3 +1580,514 @@
 
         // Auto-remove after some time?
         setTimeout(() => popup.remove(), 15000); // Remove after 15 seconds
+    }
+
+    // #################################################################
+    // ### NEU: DER FEHLENDE EVENT LISTENER BLOCK ###
+    // #################################################################
+
+    function addEventListeners() {
+        console.log("Adding all application event listeners...");
+
+        // --- Navigation & Allgemein ---
+        elements.leaveGameButton.addEventListener('click', goBack);
+
+        elements.leaveConfirmModal.cancelBtn.addEventListener('click', () => {
+            elements.leaveConfirmModal.overlay.classList.add('hidden');
+        });
+        elements.leaveConfirmModal.confirmBtn.addEventListener('click', () => {
+            if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
+                ws.socket.send(JSON.stringify({ type: 'leave-game' }));
+            }
+            localStorage.removeItem('fakesterGame');
+            currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] };
+            screenHistory = ['auth-screen']; // Reset history
+            window.location.reload(); // Einfachste Methode
+        });
+
+        // --- Auth Screen ---
+        elements.auth.loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!supabase) return console.error("Supabase not initialized!");
+            handleAuthAction(supabase.auth.signInWithPassword, e.target, false);
+        });
+        elements.auth.registerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!supabase) return console.error("Supabase not initialized!");
+            handleAuthAction(supabase.auth.signUp, e.target, true);
+        });
+        elements.auth.showRegister.addEventListener('click', (e) => {
+            e.preventDefault();
+            elements.auth.loginForm.classList.add('hidden');
+            elements.auth.registerForm.classList.remove('hidden');
+        });
+        elements.auth.showLogin.addEventListener('click', (e) => {
+            e.preventDefault();
+            elements.auth.loginForm.classList.remove('hidden');
+            elements.auth.registerForm.classList.add('hidden');
+        });
+
+        // --- Gast Modal ---
+        elements.guestModal.openBtn.addEventListener('click', () => {
+            elements.guestModal.overlay.classList.remove('hidden');
+            elements.guestModal.input.focus();
+        });
+        elements.guestModal.closeBtn.addEventListener('click', () => {
+            elements.guestModal.overlay.classList.add('hidden');
+        });
+        elements.guestModal.submitBtn.addEventListener('click', () => {
+            const nickname = elements.guestModal.input.value;
+            if (nickname.trim().length < 3) {
+                showToast("Nickname muss mind. 3 Zeichen lang sein.", true);
+                return;
+            }
+            elements.guestModal.overlay.classList.add('hidden');
+            initializeApp({ username: nickname }, true);
+        });
+
+        // --- Home Screen ---
+        elements.home.logoutBtn.addEventListener('click', handleLogout);
+        elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
+        elements.home.joinRoomBtn.addEventListener('click', () => {
+            pinInput = "";
+            elements.joinModal.pinDisplay.forEach(d => d.textContent = "");
+            elements.joinModal.overlay.classList.remove('hidden');
+        });
+        elements.home.statsBtn.addEventListener('click', () => showScreen('stats-screen'));
+        elements.home.achievementsBtn.addEventListener('click', () => showScreen('achievements-screen'));
+        elements.home.levelProgressBtn.addEventListener('click', () => showScreen('level-progress-screen'));
+        elements.home.profileTitleBtn.addEventListener('click', () => showScreen('title-selection-screen'));
+        elements.home.profilePictureBtn.addEventListener('click', () => showScreen('icon-selection-screen'));
+        elements.home.friendsBtn.addEventListener('click', () => {
+            loadFriendsData();
+            elements.friendsModal.overlay.classList.remove('hidden');
+        });
+        elements.home.usernameContainer.addEventListener('click', () => {
+            if (currentUser.isGuest) return;
+            elements.changeNameModal.input.value = currentUser.username;
+            elements.changeNameModal.overlay.classList.remove('hidden');
+            elements.changeNameModal.input.focus();
+        });
+
+        // --- Modus & Spieltyp Auswahl ---
+        elements.modeSelection.container.addEventListener('click', (e) => {
+            const modeBox = e.target.closest('.mode-box');
+            if (modeBox && !modeBox.disabled) {
+                selectedGameMode = modeBox.dataset.mode;
+                console.log(`Game mode selected: ${selectedGameMode}`);
+                // Setze Spieltyp-Auswahl zurück
+                elements.gameTypeScreen.createLobbyBtn.disabled = true;
+                elements.gameTypeScreen.pointsBtn.classList.remove('active');
+                elements.gameTypeScreen.livesBtn.classList.remove('active');
+                elements.gameTypeScreen.livesSettings.classList.add('hidden');
+                showScreen('game-type-selection-screen');
+            }
+        });
+        
+        elements.gameTypeScreen.pointsBtn.addEventListener('click', () => {
+            gameCreationSettings.gameType = 'points';
+            elements.gameTypeScreen.pointsBtn.classList.add('active');
+            elements.gameTypeScreen.livesBtn.classList.remove('active');
+            elements.gameTypeScreen.livesSettings.classList.add('hidden');
+            elements.gameTypeScreen.createLobbyBtn.disabled = false;
+        });
+        elements.gameTypeScreen.livesBtn.addEventListener('click', () => {
+            gameCreationSettings.gameType = 'lives';
+            elements.gameTypeScreen.pointsBtn.classList.remove('active');
+            elements.gameTypeScreen.livesBtn.classList.add('active');
+            elements.gameTypeScreen.livesSettings.classList.remove('hidden');
+            elements.gameTypeScreen.createLobbyBtn.disabled = false;
+        });
+
+        elements.gameTypeScreen.livesPresets.addEventListener('click', (e) => {
+            const button = e.target.closest('.preset-button');
+            if (button) {
+                elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+                const value = button.dataset.value;
+                if (value === 'custom') {
+                    openCustomValueModal('lives', 'Leben eingeben');
+                } else {
+                    gameCreationSettings.lives = parseInt(value);
+                    console.log(`Lives set to: ${gameCreationSettings.lives}`);
+                }
+            }
+        });
+
+        elements.gameTypeScreen.createLobbyBtn.addEventListener('click', () => {
+            if (!selectedGameMode || !gameCreationSettings.gameType) {
+                showToast("Fehler bei Spiel-Erstellung.", true);
+                return;
+            }
+            if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) {
+                showToast("Keine Verbindung zum Server.", true);
+                return;
+            }
+            setLoading(true);
+            ws.socket.send(JSON.stringify({
+                type: 'create-game',
+                payload: {
+                    user: currentUser,
+                    token: spotifyToken,
+                    gameMode: selectedGameMode,
+                    gameType: gameCreationSettings.gameType,
+                    lives: gameCreationSettings.lives
+                }
+            }));
+        });
+
+        // --- Lobby Screen ---
+        elements.lobby.inviteFriendsBtn.addEventListener('click', async () => {
+            // Lade nur online Freunde für Einladungen
+            if (!supabase) return;
+            const { data, error } = await supabase.rpc('get_online_friends', { p_user_id: currentUser.id });
+            if (error) {
+                showToast("Fehler beim Laden der Freunde.", true);
+                return;
+            }
+            const list = elements.inviteFriendsModal.list;
+            list.innerHTML = '';
+            if (data.length === 0) {
+                list.innerHTML = '<li>Keine Freunde online.</li>';
+            } else {
+                data.forEach(friend => {
+                    list.innerHTML += `<li data-friend-id="${friend.id}" data-friend-name="${friend.username}">${friend.username} <span class-="friend-status online">Online</span></li>`;
+                });
+            }
+            elements.inviteFriendsModal.overlay.classList.remove('hidden');
+        });
+        
+        elements.lobby.deviceSelectBtn.addEventListener('click', () => elements.deviceSelectModal.overlay.classList.remove('hidden'));
+        elements.lobby.playlistSelectBtn.addEventListener('click', () => elements.playlistSelectModal.overlay.classList.remove('hidden'));
+        
+        const handlePresetClick = (e, type) => {
+            const button = e.target.closest('.preset-button');
+            if (button) {
+                const value = button.dataset.value;
+                if (value === 'custom') {
+                    const customType = button.dataset.type; // song-count or guess-time
+                    const title = customType === 'song-count' ? 'Anzahl Songs' : 'Ratezeit (Sek.)';
+                    openCustomValueModal(customType, title);
+                } else {
+                    let settingKey;
+                    if (type === 'song') settingKey = 'songCount';
+                    else if (type === 'time') settingKey = 'guessTime';
+                    else if (type === 'answer') settingKey = 'answerType';
+                    
+                    if(settingKey) {
+                        ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [settingKey]: value } }));
+                    }
+                }
+            }
+        };
+        elements.lobby.songCountPresets.addEventListener('click', (e) => handlePresetClick(e, 'song'));
+        elements.lobby.guessTimePresets.addEventListener('click', (e) => handlePresetClick(e, 'time'));
+        elements.lobby.answerTypePresets.addEventListener('click', (e) => handlePresetClick(e, 'answer'));
+        
+        elements.lobby.startGameBtn.addEventListener('click', () => {
+             if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
+                 setLoading(true);
+                 ws.socket.send(JSON.stringify({ type: 'start-game' }));
+             }
+        });
+
+        // --- Item/Title/Icon Selection Screens ---
+        elements.titles.list.addEventListener('click', (e) => {
+            const card = e.target.closest('.title-card:not(.locked)');
+            if (card) {
+                const titleId = parseInt(card.dataset.titleId);
+                equipTitle(titleId, true);
+            }
+        });
+        elements.icons.list.addEventListener('click', (e) => {
+            const card = e.target.closest('.icon-card:not(.locked)');
+            if (card) {
+                const iconId = parseInt(card.dataset.iconId);
+                equipIcon(iconId, true);
+            }
+        });
+
+        // --- Modal: Close Buttons ---
+        document.querySelectorAll('.button-exit-modal').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.closest('.modal-overlay').classList.add('hidden');
+            });
+        });
+
+        // --- Modal: Join ---
+        elements.joinModal.numpad.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+            const key = button.dataset.key;
+            const action = button.dataset.action;
+
+            if (key && pinInput.length < 4) pinInput += key;
+            else if (action === 'clear') pinInput = pinInput.slice(0, -1);
+            else if (action === 'confirm' && pinInput.length === 4) {
+                if (!currentUser) return showToast("Bitte zuerst anmelden oder als Gast spielen.", true);
+                if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) return showToast("Keine Serververbindung.", true);
+                setLoading(true);
+                ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } }));
+            }
+            elements.joinModal.pinDisplay.forEach((d, i) => d.textContent = pinInput[i] || "");
+        });
+
+        // --- Modal: Friends ---
+        elements.friendsModal.tabsContainer.addEventListener('click', (e) => {
+            const tab = e.target.closest('.tab-button');
+            if (tab) {
+                elements.friendsModal.tabs.forEach(t => t.classList.remove('active'));
+                elements.friendsModal.tabContents.forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            }
+        });
+        elements.friendsModal.addFriendBtn.addEventListener('click', () => {
+            const friendName = elements.friendsModal.addFriendInput.value;
+            if (friendName.trim().length < 3) return showToast("Name ist zu kurz.", true);
+            if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) return showToast("Keine Serververbindung.", true);
+            ws.socket.send(JSON.stringify({ type: 'add-friend', payload: { friendName } }));
+            elements.friendsModal.addFriendInput.value = '';
+        });
+        elements.friendsModal.requestsList.addEventListener('click', (e) => {
+            const acceptBtn = e.target.closest('.accept-request');
+            const declineBtn = e.target.closest('.decline-request');
+            if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) return showToast("Keine Serververbindung.", true);
+            
+            if (acceptBtn) {
+                const senderId = acceptBtn.dataset.senderId;
+                ws.socket.send(JSON.stringify({ type: 'accept-friend-request', payload: { senderId } }));
+                acceptBtn.closest('li').remove();
+            }
+            if (declineBtn) {
+                const senderId = declineBtn.dataset.senderId;
+                const senderName = declineBtn.dataset.senderName;
+                showConfirmModal("Anfrage ablehnen?", `Möchtest du die Freundschaftsanfrage von ${senderName} wirklich ablehnen?`, () => {
+                     ws.socket.send(JSON.stringify({ type: 'decline-friend-request', payload: { userId: senderId } }));
+                     declineBtn.closest('li').remove();
+                });
+            }
+        });
+        elements.friendsModal.friendsList.addEventListener('click', (e) => {
+             const removeBtn = e.target.closest('.remove-friend');
+             if (removeBtn) {
+                const friendId = removeBtn.dataset.friendId;
+                const friendName = removeBtn.dataset.friendName;
+                showConfirmModal("Freund entfernen?", `Möchtest du ${friendName} wirklich aus deiner Freundesliste entfernen?`, () => {
+                    if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) return showToast("Keine Serververbindung.", true);
+                    ws.socket.send(JSON.stringify({ type: 'remove-friend', payload: { friendId } }));
+                    removeBtn.closest('li').remove();
+                });
+             }
+        });
+
+        // --- Modal: Invite Friends ---
+        elements.inviteFriendsModal.list.addEventListener('click', (e) => {
+            const li = e.target.closest('li');
+            if (li && li.dataset.friendId) {
+                if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) return showToast("Keine Serververbindung.", true);
+                ws.socket.send(JSON.stringify({
+                    type: 'invite-friend',
+                    payload: { friendId: li.dataset.friendId, friendName: li.dataset.friendName }
+                }));
+                elements.inviteFriendsModal.overlay.classList.add('hidden');
+            }
+        });
+
+        // --- Modal: Custom Value ---
+        elements.customValueModal.numpad.addEventListener('click', (e) => {
+            const button = e.target.closest('button');
+            if (!button) return;
+            const key = button.dataset.key;
+            const action = button.dataset.action;
+            if (key && customValueInput.length < 3) customValueInput += key;
+            else if (action === 'backspace') customValueInput = customValueInput.slice(0, -1);
+            elements.customValueModal.display.forEach((d, i) => d.textContent = customValueInput[i] || "");
+        });
+        elements.customValueModal.confirmBtn.addEventListener('click', () => {
+            const value = parseInt(customValueInput);
+            if (isNaN(value) || value <= 0) return showToast("Ungültiger Wert.", true);
+
+            let payload = {};
+            if (currentCustomType === 'lives') {
+                gameCreationSettings.lives = value;
+                // Update button text in game-type-selection
+                const customBtn = elements.gameTypeScreen.livesPresets.querySelector('[data-value="custom"]');
+                if(customBtn) customBtn.textContent = value;
+            } else {
+                 if (currentCustomType === 'song-count') payload['songCount'] = value;
+                 else if (currentCustomType === 'guess-time') payload['guessTime'] = value;
+                 if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
+                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload }));
+                 }
+            }
+            elements.customValueModal.overlay.classList.add('hidden');
+        });
+
+        // --- Modal: Change Name ---
+        elements.changeNameModal.submitBtn.addEventListener('click', async () => {
+            const newName = elements.changeNameModal.input.value.trim();
+            if (newName.length < 3 || newName.length > 15) return showToast("Name muss 3-15 Zeichen lang sein.", true);
+            if (newName === currentUser.username) return elements.changeNameModal.overlay.classList.add('hidden');
+            
+            setLoading(true);
+            try {
+                // 1. Update in 'profiles' table
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .update({ username: newName })
+                    .eq('id', currentUser.id);
+                if (profileError) throw profileError;
+
+                // 2. Update in 'auth.users' metadata
+                const { data, error: userError } = await supabase.auth.updateUser({
+                    data: { username: newName }
+                })
+                if (userError) throw userError;
+                
+                // 3. Update local state
+                currentUser.username = newName;
+                document.getElementById('welcome-nickname').textContent = newName;
+
+                // 4. Informiere Server (falls in Lobby)
+                if (ws.socket && ws.socket.readyState === WebSocket.OPEN && currentGame.pin) {
+                    ws.socket.send(JSON.stringify({ type: 'update-nickname', payload: { newName } }));
+                }
+
+                showToast("Name erfolgreich geändert!");
+                elements.changeNameModal.overlay.classList.add('hidden');
+
+            } catch (error) {
+                 if (error.code === '23505') { // Unique constraint violation
+                    showToast("Dieser Benutzername ist bereits vergeben.", true);
+                 } else {
+                    console.error("Error changing name:", error);
+                    showToast("Fehler beim Ändern des Namens.", true);
+                 }
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // --- Modal: Device Select ---
+        elements.deviceSelectModal.refreshBtn.addEventListener('click', () => fetchHostData(true));
+        elements.deviceSelectModal.list.addEventListener('click', (e) => {
+            const li = e.target.closest('li');
+            if (li && li.dataset.id) {
+                if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
+                    ws.socket.send(JSON.stringify({
+                        type: 'update-settings',
+                        payload: { deviceId: li.dataset.id, deviceName: li.dataset.name }
+                    }));
+                }
+                elements.deviceSelectModal.overlay.classList.add('hidden');
+            }
+        });
+
+        // --- Modal: Playlist Select ---
+        elements.playlistSelectModal.search.addEventListener('input', () => {
+            renderPaginatedPlaylists(allPlaylists, 1);
+        });
+        elements.playlistSelectModal.list.addEventListener('click', (e) => {
+            const li = e.target.closest('li');
+            if (li && li.dataset.id) {
+                if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
+                    ws.socket.send(JSON.stringify({
+                        type: 'update-settings',
+                        payload: { playlistId: li.dataset.id, playlistName: li.dataset.name }
+                    }));
+                }
+                elements.playlistSelectModal.overlay.classList.add('hidden');
+            }
+        });
+        elements.playlistSelectModal.pagination.addEventListener('click', (e) => {
+            if (e.target.closest('#prev-page')) {
+                renderPaginatedPlaylists(allPlaylists, currentPage - 1);
+            }
+            if (e.target.closest('#next-page')) {
+                renderPaginatedPlaylists(allPlaylists, currentPage + 1);
+            }
+        });
+
+        // --- Modal: Confirm Action ---
+        elements.confirmActionModal.cancelBtn.addEventListener('click', () => {
+            elements.confirmActionModal.overlay.classList.add('hidden');
+            currentConfirmAction = null;
+        });
+        elements.confirmActionModal.confirmBtn.addEventListener('click', () => {
+            if (currentConfirmAction) {
+                currentConfirmAction();
+            }
+            elements.confirmActionModal.overlay.classList.add('hidden');
+            currentConfirmAction = null;
+        });
+
+        console.log("All event listeners added.");
+    }
+
+    // #################################################################
+    // ### NEU: SUPABASE INITIALISIERUNG ###
+    // #################################################################
+
+    async function initializeSupabase() {
+        try {
+            // 1. Hole die Supabase-Schlüssel vom Server
+            console.log("Fetching /api/config...");
+            const response = await fetch('/api/config');
+            if (!response.ok) throw new Error('Failed to fetch config from /api/config');
+            const config = await response.json();
+            
+            if (!config.supabaseUrl || !config.supabaseAnonKey) {
+                throw new Error("Supabase URL or Anon Key is missing from config.");
+            }
+
+            // 2. Erstelle den Supabase-Client
+            // (window.supabase kommt aus dem <script> Tag in index.html)
+            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            console.log("Supabase client initialized successfully.");
+
+            // 3. Richte den zentralen Auth-Listener ein
+            // Dieser reagiert auf SIGNED_IN und SIGNED_OUT
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                console.log(`Supabase Auth Event: ${event}`);
+                if (event === 'SIGNED_IN' && session?.user) {
+                    await initializeApp(session.user, false);
+                } else if (event === 'SIGNED_OUT') {
+                    currentUser = null;
+                    userProfile = {};
+                    userUnlockedAchievementIds = [];
+                    spotifyToken = null;
+                    ws.socket?.close();
+                    localStorage.removeItem('fakesterGame');
+                    screenHistory = ['auth-screen']; // Reset
+                    showScreen('auth-screen');
+                    document.body.classList.add('is-guest'); // Reset to default
+                    setLoading(false);
+                }
+            });
+
+            // 4. Prüfe, ob bereits eine Session vorhanden ist (z.B. nach Reload)
+            setLoading(true);
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                console.log("Found active session, initializing app...");
+                await initializeApp(session.user, false);
+            } else {
+                console.log("No active session, showing auth screen.");
+                showScreen('auth-screen');
+                setLoading(false);
+            }
+
+            // 5. FÜGE JETZT ERST DIE EVENT LISTENER HINZU
+            // (Damit `supabase` in den Auth-Handlern verfügbar ist)
+            addEventListeners();
+
+        } catch (error) {
+            console.error("FATAL ERROR during Supabase initialization:", error);
+            document.body.innerHTML = `<h1>Initialisierungsfehler</h1><p>Die Anwendung konnte nicht geladen werden. (${error.message})</p>`;
+        }
+    }
+
+    // --- Main Execution ---
+    initializeSupabase(); // Starte die App
+});
