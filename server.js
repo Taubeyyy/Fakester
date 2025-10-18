@@ -19,7 +19,7 @@ process.on('uncaughtException', (err, origin) => {
 const app = express();
 const server = http.createServer(app);
 const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
-// HIER IST DER FIX: Geändert von CLIENT_SECRET zu SPOTIFY_CLIENT_SECRET
+// KORRIGIERT:
 const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const REDIRECT_URI = process.env.REDIRECT_URI;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -278,7 +278,7 @@ function handleWebSocketMessage(ws, data) {
 
                     if (deleteError) return console.error('Accept-FA Delete Error:', deleteError);
 
-                    // Hier deine Spaltennamen eintragen
+                    // KORRIGIERT: Deine Spaltennamen
                     const { error: insertError } = await supabase
                         .from('friends')
                         .insert({ user_id1: playerId, user_id2: senderId });
@@ -311,7 +311,7 @@ function handleWebSocketMessage(ws, data) {
                     const friendId = payload.friendId;
                     if (!friendId || !playerId) return;
 
-                    // Hier deine Spaltennamen eintragen
+                    // KORRIGIERT: Deine Spaltennamen
                     const { error } = await supabase
                         .from('friends')
                         .delete()
@@ -406,7 +406,7 @@ async function startGame(pin) {
        const firstSong = game.songList.shift();
        Object.values(game.players).forEach(p => p.timeline.push(firstSong));
        await spotifyApiCall('put', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.hostToken, { uris: [`spotify:track:${firstSong.spotifyId}`] });
-       broadcastToLJobby(pin, { type: 'game-starting', payload: { firstSong, guessTime: game.settings.guessTime } });
+       broadcastToLobby(pin, { type: 'game-starting', payload: { firstSong, guessTime: game.settings.guessTime } });
     } else {
         game.gameState = 'PLAYING';
         game.currentRound = 0; 
