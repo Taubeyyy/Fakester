@@ -1512,9 +1512,3 @@
 
         // Auto-remove after some time?
         setTimeout(() => popup.remove(), 15000); // Remove after 15 seconds
-    }
-
-
-    // --- Main Execution ---
-    main(); // Starte die App
-});
