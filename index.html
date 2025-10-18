@@ -17,11 +17,9 @@
     <header class="app-header">
         <button class="button-leave hidden" id="leave-game-button"><i class="fa-solid fa-arrow-left"></i></button>
         <div class="logo-container"><h1>FAKESTER</h1></div>
-        <div class="placeholder"></div>
-    </header>
+        <div class="placeholder"></div> </header>
 
-    <main id="auth-screen" class="screen">
-        <div class="auth-container">
+    <main id="auth-screen" class="screen active"> <div class="auth-container">
             <div class="home-logo-container"><h1>FAKESTER</h1></div>
             <form id="login-form" class="auth-form">
                 <h2>Anmelden</h2>
@@ -56,14 +54,14 @@
                     <button id="level-progress-button" class="level-progress-container guest-hidden">
                         <span class="level-text">Level <span id="profile-level">1</span></span>
                         <div class="xp-bar"><div id="profile-xp-fill" class="xp-fill"></div></div>
-                    </button>
+                        <span id="profile-xp-text" class="xp-text">0 XP</span> </button>
                 </div>
                 <div class="profile-actions">
                     <button id="friends-button" class="button-icon guest-hidden" title="Freunde"><i class="fa-solid fa-user-group"></i></button>
                     <button id="achievements-button" class="button-icon guest-hidden" title="Erfolge"><i class="fa-solid fa-trophy"></i></button>
                 </div>
             </div>
-            
+
             <button id="stats-button" class="stats-overview-card guest-hidden">
                 <h3>Statistiken</h3>
                 <div class="stats-grid-preview">
@@ -79,8 +77,7 @@
                 <button class="button-secondary" id="show-join-button"><i class="fa-solid fa-right-to-bracket"></i> Raum beitreten</button>
             </div>
         </div>
-        <button id="corner-logout-button" class="corner-button guest-hidden" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button>
-    </main>
+        <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button> </main>
 
     <main id="stats-screen" class="screen">
         <div class="container text-left">
@@ -121,7 +118,7 @@
             </div>
         </div>
     </main>
-    
+
     <main id="game-type-selection-screen" class="screen">
         <div class="container">
             <h2>Wähle einen Spieltyp</h2>
@@ -259,9 +256,7 @@
     <div id="friends-modal-overlay" class="modal-overlay hidden"><div class="modal friends-modal"><button id="close-friends-modal-button" class="button-exit-modal">×</button><h2>Freunde</h2><div class="add-friend-form"><input type="text" id="add-friend-input" placeholder="Benutzername eingeben..."><button id="add-friend-button" class="button-primary"><i class="fa-solid fa-plus"></i></button></div><div class="tabs"><button class="tab-button active" data-tab="friends-list-tab">Freunde</button><button class="tab-button" data-tab="requests-list-tab">Anfragen <span id="requests-count" class="badge hidden">0</span></button></div><div id="friends-list-tab" class="tab-content active"><ul id="friends-list" class="friends-list"></ul></div><div id="requests-list-tab" class="tab-content"><ul id="requests-list" class="requests-list"></ul></div></div></div>
     <div id="invite-friends-modal-overlay" class="modal-overlay hidden"><div class="modal"><button id="close-invite-modal-button" class="button-exit-modal">×</button><h2>Freunde einladen</h2><ul id="online-friends-list" class="friends-list"></ul></div></div>
     <div id="custom-value-modal-overlay" class="modal-overlay hidden"><div class="modal numpad-modal"><button id="close-custom-value-modal-button" class="button-exit-modal">×</button><h2 id="custom-value-title">Wert eingeben</h2><div class="pin-display" id="custom-value-display"><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span></div><div id="numpad-custom-value" class="numpad"><button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button class="numpad-action" data-action="backspace"><i class="fa-solid fa-delete-left"></i></button><button data-key="0">0</button><button id="confirm-custom-value-button" class="numpad-action" data-action="confirm"><i class="fa-solid fa-check"></i></button></div></div></div>
-    
     <div id="change-name-modal-overlay" class="modal-overlay hidden"><div class="modal change-name-modal"><button id="close-change-name-modal-button" class="button-exit-modal">×</button><h2>Namen ändern</h2><p>Gib deinen neuen Benutzernamen ein.</p><input type="text" id="change-name-input" placeholder="Neuer Benutzername..." maxlength="15"><button id="change-name-submit" class="button-primary">Speichern</button></div></div>
-
     <div id="device-select-modal-overlay" class="modal-overlay hidden">
         <div class="modal selection-modal">
             <button id="close-device-select-modal" class="button-exit-modal">×</button>
@@ -283,7 +278,6 @@
             <div class="pagination-controls" id="playlist-pagination"></div>
         </div>
     </div>
-
     <div id="leave-confirm-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
             <h2>Spiel verlassen?</h2>
@@ -294,7 +288,6 @@
             </div>
         </div>
     </div>
-    
     <div id="confirm-action-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
             <h2 id="confirm-action-title">Aktion bestätigen</h2>
@@ -305,13 +298,26 @@
             </div>
         </div>
     </div>
-    
     <div id="invite-popup-container"></div>
 
-    <div id="loading-overlay" class="loading-overlay hidden"><div class="equalizer"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div></div>
+    <div id="loading-overlay" class="loading-overlay hidden"> <div class="equalizer">
+            <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script src="script.js"></script>
+
+    <div id="on-page-console" class="on-page-console hidden">
+        <div class="console-header">
+            <span>Konsole</span>
+            <button id="clear-console-btn">Löschen</button>
+            <button id="close-console-btn">×</button>
+        </div>
+        <div id="console-output" class="console-output"></div>
+    </div>
+    <button id="toggle-console-btn" class="toggle-console-btn"><i class="fa-solid fa-terminal"></i></button>
+
 </body>
 </html>
