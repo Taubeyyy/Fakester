@@ -60,7 +60,7 @@ p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 20px; }
 .button-primary:disabled { background-color: var(--medium-grey); color: var(--text-muted-color); cursor: not-allowed; }
 .button-secondary { background-color: var(--dark-grey); color: var(--text-color); }
 .button-danger { background-color: var(--danger-color); color: var(--text-color); }
-.button-icon { background: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease; }
+.button-icon { background: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease; flex-shrink: 0; }
 .button-icon:hover { background-color: var(--medium-grey); }
 .button-small { padding: 8px 16px; font-size: 0.9rem; width: auto; }
 .button-select {
@@ -92,15 +92,18 @@ input:-webkit-autofill:active {
 .home-container { justify-content: flex-start; }
 .profile-section { display: flex; align-items: center; gap: 15px; width: 100%; background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); }
 .profile-picture { width: 60px; height: 60px; border-radius: 50%; background-color: var(--dark-grey); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: var(--text-muted-color); flex-shrink: 0; border: none; cursor: pointer; }
-.profile-info { text-align: left; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+.profile-info { text-align: left; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; /* Verhindert Überlaufen */ }
 .username-container { position: relative; display: flex; align-items: center; gap: 10px; cursor: pointer; }
-.username-container h2 { margin-bottom: 0; }
+.username-container h2 { margin-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .edit-icon { font-size: 0.9rem; color: var(--text-muted-color); transform: translateY(-10px) translateX(-2px); }
 .profile-title-button { background: none; border: none; padding: 0; cursor: pointer; text-align: left; margin-top: 4px; }
 .profile-title { font-size: 0.9rem; font-weight: 700; color: var(--primary-color); background: #1db95420; padding: 3px 8px; border-radius: 20px; display: inline-block; }
 .profile-actions { margin-left: auto; display: flex; gap: 10px; }
 
-.level-progress-container { margin-top: 8px; }
+/* Level-Balken ist jetzt ein Button */
+.level-progress-container { 
+    margin-top: 8px; background: none; border: none; padding: 0; cursor: pointer; width: 100%; text-align: left;
+}
 .level-text { font-size: 0.8rem; color: var(--text-muted-color); font-weight: 700; }
 .xp-bar { width: 100%; height: 6px; background-color: var(--dark-grey); border-radius: 3px; margin-top: 4px; overflow: hidden; }
 .xp-fill { width: 50%; height: 100%; background-color: var(--primary-color); border-radius: 3px; transition: width 0.5s ease-out; }
@@ -226,8 +229,19 @@ input:-webkit-autofill:active {
 .selection-modal { display: flex; flex-direction: column; }
 .selection-modal-header { display: flex; justify-content: space-between; align-items: center; gap: 15px; margin-bottom: 15px; flex-shrink: 0; }
 .selection-modal-header h2 { margin-bottom: 0; }
+/* Refresh-Button Style (kleiner) */
+.selection-modal-header .button-icon { width: 40px; height: 40px; font-size: 0.9rem; }
+
 .selection-list { list-style: none; min-height: 100px; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
-.selection-list li { padding: 15px; background-color: var(--dark-grey); border-radius: 8px; cursor: pointer; transition: background-color 0.2s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Playlist-Item Style (zentriert, umbruch) */
+.selection-list li { 
+    padding: 15px; background-color: var(--dark-grey); border-radius: 8px; cursor: pointer; 
+    transition: background-color 0.2s ease;
+    /* NEU: Stellt sicher, dass Text zentriert ist und umbricht */
+    display: flex; align-items: center; min-height: 50px;
+    white-space: normal; word-break: break-word;
+    line-height: 1.4;
+}
 .selection-list li:hover { background-color: var(--medium-grey); }
 .selection-list li.selected { background-color: var(--primary-color); color: #000; font-weight: 700; }
 #playlist-search { margin-bottom: 15px; }
@@ -277,7 +291,10 @@ input:-webkit-autofill:active {
 .friends-modal li { display: flex; align-items: center; justify-content: space-between; background-color: var(--dark-grey); padding: 10px 15px; border-radius: 8px; }
 .friends-modal .friend-info { text-align: left; }
 .friends-modal .friend-status { font-size: 0.8rem; color: var(--text-muted-color); }
+.friends-modal .friend-actions { display: flex; gap: 5px; } /* Platz für 2 Buttons */
 .friends-modal .friend-actions button { width: 35px; height: 35px; font-size: 0.9rem; }
+/* Spezielle Farbe für Ablehnen-Button */
+.friends-modal .friend-actions .button-danger { background-color: var(--danger-color); color: white; }
 
 #invite-popup-container { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); width: 90%; max-width: 380px; z-index: 10001; }
 .invite-popup {
@@ -292,3 +309,53 @@ input:-webkit-autofill:active {
 }
 .invite-popup p { margin: 0 0 15px 0; }
 .invite-popup p strong { color: var(--primary-color); }
+
+/* NEUE SEITE: Level-Fortschritt */
+.level-progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+.level-progress-card {
+    background-color: var(--surface-color);
+    border-radius: var(--border-radius);
+    padding: 15px;
+    border-left: 5px solid var(--medium-grey);
+}
+.level-progress-card.unlocked {
+    border-left-color: var(--primary-color);
+}
+.level-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.level-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--text-color);
+}
+.level-header .xp-label {
+    font-size: 0.9rem;
+    color: var(--text-muted-color);
+    font-weight: 700;
+}
+.level-progress-card.unlocked .level-header h3 {
+    color: var(--primary-color);
+}
+.level-unlocks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    text-align: left;
+}
+.unlock-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+}
+.unlock-item i {
+    color: var(--primary-color);
+}
