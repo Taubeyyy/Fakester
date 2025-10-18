@@ -504,7 +504,7 @@
 
     // --- Client-Side Achievement Vergabe ---
     const awardClientSideAchievement = async (achievementId) => {
-        if (currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return;
+        if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return;
 
         console.log(`Awarding client-side achievement: ${achievementId}`);
         const { error } = await supabase
@@ -894,7 +894,7 @@
 
     // Zeigt nur den aktuellen Stand an
     function updatePlayerProgressDisplay() {
-        if (currentUser.isGuest || !userProfile) return;
+        if (!currentUser || currentUser.isGuest || !userProfile) return;
         const currentXp = userProfile.xp || 0;
         const currentLevel = getLevelForXp(currentXp);
         const xpForCurrentLevel = getXpForLevel(currentLevel);
@@ -915,7 +915,7 @@
 
     // Wird nach Spielende aufgerufen, holt neue Daten und prüft auf Level Up
     async function updatePlayerProgress(xpGained, showNotification = true) {
-        if (currentUser.isGuest) return;
+        if (!currentUser || currentUser.isGuest) return;
         console.log(`Updating player progress post-game. XP Gained: ${xpGained}, Show Notification: ${showNotification}`);
 
         const oldLevel = getLevelForXp(userProfile.xp || 0); // Level vor dem Update
@@ -977,7 +977,7 @@
 
     function updateStatsDisplay() {
         // ... (Angepasst für || 0 Fallback)
-         if (currentUser.isGuest || !userProfile) return;
+         if (!currentUser || currentUser.isGuest || !userProfile) return;
         const { games_played, wins, highscore, correct_answers } = userProfile;
 
         elements.stats.gamesPlayed.textContent = games_played || 0;
@@ -1583,7 +1583,7 @@
     }
 
     // #################################################################
-    // ### NEU: DER FEHLENDE EVENT LISTENER BLOCK ###
+    // ### DER EVENT LISTENER BLOCK ###
     // #################################################################
 
     function addEventListeners() {
@@ -1663,7 +1663,7 @@
             elements.friendsModal.overlay.classList.remove('hidden');
         });
         elements.home.usernameContainer.addEventListener('click', () => {
-            if (currentUser.isGuest) return;
+            if (!currentUser || currentUser.isGuest) return;
             elements.changeNameModal.input.value = currentUser.username;
             elements.changeNameModal.overlay.classList.remove('hidden');
             elements.changeNameModal.input.focus();
@@ -1739,22 +1739,25 @@
         // --- Lobby Screen ---
         elements.lobby.inviteFriendsBtn.addEventListener('click', async () => {
             // Lade nur online Freunde für Einladungen
-            if (!supabase) return;
-            const { data, error } = await supabase.rpc('get_online_friends', { p_user_id: currentUser.id });
-            if (error) {
-                showToast("Fehler beim Laden der Freunde.", true);
-                return;
+            if (!supabase || !currentUser || currentUser.isGuest) return;
+            try {
+                const { data, error } = await supabase.rpc('get_online_friends', { p_user_id: currentUser.id });
+                if (error) throw error;
+
+                const list = elements.inviteFriendsModal.list;
+                list.innerHTML = '';
+                if (data.length === 0) {
+                    list.innerHTML = '<li>Keine Freunde online.</li>';
+                } else {
+                    data.forEach(friend => {
+                        list.innerHTML += `<li data-friend-id="${friend.id}" data-friend-name="${friend.username}">${friend.username} <span class-="friend-status online">Online</span></li>`;
+                    });
+                }
+                elements.inviteFriendsModal.overlay.classList.remove('hidden');
+            } catch (error) {
+                 console.error("Error fetching online friends:", error);
+                 showToast("Fehler beim Laden der Freunde.", true);
             }
-            const list = elements.inviteFriendsModal.list;
-            list.innerHTML = '';
-            if (data.length === 0) {
-                list.innerHTML = '<li>Keine Freunde online.</li>';
-            } else {
-                data.forEach(friend => {
-                    list.innerHTML += `<li data-friend-id="${friend.id}" data-friend-name="${friend.username}">${friend.username} <span class-="friend-status online">Online</span></li>`;
-                });
-            }
-            elements.inviteFriendsModal.overlay.classList.remove('hidden');
         });
         
         elements.lobby.deviceSelectBtn.addEventListener('click', () => elements.deviceSelectModal.overlay.classList.remove('hidden'));
@@ -1774,7 +1777,7 @@
                     else if (type === 'time') settingKey = 'guessTime';
                     else if (type === 'answer') settingKey = 'answerType';
                     
-                    if(settingKey) {
+                    if(settingKey && ws.socket && ws.socket.readyState === WebSocket.OPEN) {
                         ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { [settingKey]: value } }));
                     }
                 }
@@ -1796,14 +1799,14 @@
             const card = e.target.closest('.title-card:not(.locked)');
             if (card) {
                 const titleId = parseInt(card.dataset.titleId);
-                equipTitle(titleId, true);
+                if (!isNaN(titleId)) equipTitle(titleId, true);
             }
         });
         elements.icons.list.addEventListener('click', (e) => {
             const card = e.target.closest('.icon-card:not(.locked)');
             if (card) {
                 const iconId = parseInt(card.dataset.iconId);
-                equipIcon(iconId, true);
+                 if (!isNaN(iconId)) equipIcon(iconId, true);
             }
         });
 
@@ -2026,7 +2029,7 @@
     }
 
     // #################################################################
-    // ### NEU: SUPABASE INITIALISIERUNG ###
+    // ### SUPABASE INITIALISIERUNG ###
     // #################################################################
 
     async function initializeSupabase() {
@@ -2043,7 +2046,15 @@
 
             // 2. Erstelle den Supabase-Client
             // (window.supabase kommt aus dem <script> Tag in index.html)
-            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            
+            // #####################################################
+            // ### HIER IST DER FIX FÜR "this.fetch" ERROR ###
+            // #####################################################
+            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
+                global: {
+                    fetch: window.fetch.bind(window)
+                }
+            });
             console.log("Supabase client initialized successfully.");
 
             // 3. Richte den zentralen Auth-Listener ein
