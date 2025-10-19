@@ -1,4 +1,4 @@
- document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let currentConfirmAction = null; // Für das Bestätigungs-Modal
@@ -2052,7 +2052,7 @@
             // #####################################################
             supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
                 global: {
-                    fetch: window.fetch.bind(window)
+                    fetch: (...args) => fetch(...args) // <-- HIER IST DIE KORREKTUR
                 }
             });
             console.log("Supabase client initialized successfully.");
