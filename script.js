@@ -1,4 +1,4 @@
-   document.addEventListener('DOMContentLoaded', () => {
+ document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let currentConfirmAction = null; // Für das Bestätigungs-Modal
@@ -2048,9 +2048,13 @@
             // (window.supabase kommt aus dem <script> Tag in index.html)
             
             // #####################################################
-            // ### HIER IST DIE ÄNDERUNG (FIX ENTFERNT) ###
+            // ### HIER IST DIE NEUE ÄNDERUNG (KOMBINIERTER FIX) ###
             // #####################################################
-            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
+                global: {
+                    fetch: (...args) => window.fetch(...args)
+                }
+            });
             console.log("Supabase client initialized successfully.");
 
             // 3. Richte den zentralen Auth-Listener ein
