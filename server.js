@@ -99,7 +99,61 @@ async function awardAchievement(ws, userId, achievementId) {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/api/config', (req, res) => res.json({ supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY }));
 app.get('/login', (req, res) => { const scopes = 'user-read-private user-read-email playlist-read-private streaming user-modify-playback-state user-read-playback-state'; res.redirect('https://accounts.spotify.com/authorize?' + new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, scope: scopes, redirect_uri: REDIRECT_URI }).toString()); });
-app.get('/callback', async (req, res) => { const code = req.query.code || null; if (!code) return res.redirect('/#error=auth_failed'); try { const response = await axios({ method: 'post', url: 'https://accounts.spotify.com/api/token', data: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }).toString(), headers: { 'Authorization': 'Basic ' + (Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')), 'Content-Type': 'application/x-www-form-urlencoded' } }); res.cookie('spotify_access_token', response.data.access_token, { httpOnly: true, secure: true, maxAge: 3600000 }); res.redirect('/'); } catch (error) { console.error("Spotify Callback Error:", error.response?.data || error.message); res.redirect('/#error=token_failed'); } });
+
+// =================================================================
+// START DER ÄNDERUNG: /callback Route zum Debuggen
+// =================================================================
+app.get('/callback', async (req, res) => {
+    const code = req.query.code || null;
+    if (!code) return res.redirect('/#error=auth_failed');
+    
+    try {
+        const response = await axios({
+            method: 'post',
+            url: 'https://accounts.spotify.com/api/token',
+            data: new URLSearchParams({
+                grant_type: 'authorization_code',
+                code,
+                redirect_uri: REDIRECT_URI
+            }).toString(),
+            headers: {
+                'Authorization': 'Basic ' + (Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')),
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
+        
+        // Setzt 'secure' nur, wenn die App NICHT auf localhost läuft
+        const cookieOptions = {
+            httpOnly: true,
+            maxAge: 3600000, // 1 Stunde
+            secure: !req.headers.host.includes('localhost') 
+        };
+
+        res.cookie('spotify_access_token', response.data.access_token, cookieOptions);
+        res.redirect('/');
+
+    } catch (error) {
+        // *** HIER IST DIE WICHTIGE ÄNDERUNG ***
+        // Wir leiten nicht mehr stillschweigend um, wir ZEIGEN den Fehler.
+        
+        console.error("Spotify Callback Error:", error.response?.data || error.message);
+        
+        const errorData = error.response ? error.response.data : { message: error.message };
+        
+        res.status(500).send(`
+            <div style="font-family: sans-serif; background: #222; color: #eee; padding: 20px;">
+                <h1>Spotify Login Fehler</h1>
+                <p>Der Token-Tausch ist fehlgeschlagen. Das ist der Grund:</p>
+                <pre style="background: #000; padding: 15px; border-radius: 8px; color: #ff8a8a;">${JSON.stringify(errorData, null, 2)}</pre>
+                <p>Bitte kopiere diesen Text und schicke ihn mir.</p>
+            </div>
+        `);
+    }
+});
+// =================================================================
+// ENDE DER ÄNDERUNG
+// =================================================================
+
 app.post('/logout', (req, res) => { res.clearCookie('spotify_access_token'); res.status(200).json({ message: 'Erfolgreich ausgeloggt' }); });
 app.get('/api/status', (req, res) => { const token = req.cookies.spotify_access_token; if (token) { res.json({ loggedIn: true, token: token }); } else { res.status(200).json({ loggedIn: false }); } }); // Status 200 statt 401
 app.get('/api/playlists', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try { const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } }); res.json(d.data); } catch (e) { console.error("Playlist API Error:", e.response?.status, e.response?.data); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Playlists" }); } });
