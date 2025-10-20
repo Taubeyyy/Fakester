@@ -1,4 +1,4 @@
- document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let currentConfirmAction = null; // Für das Bestätigungs-Modal
@@ -334,6 +334,14 @@
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame'); // Sicherheitshalber
         setLoading(true);
+        
+        // =========================================================
+        // ### HIER IST DER NEUE FIX ###
+        // Erzwingt eine Neusynchronisierung der Supabase-Sitzung,
+        // um veraltete/kaputte States nach Redirects zu beheben.
+        if (supabase) await supabase.auth.refreshSession();
+        // =========================================================
+
         try {
             if (isGuest) {
                 console.log("Setting up guest user...");
@@ -2012,7 +2020,7 @@
                 renderPaginatedPlaylists(allPlaylists, currentPage - 1);
             }
             if (e.target.closest('#next-page')) {
-                renderPaginatedPlaylists(allPlaylists, currentPage + 1);
+                renderPaginatedPlaylists(allPlaylists, currentPage - 1);
             }
         });
 
