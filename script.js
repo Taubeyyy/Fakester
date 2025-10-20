@@ -462,7 +462,11 @@
 
         try {
             let options = isRegister ? { options: { data: { username: username } } } : {};
-            const { data, error } = await action({ email: `${username}@fakester.app`, password, ...options });
+            
+            // ###################
+            // ### HIER IST DER FIX ###
+            // ###################
+            const { data, error } = await action.call(supabase.auth, { email: `${username}@fakester.app`, password, ...options });
 
             if (error) {
                 console.error('Supabase Auth Error:', error);
