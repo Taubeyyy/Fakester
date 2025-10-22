@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const initializeApp = async (user, isGuest = false) => {
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame');
-        // FIX: Entferne setLoading(true) hier, da es bereits in initializeSupabase aufgerufen wird
+        // FIX: Kein setLoading(true) hier, da es bereits in initializeSupabase() gestartet wurde
         
         // FIX: Erzwingt eine Neusynchronisierung der Supabase-Sitzung.
         if (supabase) await supabase.auth.refreshSession();
@@ -2024,15 +2024,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Wenn eine Session gefunden wird, warten wir auf das SIGNED_IN Event,
                     // das initializeApp aufruft. Wenn das Event nicht kommt (z.B. bei Reload),
                     // rufen wir initializeApp manuell auf.
-                    // Da das SIGNED_IN Event oft sofort kommt (siehe Log), warten wir kurz.
+                    // Timeout ist jetzt 500ms, um den Ladescreen schnell zu beenden.
                     setTimeout(async () => {
                         const { data: { session: currentSession } } = await supabase.auth.getSession();
-                        if (currentSession && !currentUser) { // Wenn Session noch aktiv und initializeApp nicht aufgerufen wurde
+                        if (currentSession && !currentUser) {
                             console.log("Forcing initializeApp after Auth Event timeout.");
                             await initializeApp(currentSession.user, false);
                         } else if (!currentSession) {
                             showScreen('auth-screen');
                         }
+                        // Stellen Sie sicher, dass der Ladescreen hier beendet wird, falls nichts passiert ist.
+                        setLoading(false);
                     }, 500);
                     
                 } else {
@@ -2044,11 +2046,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast("Kritischer Fehler bei der Sitzungsprüfung.", true);
                 showScreen('auth-screen');
             } finally {
-                // setLoading(false) wird hier NICHT aufgerufen, um auf initializeApp zu warten,
-                // ABER da es nur eine kurze Wartezeit gibt, rufen wir es hier auf,
-                // und lassen initializeApp es erneut aufrufen (da es jetzt nur einmal im initializeApp ist).
-                // Die robusteste Lösung ist, das loading-Overlay nach 500ms zu beenden.
-                setTimeout(() => setLoading(false), 500); 
+                // Das finale setLoading(false) wird jetzt im Timeout-Block behandelt, 
+                // um sicherzustellen, dass es erst nach dem Auth-Event-Check beendet wird.
+                // Zusätzliches setLoading(false) hier, falls der try-Block schnell abbricht.
+                // setLoading(false); // Entfernt, um doppeltes Schließen zu vermeiden.
             }
             
 
