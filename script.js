@@ -19,6 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // NEU: Globale Variablen für Playlist-Pagination
     let allPlaylists = [], currentPage = 1, itemsPerPage = 10;
+    
+    // NEU: Globale Referenz für den WebSocket Ping-Intervall
+    let wsPingInterval = null;
 
 
     // --- On-Page Konsole Setup ---
@@ -66,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     clearConsoleBtn?.addEventListener('click', () => { if(consoleOutput) consoleOutput.innerHTML = ''; });
     // --- Ende On-Page Konsole ---
 
-    // --- NEUE ERWEITERTE DATENBANKEN ---
+    // --- ERWEITERTE DATENBANKEN ---
     const achievementsList = [
         { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' },
         { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' },
@@ -448,7 +451,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             let options = isRegister ? { options: { data: { username: username } } } : {};
             
-            // FIX: Verwende eine E-Mail-Adresse für Supabase Auth, aber den Benutzernamen für das Profil
             const { data, error } = await action.call(supabase.auth, { email: `${username}@fakester.app`, password, ...options });
 
             if (error) {
@@ -514,6 +516,10 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("WebSocket connection already open or connecting.");
             return;
         }
+        
+        // Lösche den alten Ping-Intervall, falls vorhanden
+        if (wsPingInterval) clearInterval(wsPingInterval);
+
         const wsUrl = window.location.protocol.replace('http', 'ws') + '//' + window.location.host;
         console.log(`Attempting to connect WebSocket to: ${wsUrl}`);
         ws.socket = new WebSocket(wsUrl);
@@ -534,7 +540,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn("Found stored game for a different user, ignoring.");
                 localStorage.removeItem('fakesterGame');
             }
+            
+            // NEU: Client-seitige Heartbeat-Logik starten
+            wsPingInterval = setInterval(() => {
+                if (ws.socket?.readyState === WebSocket.OPEN) {
+                    // Sende eine leere Nachricht oder ein "Ping"-Frame, um die Verbindung am Leben zu halten.
+                    // Da der Server PING/PONG implementiert, kann dies leer bleiben, aber zur Robustheit.
+                    // ws.socket.send(JSON.stringify({ type: 'client-ping' }));
+                } else {
+                    clearInterval(wsPingInterval);
+                    wsPingInterval = null;
+                }
+            }, 30000); // 30 Sekunden Ping-Intervall
         };
+
         ws.socket.onmessage = (event) => {
              try {
                  const data = JSON.parse(event.data);
@@ -543,8 +562,14 @@ document.addEventListener('DOMContentLoaded', () => {
                  console.error('Error processing WebSocket message:', error, event.data);
             }
         };
+
         ws.socket.onclose = (event) => {
             console.warn(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`);
+            
+            // NEU: Ping-Interval löschen
+            if (wsPingInterval) clearInterval(wsPingInterval);
+            wsPingInterval = null;
+
             setTimeout(() => {
                 if (!document.getElementById('auth-screen')?.classList.contains('active')) {
                      console.log("Attempting WebSocket reconnect...");
@@ -552,6 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }, 5000);
         };
+        
         ws.socket.onerror = (errorEvent) => {
              console.error('WebSocket error:', errorEvent);
         };
@@ -1196,16 +1222,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     year: data.song?.year || '?'
                 };
                 
+                // 1. Ghost Card (korrekte Position) einfügen
                 if (data.correctIndex <= currentTimeline.length) {
                     currentTimeline.splice(data.correctIndex, 0, ghostCard);
                 }
                 
+                // 2. Incorrect Card (nutzergewählte Position) einfügen
                 let userIndex = data.userIndex;
                 if (data.correctIndex <= data.userIndex) { 
                     userIndex++;
                 }
                 currentTimeline.splice(userIndex, 0, incorrectCard);
 
+                // 3. Render die neue temporäre Timeline
                 timelineHtml = currentTimeline.map(item => {
                     if (item.isExisting) {
                         return `<div class="timeline-card"><img src="${item.albumArtUrl || './placeholder.png'}" onerror="this.src='./placeholder.png'"><div class="year">${item.year}</div></div>`;
@@ -1902,12 +1931,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         elements.playlistSelectModal.pagination.addEventListener('click', (e) => {
-            // FIX: Pagination logik korrigieren
+            // FIX: Pagination logic korrigiert
             if (e.target.closest('#prev-page')) {
                 renderPaginatedPlaylists(allPlaylists, currentPage - 1);
             }
             if (e.target.closest('#next-page')) {
-                renderPaginatedPlaylists(allPlaylists, currentPage + 1); // Korrektur von -1 zu +1
+                renderPaginatedPlaylists(allPlaylists, currentPage + 1);
             }
         });
 
