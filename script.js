@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 19, name: 'Highscorer', unlockType: 'achievement', unlockValue: 18 },
         { id: 20, name: 'Dauerbrenner', unlockType: 'achievement', unlockValue: 17 },
 
-        { id: 99, name: 'Entwickler', unlockType: 'special', unlockValue: 'Taubey' }
+        { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon' }
     ];
 
     const iconsList = [
@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const initializeApp = async (user, isGuest = false) => {
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame');
-        setLoading(true);
+        // FIX: Entferne setLoading(true) hier, da es bereits in initializeSupabase aufgerufen wird
         
         // FIX: Erzwingt eine Neusynchronisierung der Supabase-Sitzung.
         if (supabase) await supabase.auth.refreshSession();
@@ -478,7 +478,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setLoading(true);
         if (currentUser?.isGuest) {
             console.log("Guest logout, reloading page.");
-             // Löscht die gesamte History und zwingt den Auth-Screen neu
              window.location.replace(window.location.origin);
              return;
         }
@@ -486,7 +485,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
             console.log("Supabase signOut successful.");
-            // FIX: History cleanen nach erfolgreichem Logout, um Redirect-Loops zu vermeiden
             window.location.replace(window.location.origin);
         } catch (error) {
             console.error("Error during logout:", error);
@@ -1588,7 +1586,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('spotify-connect-button')?.addEventListener('click', (e) => {
             e.preventDefault();
             // 1. Bereinige die History, bevor wir zu einer externen URL navigieren
-            // Dadurch wird der fehlerhafte Browser-Zurück-Button-State vermieden.
             history.pushState(null, '', window.location.pathname);
             
             // 2. Leite zur Spotify-Login-Route um
@@ -1994,6 +1991,7 @@ document.addEventListener('DOMContentLoaded', () => {
             supabase.auth.onAuthStateChange(async (event, session) => {
                 console.log(`Supabase Auth Event: ${event}`);
                 if (event === 'SIGNED_IN' && session?.user) {
+                    // FIX: AuthChange ruft initializeApp auf, das den Loading-Screen steuert
                     await initializeApp(session.user, false);
                 } else if (event === 'SIGNED_OUT') {
                     currentUser = null;
@@ -2014,7 +2012,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setLoading(true);
             
-            // NEUE ROBUSTE PRÜFUNG MIT TRY/CATCH UM ASYNCHRONE CALLS
             try {
                 const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
@@ -2023,8 +2020,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast("Fehler beim Abrufen der Sitzung.", true);
                     showScreen('auth-screen');
                 } else if (session) {
-                    console.log("Found active session, initializing app...");
-                    await initializeApp(session.user, false);
+                    console.log("Found active session, checking for Auth Event...");
+                    // Wenn eine Session gefunden wird, warten wir auf das SIGNED_IN Event,
+                    // das initializeApp aufruft. Wenn das Event nicht kommt (z.B. bei Reload),
+                    // rufen wir initializeApp manuell auf.
+                    // Da das SIGNED_IN Event oft sofort kommt (siehe Log), warten wir kurz.
+                    setTimeout(async () => {
+                        const { data: { session: currentSession } } = await supabase.auth.getSession();
+                        if (currentSession && !currentUser) { // Wenn Session noch aktiv und initializeApp nicht aufgerufen wurde
+                            console.log("Forcing initializeApp after Auth Event timeout.");
+                            await initializeApp(currentSession.user, false);
+                        } else if (!currentSession) {
+                            showScreen('auth-screen');
+                        }
+                    }, 500);
+                    
                 } else {
                     console.log("No active session, showing auth screen.");
                     showScreen('auth-screen');
@@ -2034,7 +2044,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast("Kritischer Fehler bei der Sitzungsprüfung.", true);
                 showScreen('auth-screen');
             } finally {
-                setLoading(false);
+                // setLoading(false) wird hier NICHT aufgerufen, um auf initializeApp zu warten,
+                // ABER da es nur eine kurze Wartezeit gibt, rufen wir es hier auf,
+                // und lassen initializeApp es erneut aufrufen (da es jetzt nur einmal im initializeApp ist).
+                // Die robusteste Lösung ist, das loading-Overlay nach 500ms zu beenden.
+                setTimeout(() => setLoading(false), 500); 
             }
             
 
