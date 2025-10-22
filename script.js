@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const initializeApp = async (user, isGuest = false) => {
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame');
-        // FIX: Kein setLoading(true) hier, da es bereits in initializeSupabase() gestartet wurde
+        // FIX: Kein setLoading(true) hier
         
         // FIX: Erzwingt eine Neusynchronisierung der Supabase-Sitzung.
         if (supabase) await supabase.auth.refreshSession();
@@ -1535,7 +1535,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             localStorage.removeItem('fakesterGame');
             currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] };
-            screenHistory = ['auth-screen'];
             window.location.reload();
         });
 
@@ -1831,7 +1830,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.inviteFriendsModal.list.addEventListener('click', (e) => {
             const li = e.target.closest('li');
             if (li && li.dataset.friendId) {
-                if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) return showToast("Keine Serververbindung.", true);
+                if (!ws.socket || ws.socket.readyState === WebSocket.OPEN) return showToast("Keine Serververbindung.", true);
                 ws.socket.send(JSON.stringify({
                     type: 'invite-friend',
                     payload: { friendId: li.dataset.friendId, friendName: li.dataset.friendName }
@@ -1991,7 +1990,6 @@ document.addEventListener('DOMContentLoaded', () => {
             supabase.auth.onAuthStateChange(async (event, session) => {
                 console.log(`Supabase Auth Event: ${event}`);
                 if (event === 'SIGNED_IN' && session?.user) {
-                    // FIX: AuthChange ruft initializeApp auf, das den Loading-Screen steuert
                     await initializeApp(session.user, false);
                 } else if (event === 'SIGNED_OUT') {
                     currentUser = null;
@@ -2021,21 +2019,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     showScreen('auth-screen');
                 } else if (session) {
                     console.log("Found active session, checking for Auth Event...");
-                    // Wenn eine Session gefunden wird, warten wir auf das SIGNED_IN Event,
-                    // das initializeApp aufruft. Wenn das Event nicht kommt (z.B. bei Reload),
-                    // rufen wir initializeApp manuell auf.
-                    // Timeout ist jetzt 500ms, um den Ladescreen schnell zu beenden.
-                    setTimeout(async () => {
-                        const { data: { session: currentSession } } = await supabase.auth.getSession();
-                        if (currentSession && !currentUser) {
-                            console.log("Forcing initializeApp after Auth Event timeout.");
-                            await initializeApp(currentSession.user, false);
-                        } else if (!currentSession) {
-                            showScreen('auth-screen');
-                        }
-                        // Stellen Sie sicher, dass der Ladescreen hier beendet wird, falls nichts passiert ist.
-                        setLoading(false);
-                    }, 500);
+                    // Wenn eine Session gefunden wird, warten wir auf das SIGNED_IN Event.
+                    // Das Event wird durch den Reload ausgelöst und ruft initializeApp auf.
                     
                 } else {
                     console.log("No active session, showing auth screen.");
@@ -2046,10 +2031,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast("Kritischer Fehler bei der Sitzungsprüfung.", true);
                 showScreen('auth-screen');
             } finally {
-                // Das finale setLoading(false) wird jetzt im Timeout-Block behandelt, 
-                // um sicherzustellen, dass es erst nach dem Auth-Event-Check beendet wird.
-                // Zusätzliches setLoading(false) hier, falls der try-Block schnell abbricht.
-                // setLoading(false); // Entfernt, um doppeltes Schließen zu vermeiden.
+                // FIX: Unabhängig davon, ob eine Session gefunden wurde oder nicht, muss das Loading-Overlay beendet werden.
+                // Wir verwenden hier einen kurzen Timeout, um Race Conditions mit dem SIGNED_IN Event zu vermeiden.
+                 setTimeout(() => setLoading(false), 200); 
             }
             
 
