@@ -1574,7 +1574,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast("Nickname muss mind. 3 Zeichen lang sein.", true);
                 return;
             }
-            elements.guestModal.overlay.classList.add('hidden');
             initializeApp({ username: nickname }, true);
         });
 
@@ -2019,8 +2018,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     showScreen('auth-screen');
                 } else if (session) {
                     console.log("Found active session, checking for Auth Event...");
-                    // Wenn eine Session gefunden wird, warten wir auf das SIGNED_IN Event.
-                    // Das Event wird durch den Reload ausgelöst und ruft initializeApp auf.
+                    // Das SIGNED_IN Event wird durch den Reload ausgelöst und ruft initializeApp auf.
                     
                 } else {
                     console.log("No active session, showing auth screen.");
@@ -2031,9 +2029,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast("Kritischer Fehler bei der Sitzungsprüfung.", true);
                 showScreen('auth-screen');
             } finally {
-                // FIX: Unabhängig davon, ob eine Session gefunden wurde oder nicht, muss das Loading-Overlay beendet werden.
-                // Wir verwenden hier einen kurzen Timeout, um Race Conditions mit dem SIGNED_IN Event zu vermeiden.
-                 setTimeout(() => setLoading(false), 200); 
+                // FIX: Unabhängig davon, ob eine Session gefunden wurde, den Ladescreen freigeben.
+                // Da initializeApp das Laden selbst beendet, muss hier eine kurze Wartezeit sein, 
+                // um Race Conditions zu vermeiden.
+                 setTimeout(() => setLoading(false), 500); 
             }
             
 
