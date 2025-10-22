@@ -1,12 +1,12 @@
-  document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "", customValueInput = "", currentCustomType = null;
-    let currentConfirmAction = null; // Für das Bestätigungs-Modal
+    let currentConfirmAction = null;
 
     // Globale Speicher für DB-Daten
     let userProfile = {};
     let userUnlockedAchievementIds = [];
-    let onlineFriends = []; // Wird (später) per WebSocket aktualisiert
+    let onlineFriends = [];
 
     let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] };
     let screenHistory = ['auth-screen'];
@@ -28,7 +28,7 @@
     const closeConsoleBtn = document.getElementById('close-console-btn');
     const clearConsoleBtn = document.getElementById('clear-console-btn');
 
-    const originalConsole = { ...console }; // Original-Konsole speichern
+    const originalConsole = { ...console };
 
     const logToPage = (type, args) => {
         if (!consoleOutput) return;
@@ -41,16 +41,15 @@
             }).join(' ');
             const logEntry = document.createElement('div');
             logEntry.classList.add(`log-${type}`);
-            // Sanitize message to prevent potential XSS if user input ever gets logged (unlikely here, but good practice)
             logEntry.textContent = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: ${message}`;
             consoleOutput.appendChild(logEntry);
-            consoleOutput.scrollTop = consoleOutput.scrollHeight; // Auto-scroll
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
         } catch (e) {
-            originalConsole.error("Error logging to page:", e); // Log internal errors to original console
+            originalConsole.error("Error logging to page:", e);
             const errorEntry = document.createElement('div');
             errorEntry.classList.add('log-error');
             errorEntry.textContent = `[ERROR] ${new Date().toLocaleTimeString()}: Failed to log message. See browser console.`;
-            if(consoleOutput) { // Check if consoleOutput still exists
+            if(consoleOutput) {
                  consoleOutput.appendChild(errorEntry);
                  consoleOutput.scrollTop = consoleOutput.scrollHeight;
             }
@@ -62,7 +61,6 @@
     console.error = (...args) => { originalConsole.error(...args); logToPage('error', args); };
     console.info = (...args) => { originalConsole.info(...args); logToPage('info', args); };
 
-    // Console-Listener SIND BEREITS VORHANDEN und korrekt
     toggleConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.toggle('hidden'));
     closeConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.add('hidden'));
     clearConsoleBtn?.addEventListener('click', () => { if(consoleOutput) consoleOutput.innerHTML = ''; });
@@ -70,35 +68,32 @@
 
     // --- NEUE ERWEITERTE DATENBANKEN ---
     const achievementsList = [
-        // Bestehende
         { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' },
         { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' },
         { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' },
-        { id: 4, name: 'Historiker', description: 'Gewinne eine Timeline-Runde.' }, // Wird jetzt serverseitig geprüft
-        { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' }, // Wird jetzt serverseitig geprüft
+        { id: 4, name: 'Historiker', description: 'Gewinne eine Timeline-Runde.' },
+        { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' },
         { id: 6, name: 'Musik-Lexikon', description: 'Beantworte 500 Fragen richtig (gesamt).' },
-        { id: 7, name: 'Unbesiegbar', description: 'Gewinne 5 Spiele in Folge.' }, // Wird jetzt serverseitig geprüft
-        { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt (gesamt).' }, // Wird jetzt serverseitig geprüft
-        { id: 9, name: 'Spotify-Junkie', description: 'Verbinde dein Spotify-Konto.' }, // Bleibt clientseitig? Oder serverseitig prüfen? Einfachheitshalber client.
-        { id: 10, name: 'Gastgeber', description: 'Hoste dein erstes Spiel.' }, // Wird jetzt serverseitig geprüft
-        { id: 11, name: 'Party-Löwe', description: 'Spiele mit 3+ Freunden (in einer Lobby).' }, // Wird jetzt serverseitig geprüft
-        // NEUE Achievements
-        { id: 12, name: ' knapp daneben', description: 'Antworte 5 Mal falsch in einem Spiel.' }, // Server TODO
-        { id: 13, name: 'Präzisionsarbeit', description: 'Errate Titel, Künstler UND Jahr exakt in einer Runde (Quiz).'}, // Server TODO
-        { id: 14, name: 'Sozial vernetzt', description: 'Füge deinen ersten Freund hinzu.' }, // Server (wenn Freundschaft akzeptiert wird)
-        { id: 15, name: 'Sammler', description: 'Schalte 5 Titel frei.' }, // Client
-        { id: 16, name: 'Icon-Liebhaber', description: 'Schalte 5 Icons frei.' }, // Client
-        { id: 17, name: 'Aufwärmrunde', description: 'Spiele 3 Spiele.' }, // Server
-        { id: 18, name: 'Highscorer', description: 'Erreiche über 1000 Punkte in einem Spiel.' }, // Server
-        { id: 19, name: 'Perfektionist', description: 'Beantworte alle Fragen in einem Spiel richtig (min. 5 Runden).'}, // Server TODO
-        { id: 20, name: 'Dabei sein ist alles', description: 'Verliere 3 Spiele.'} // Server
+        { id: 7, name: 'Unbesiegbar', description: 'Gewinne 5 Spiele in Folge.' },
+        { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt (gesamt).' },
+        { id: 9, name: 'Spotify-Junkie', description: 'Verbinde dein Spotify-Konto.' },
+        { id: 10, name: 'Gastgeber', description: 'Hoste dein erstes Spiel.' },
+        { id: 11, name: 'Party-Löwe', description: 'Spiele mit 3+ Freunden (in einer Lobby).' },
+        { id: 12, name: ' knapp daneben', description: 'Antworte 5 Mal falsch in einem Spiel.' },
+        { id: 13, name: 'Präzisionsarbeit', description: 'Errate Titel, Künstler UND Jahr exakt in einer Runde (Quiz).'},
+        { id: 14, name: 'Sozial vernetzt', description: 'Füge deinen ersten Freund hinzu.' },
+        { id: 15, name: 'Sammler', description: 'Schalte 5 Titel frei.' },
+        { id: 16, name: 'Icon-Liebhaber', description: 'Schalte 5 Icons frei.' },
+        { id: 17, name: 'Aufwärmrunde', description: 'Spiele 3 Spiele.' },
+        { id: 18, name: 'Highscorer', description: 'Erreiche über 1000 Punkte in einem Spiel.' },
+        { id: 19, name: 'Perfektionist', description: 'Beantworte alle Fragen in einem Spiel richtig (min. 5 Runden).'},
+        { id: 20, name: 'Dabei sein ist alles', description: 'Verliere 3 Spiele.'}
     ];
 
-    const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100)); // Ensure non-negative
-    const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1); // Ensure level >= 1
+    const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100));
+    const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
 
     const titlesList = [
-        // Bestehende + Neue
         { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1 },
         { id: 2, name: 'Musik-Kenner', unlockType: 'achievement', unlockValue: 2 },
         { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3 },
@@ -146,7 +141,6 @@
     const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
     // --- DOM Element References ---
-    // (elements object definition remains the same as before)
     const elements = {
         screens: document.querySelectorAll('.screen'),
         leaveGameButton: document.getElementById('leave-game-button'),
@@ -161,7 +155,7 @@
             profilePictureBtn: document.getElementById('profile-picture-button'), profileIcon: document.getElementById('profile-icon'),
             profileLevel: document.getElementById('profile-level'), profileXpFill: document.getElementById('profile-xp-fill'),
             levelProgressBtn: document.getElementById('level-progress-button'),
-            profileXpText: document.getElementById('profile-xp-text') // NEU: XP Text Element
+            profileXpText: document.getElementById('profile-xp-text')
         },
         modeSelection: {
             container: document.getElementById('mode-selection-screen').querySelector('.mode-selection-container')
@@ -226,7 +220,7 @@
             confirmBtn: document.getElementById('confirm-leave-button'),
             cancelBtn: document.getElementById('cancel-leave-button'),
         },
-        confirmActionModal: { // NEU
+        confirmActionModal: {
             overlay: document.getElementById('confirm-action-modal-overlay'),
             title: document.getElementById('confirm-action-title'),
             text: document.getElementById('confirm-action-text'),
@@ -244,11 +238,11 @@
 
     // --- Core Functions ---
     const showToast = (message, isError = false) => {
-        console.log(`Toast: ${message} (Error: ${isError})`); // Logge Toasts
+        console.log(`Toast: ${message} (Error: ${isError})`);
         Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "var(--danger-color)" : "var(--success-color)", borderRadius: "8px" } }).showToast();
     }
     const showScreen = (screenId) => {
-        console.log(`Navigating to screen: ${screenId}`); // Logge Screenwechsel
+        console.log(`Navigating to screen: ${screenId}`);
         const targetScreen = document.getElementById(screenId);
         if (!targetScreen) {
              console.error(`Screen with ID "${screenId}" not found!`);
@@ -263,22 +257,20 @@
     };
     const goBack = () => {
         if (screenHistory.length > 1) {
-            const currentScreenId = screenHistory.pop(); // Entferne aktuellen Screen
-            const previousScreenId = screenHistory[screenHistory.length - 1]; // Hol den letzten
+            const currentScreenId = screenHistory.pop();
+            const previousScreenId = screenHistory[screenHistory.length - 1];
             console.log(`Navigating back to screen: ${previousScreenId}`);
 
-            // Speziallogik für Spiel-Screens
             if (['game-screen', 'lobby-screen'].includes(currentScreenId)) {
                 elements.leaveConfirmModal.overlay.classList.remove('hidden');
-                screenHistory.push(currentScreenId); // Füge Screen wieder hinzu, da Abbruch möglich
+                screenHistory.push(currentScreenId);
                 return;
             }
 
-            // Standard-Navigation
             const targetScreen = document.getElementById(previousScreenId);
             if (!targetScreen) {
                  console.error(`Back navigation failed: Screen "${previousScreenId}" not found!`);
-                 screenHistory = ['auth-screen']; // Reset
+                 screenHistory = ['auth-screen'];
                  window.location.reload();
                  return;
             }
@@ -289,21 +281,19 @@
         }
     };
     const setLoading = (isLoading) => {
-        console.log(`Setting loading overlay: ${isLoading}`); // Logge Ladezustand
+        console.log(`Setting loading overlay: ${isLoading}`);
         elements.loadingOverlay.classList.toggle('hidden', !isLoading);
     }
     const showConfirmModal = (title, text, onConfirm) => {
         elements.confirmActionModal.title.textContent = title;
         elements.confirmActionModal.text.textContent = text;
-        currentConfirmAction = onConfirm; // Speichere die Callback-Funktion
+        currentConfirmAction = onConfirm;
         elements.confirmActionModal.overlay.classList.remove('hidden');
     };
 
     // --- Helper Functions ---
-    // (isItemUnlocked, getUnlockDescription remain the same)
     function isItemUnlocked(item, currentLevel) {
         if (!item || !currentUser || currentUser.isGuest) return false;
-        // Dev bypass
         if (currentUser.username.toLowerCase() === 'taubey') return true;
 
         switch (item.unlockType) {
@@ -328,19 +318,13 @@
 
 
     // --- Initialization and Auth ---
-    // (initializeApp, checkSpotifyStatus, handleAuthAction, handleLogout remain mostly the same, with added logging)
-     // Angepasste initializeApp mit mehr Logging
     const initializeApp = async (user, isGuest = false) => {
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
-        localStorage.removeItem('fakesterGame'); // Sicherheitshalber
+        localStorage.removeItem('fakesterGame');
         setLoading(true);
         
-        // =========================================================
-        // ### HIER IST DER NEUE FIX ###
-        // Erzwingt eine Neusynchronisierung der Supabase-Sitzung,
-        // um veraltete/kaputte States nach Redirects zu beheben.
+        // FIX: Erzwingt eine Neusynchronisierung der Supabase-Sitzung.
         if (supabase) await supabase.auth.refreshSession();
-        // =========================================================
 
         try {
             if (isGuest) {
@@ -351,9 +335,8 @@
                  console.log("Guest user setup complete.");
             } else {
                 console.log("Setting up logged-in user...");
-                currentUser = { id: user.id, username: user.user_metadata?.username || 'Unbekannt', isGuest }; // Fallback für Username
+                currentUser = { id: user.id, username: user.user_metadata?.username || 'Unbekannt', isGuest };
 
-                // Lade Profildaten
                 console.log("Fetching profile data...");
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
@@ -364,15 +347,13 @@
                 if (profileError) {
                     console.error("Profil-Ladefehler:", profileError);
                     showToast("Fehler beim Laden deines Profils.", true);
-                    // Fallback-Profil, damit die App nicht crasht
                     userProfile = { id: user.id, username: currentUser.username, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
                 } else {
                     userProfile = profile;
-                    currentUser.username = profile.username; // Stelle sicher, dass der Username aus der DB kommt
+                    currentUser.username = profile.username;
                     console.log("Profile data fetched:", userProfile);
                 }
 
-                // Lade Erfolge
                 console.log("Fetching achievements...");
                 const { data: achievements, error: achError } = await supabase
                     .from('user_achievements')
@@ -383,7 +364,7 @@
                     console.error("Erfolg-Ladefehler:", achError);
                     userUnlockedAchievementIds = [];
                 } else {
-                    userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id)); // Sicherstellen, dass nur Zahlen im Array sind
+                    userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id));
                     console.log("Achievements fetched:", userUnlockedAchievementIds);
                 }
 
@@ -391,9 +372,8 @@
                 await checkSpotifyStatus();
                 console.log("Spotify status checked.");
 
-                 // Clientseitige Achievements prüfen (z.B. Spotify verbunden)
                 if (spotifyToken && !userUnlockedAchievementIds.includes(9)) {
-                    awardClientSideAchievement(9); // Spotify-Junkie
+                    awardClientSideAchievement(9);
                 }
 
                 console.log("Rendering UI components...");
@@ -405,13 +385,12 @@
                 console.log("UI components rendered.");
 
                 console.log("Equipping title and icon...");
-                // Wichtig: Beim Initialisieren equip aufrufen, aber nicht speichern (saveToDb = false)
                 equipTitle(userProfile.equipped_title_id || 1, false);
                 equipIcon(userProfile.equipped_icon_id || 1, false);
                 console.log("Title and icon equipped visually.");
 
                 console.log("Updating player progress display...");
-                updatePlayerProgressDisplay(); // Nur Anzeige aktualisieren, keine Logik
+                updatePlayerProgressDisplay();
                 console.log("Player progress display updated.");
                 console.log("Logged-in user setup complete.");
             }
@@ -427,12 +406,11 @@
             console.error("FATAL ERROR during initializeApp:", error);
             showToast("Ein kritischer Fehler ist aufgetreten. Bitte lade die Seite neu.", true);
         } finally {
-            setLoading(false); // Wird IMMER ausgeführt, auch bei Fehlern
+            setLoading(false);
         }
     };
 
     const checkSpotifyStatus = async () => {
-        // ... (Bleibt gleich, mit logging)
         try {
             console.log("Fetching /api/status");
             const res = await fetch('/api/status');
@@ -453,7 +431,6 @@
     };
 
     const handleAuthAction = async (action, form, isRegister = false) => {
-         // ... (Bleibt gleich, mit logging)
          setLoading(true);
         const usernameInput = form.querySelector('input[type="text"]');
         const passwordInput = form.querySelector('input[type="password"]');
@@ -471,9 +448,7 @@
         try {
             let options = isRegister ? { options: { data: { username: username } } } : {};
             
-            // ###################
-            // ### HIER IST DER FIX ###
-            // ###################
+            // FIX: Verwende eine E-Mail-Adresse für Supabase Auth, aber den Benutzernamen für das Profil
             const { data, error } = await action.call(supabase.auth, { email: `${username}@fakester.app`, password, ...options });
 
             if (error) {
@@ -481,7 +456,6 @@
                 throw error;
             }
              console.log(`${isRegister ? 'Signup' : 'Login'} successful for user: ${username}`, data);
-             // initializeApp wird jetzt vom onAuthStateChange Listener aufgerufen
         } catch (error) {
             let message = "Anmeldung fehlgeschlagen.";
             if (error.message.includes("Invalid login credentials")) message = "Ungültiger Benutzername oder Passwort.";
@@ -495,7 +469,6 @@
         }
     };
     const handleLogout = async () => {
-         // ... (Bleibt gleich, mit logging)
          console.log("Logout initiated.");
         setLoading(true);
         if (currentUser?.isGuest) {
@@ -506,7 +479,6 @@
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
             console.log("Supabase signOut successful.");
-            // Aufräumen passiert im onAuthStateChange Listener
         } catch (error) {
             console.error("Error during logout:", error);
             showToast("Ausloggen fehlgeschlagen.", true);
@@ -529,7 +501,6 @@
             userUnlockedAchievementIds.push(achievementId);
             const achievement = achievementsList.find(a => a.id === achievementId);
             showToast(`Erfolg freigeschaltet: ${achievement?.name || ''}!`);
-            // UI-Updates, die davon abhängen
             renderAchievements();
             renderTitles();
             renderIcons();
@@ -538,7 +509,6 @@
 
 
     // --- WebSocket Functions ---
-    // (connectWebSocket, handleWebSocketMessage bleiben gleich, mit logging)
     const connectWebSocket = () => {
         if(ws.socket && (ws.socket.readyState === WebSocket.OPEN || ws.socket.readyState === WebSocket.CONNECTING)) {
             console.log("WebSocket connection already open or connecting.");
@@ -554,20 +524,18 @@
                 console.log(`Registering user ${currentUser.id} with WebSocket server.`);
                 ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id } }));
             }
-            // Check for stored game *after* potential registration
             const storedGame = JSON.parse(localStorage.getItem('fakesterGame'));
-            if (storedGame && currentUser && storedGame.playerId === currentUser.id) { // Only reconnect if it's the same user
+            if (storedGame && currentUser && storedGame.playerId === currentUser.id) {
                 console.log("Found stored game, attempting to reconnect:", storedGame);
                 currentGame = storedGame;
                 showToast('Verbinde erneut mit dem Spiel...');
                 ws.socket.send(JSON.stringify({ type: 'reconnect', payload: { pin: currentGame.pin, playerId: currentGame.playerId } }));
             } else if (storedGame) {
                 console.warn("Found stored game for a different user, ignoring.");
-                localStorage.removeItem('fakesterGame'); // Clear invalid game state
+                localStorage.removeItem('fakesterGame');
             }
         };
         ws.socket.onmessage = (event) => {
-             // console.log("WebSocket message received:", event.data); // Can be noisy
              try {
                  const data = JSON.parse(event.data);
                  handleWebSocketMessage(data);
@@ -577,14 +545,12 @@
         };
         ws.socket.onclose = (event) => {
             console.warn(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`);
-            // Simple reconnect logic
             setTimeout(() => {
-                 // Only reconnect if the user is still on a screen that requires WS (not auth)
                 if (!document.getElementById('auth-screen')?.classList.contains('active')) {
                      console.log("Attempting WebSocket reconnect...");
                      connectWebSocket();
                 }
-            }, 5000); // Increased delay
+            }, 5000);
         };
         ws.socket.onerror = (errorEvent) => {
              console.error('WebSocket error:', errorEvent);
@@ -593,13 +559,12 @@
 
     const handleWebSocketMessage = ({ type, payload }) => {
         console.log(`Processing WebSocket message: Type=${type}`, payload);
-        // setLoading(false); // Removed: setLoading is handled by specific actions now
         if (type !== 'round-countdown') elements.countdownOverlay.classList.add('hidden');
 
         switch (type) {
              case 'game-created':
              case 'join-success':
-                 setLoading(false); // Stop loading AFTER joining/creating
+                 setLoading(false);
                  currentGame = { ...currentGame, pin: payload.pin, playerId: payload.playerId, isHost: payload.isHost, gameMode: payload.gameMode };
                  localStorage.setItem('fakesterGame', JSON.stringify(currentGame));
                  if (currentGame.isHost) { fetchHostData(); }
@@ -611,23 +576,21 @@
                 renderPlayerList(payload.players, payload.hostId);
                 updateHostSettings(payload.settings, currentGame.isHost);
                 break;
-             case 'reconnect-to-game': // Handle reconnecting mid-game
+             case 'reconnect-to-game':
                  setLoading(false);
                  console.log("Reconnected mid-game, showing game screen.");
-                 // TODO: Potentially need game state data in payload
                  showScreen('game-screen');
-                 // Maybe call a function to render the current game state based on payload
                  break;
             case 'game-starting':
                 showScreen('game-screen');
                 setupPreRound(payload);
                 break;
             case 'round-countdown':
-                 setLoading(false); // Ensure loading stops before countdown shows
+                 setLoading(false);
                 showCountdown(payload.round, payload.totalRounds);
                 break;
             case 'new-round':
-                 setLoading(false); // Stop loading when new round starts
+                 setLoading(false);
                 showScreen('game-screen');
                 setupNewRound(payload);
                 break;
@@ -636,15 +599,15 @@
                 break;
             case 'game-over':
                 localStorage.removeItem('fakesterGame');
-                const myFinalScore = payload.scores.find(s => s.id === currentUser?.id)?.score || 0; // Use optional chaining for safety
+                const myFinalScore = payload.scores.find(s => s.id === currentUser?.id)?.score || 0;
                 showToast(`Spiel vorbei! Du hast ${myFinalScore} XP erhalten!`);
                 if (!currentUser?.isGuest) {
-                    updatePlayerProgress(myFinalScore); // Fetch updated stats from DB
+                    updatePlayerProgress(myFinalScore);
                 }
                 setTimeout(() => {
-                    screenHistory = ['auth-screen', 'home-screen']; // Reset history
+                    screenHistory = ['auth-screen', 'home-screen'];
                     showScreen('home-screen');
-                }, 7000); // Longer delay to see scores
+                }, 7000);
                 break;
             case 'invite-received':
                 showInvitePopup(payload.from, payload.pin);
@@ -652,9 +615,8 @@
             case 'friend-request-received':
                 showToast(`Du hast eine Freundschaftsanfrage von ${payload.from}!`);
                 if (!elements.friendsModal.overlay.classList.contains('hidden')) {
-                    loadFriendsData(); // Update list if modal is open
+                    loadFriendsData();
                 } else {
-                    // Update badge count without opening modal
                     const countEl = elements.friendsModal.requestsCount;
                     const currentCount = parseInt(countEl.textContent || '0');
                     countEl.textContent = currentCount + 1;
@@ -662,15 +624,15 @@
                 }
                 break;
             case 'toast':
-                 setLoading(false); // Stop loading on toast messages (often indicate completion or error)
+                 setLoading(false);
                 showToast(payload.message, payload.isError);
                 break;
             case 'error':
-                 setLoading(false); // Stop loading on errors
+                 setLoading(false);
                 showToast(payload.message, true);
                 pinInput = "";
                 document.querySelectorAll('#join-pin-display .pin-digit').forEach(d => d.textContent = "");
-                 if (!elements.joinModal.overlay?.classList.contains('hidden')) { // Close join modal on error
+                 if (!elements.joinModal.overlay?.classList.contains('hidden')) {
                     elements.joinModal.overlay.classList.add('hidden');
                  }
                 break;
@@ -681,11 +643,7 @@
 
 
     // --- UI Rendering Functions ---
-    // (renderPlayerList, updateHostSettings, renderAchievements, etc.)
-    // Wichtig: equipTitle und equipIcon angepasst, updatePlayerProgress aufgeteilt
-
     function renderPlayerList(players, hostId) {
-        // ... (Bleibt gleich)
         const playerList = elements.lobby.playerList;
         const existingPlayerIds = new Set([...playerList.querySelectorAll('.player-card')].map(el => el.dataset.playerId));
         const incomingPlayerIds = new Set(players.map(p => p.id));
@@ -712,7 +670,6 @@
     }
 
     function updateHostSettings(settings, isHost) {
-        // ... (Bleibt gleich)
          elements.lobby.hostSettings.classList.toggle('hidden', !isHost);
         elements.lobby.guestWaitingMessage.classList.toggle('hidden', isHost);
         if (!isHost) return;
@@ -737,7 +694,6 @@
                 const isActive = btn.dataset.value == valueToMatch;
                 btn.classList.toggle('active', isActive);
                 if(isActive) matchFound = true;
-                // Reset custom button text if a preset is active
                 if(customButton && isActive) customButton.textContent = 'Custom';
             });
 
@@ -745,9 +701,7 @@
                 customButton.classList.add('active');
                 customButton.textContent = valueToMatch + (settingKey === 'guessTime' ? 's' : '');
             } else if (customButton) {
-                // If no preset matched AND custom button is not supposed to be active, remove active class
                 if (!matchFound) customButton.classList.remove('active');
-                // Ensure text is 'Custom' if not active or if a preset is active
                 if (!customButton.classList.contains('active') || matchFound) {
                     customButton.textContent = 'Custom';
                 }
@@ -761,7 +715,6 @@
     }
 
     function renderAchievements() {
-        // ... (Bleibt gleich)
          if (!elements.achievements.grid) return;
         elements.achievements.grid.innerHTML = achievementsList.map(a => {
             const isUnlocked = userUnlockedAchievementIds.includes(a.id);
@@ -774,7 +727,7 @@
         if (title) {
             console.log(`Equipping title: ${title.name} (ID: ${titleId}), Save: ${saveToDb}`);
             document.getElementById('profile-title').textContent = title.name;
-            userProfile.equipped_title_id = titleId; // Lokal aktualisieren
+            userProfile.equipped_title_id = titleId;
             if (saveToDb && !currentUser.isGuest) {
                  console.log(`Saving title ${titleId} to DB for user ${currentUser.id}`);
                 const { error } = await supabase
@@ -791,23 +744,21 @@
         } else {
              console.warn(`Title ID ${titleId} not found.`);
         }
-        renderTitles(); // Re-render to update equipped status visually
+        renderTitles();
     }
 
 
     function renderTitles() {
-        // ... (Angepasst für locked state)
          if (!elements.titles.list) return;
         const currentLevel = getLevelForXp(userProfile.xp || 0);
         const equippedTitleId = userProfile.equipped_title_id || 1;
-        const unlockedTitleCount = titlesList.filter(t => isItemUnlocked(t, currentLevel)).length; // Für Achievement 15
+        const unlockedTitleCount = titlesList.filter(t => isItemUnlocked(t, currentLevel)).length;
 
         elements.titles.list.innerHTML = titlesList.map(t => {
             const isUnlocked = isItemUnlocked(t, currentLevel);
             const isEquipped = t.id === equippedTitleId;
             const unlockDescription = getUnlockDescription(t);
 
-            // Spezielles Achievement für 5 freigeschaltete Titel prüfen
             if (unlockedTitleCount >= 5 && !userUnlockedAchievementIds.includes(15)) {
                  awardClientSideAchievement(15);
             }
@@ -821,12 +772,11 @@
     }
 
     async function equipIcon(iconId, saveToDb = true) {
-        // ... (Angepasst für logging)
         const icon = iconsList.find(i => i.id === iconId);
         if(icon){
              console.log(`Equipping icon: ${icon.iconClass} (ID: ${iconId}), Save: ${saveToDb}`);
             elements.home.profileIcon.className = `fa-solid ${icon.iconClass}`;
-            userProfile.equipped_icon_id = iconId; // Lokal aktualisieren
+            userProfile.equipped_icon_id = iconId;
             if (saveToDb && !currentUser.isGuest) {
                  console.log(`Saving icon ${iconId} to DB for user ${currentUser.id}`);
                 const { error } = await supabase
@@ -843,22 +793,20 @@
         } else {
              console.warn(`Icon ID ${iconId} not found.`);
         }
-        renderIcons(); // Re-render to update equipped status visually
+        renderIcons();
     }
 
 
     function renderIcons() {
-        // ... (Angepasst für locked state)
          if (!elements.icons.list) return;
         const currentLevel = getLevelForXp(userProfile.xp || 0);
         const equippedIconId = userProfile.equipped_icon_id || 1;
-        const unlockedIconCount = iconsList.filter(i => isItemUnlocked(i, currentLevel)).length; // Für Achievement 16
+        const unlockedIconCount = iconsList.filter(i => isItemUnlocked(i, currentLevel)).length;
 
         elements.icons.list.innerHTML = iconsList.map(icon => {
             const isUnlocked = isItemUnlocked(icon, currentLevel);
             const isEquipped = icon.id === equippedIconId;
 
-             // Spezielles Achievement für 5 freigeschaltete Icons prüfen
              if (unlockedIconCount >= 5 && !userUnlockedAchievementIds.includes(16)) {
                  awardClientSideAchievement(16);
              }
@@ -873,7 +821,6 @@
     }
 
     function renderLevelProgress() {
-         // ... (Bleibt gleich)
          if (!elements.levelProgress.list) return;
         const MAX_LEVEL = 50;
         const currentLevel = getLevelForXp(userProfile.xp || 0);
@@ -886,7 +833,7 @@
             const titles = titlesList.filter(t => t.unlockType === 'level' && t.unlockValue === level);
             const icons = iconsList.filter(i => i.unlockType === 'level' && i.unlockValue === level);
 
-            if (titles.length === 0 && icons.length === 0 && level > 1) continue; // Überspringe leere Level
+            if (titles.length === 0 && icons.length === 0 && level > 1) continue;
 
             html += `
                 <div class="level-progress-item ${isUnlocked ? 'unlocked' : ''}">
@@ -904,7 +851,6 @@
         elements.levelProgress.list.innerHTML = html;
     }
 
-    // Zeigt nur den aktuellen Stand an
     function updatePlayerProgressDisplay() {
         if (!currentUser || currentUser.isGuest || !userProfile) return;
         const currentXp = userProfile.xp || 0;
@@ -925,14 +871,12 @@
          console.log(`Updated progress display: Level ${currentLevel}, XP ${currentXp}, Bar ${xpPercentage.toFixed(1)}%`);
     }
 
-    // Wird nach Spielende aufgerufen, holt neue Daten und prüft auf Level Up
     async function updatePlayerProgress(xpGained, showNotification = true) {
         if (!currentUser || currentUser.isGuest) return;
         console.log(`Updating player progress post-game. XP Gained: ${xpGained}, Show Notification: ${showNotification}`);
 
-        const oldLevel = getLevelForXp(userProfile.xp || 0); // Level vor dem Update
+        const oldLevel = getLevelForXp(userProfile.xp || 0);
 
-        // Hole die aktuellsten Daten aus der DB (sind gerade erst vom Server geschrieben worden)
         console.log("Fetching latest profile data for progress update...");
         const { data, error } = await supabase
             .from('profiles')
@@ -942,15 +886,12 @@
 
         if (error) {
             console.error("Error fetching profile data after game:", error);
-            // Update display with old data just in case
             updatePlayerProgressDisplay();
             return;
         }
         console.log("Latest profile data fetched:", data);
-        // WICHTIG: userProfile aktualisieren
-        userProfile = { ...userProfile, ...data }; // Merge, um equip_id etc. zu behalten
+        userProfile = { ...userProfile, ...data };
 
-        // Achievements auch neu laden, da Server welche verliehen haben könnte
         console.log("Fetching updated achievements...");
          const { data: achievements, error: achError } = await supabase
             .from('user_achievements')
@@ -959,36 +900,30 @@
 
         if (achError) {
             console.error("Error fetching updated achievements:", achError);
-            // Behalte alte Achievements bei Fehler
         } else {
             userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id));
             console.log("Updated achievements:", userUnlockedAchievementIds);
         }
 
-        // Jetzt die Anzeige aktualisieren
         updatePlayerProgressDisplay();
-        updateStatsDisplay(); // Stats auch aktualisieren
+        updateStatsDisplay();
 
-        // Auf Level Up prüfen
         const newLevel = getLevelForXp(userProfile.xp || 0);
         console.log(`Old Level: ${oldLevel}, New Level: ${newLevel}`);
 
         if (showNotification && newLevel > oldLevel) {
             console.info(`Level Up! ${oldLevel} -> ${newLevel}`);
             showToast(`Level Up! Du hast Level ${newLevel} erreicht!`);
-            // UI neu rendern, da sich Freischaltungen geändert haben könnten
             renderIcons();
             renderTitles();
             renderLevelProgress();
         }
-         // Render achievements grid too, in case server awarded one
          renderAchievements();
          console.log("Player progress update complete.");
     }
 
 
     function updateStatsDisplay() {
-        // ... (Angepasst für || 0 Fallback)
          if (!currentUser || currentUser.isGuest || !userProfile) return;
         const { games_played, wins, highscore, correct_answers } = userProfile;
 
@@ -997,8 +932,6 @@
         elements.stats.winrate.textContent = (games_played || 0) > 0 ? `${Math.round(((wins || 0) / (games_played || 0)) * 100)}%` : '0%';
         elements.stats.highscore.textContent = highscore || 0;
         elements.stats.correctAnswers.textContent = correct_answers || 0;
-        // Simple Avg Score: Highscore / Games Played might not be the best metric
-        // Bessere Metrik: Total XP / Games Played (da XP = Score)
         elements.stats.avgScore.textContent = (games_played || 0) > 0 ? Math.round((userProfile.xp || 0) / (games_played || 0)) : 0;
 
 
@@ -1009,11 +942,10 @@
 
 
     // --- Game Logic Functions ---
-    // (showCountdown, setupPreRound, setupNewRound, showRoundResult, fetchHostData, etc.)
      function showCountdown(round, total) {
         let text = `Runde ${round}`;
         if (total > 0) text += ` von ${total}`;
-        else if (total === 0) text += ` (Leben-Modus)`; // Für Leben-Modus
+        else if (total === 0) text += ` (Leben-Modus)`;
 
         elements.countdownOverlay.classList.remove('hidden');
         document.getElementById('countdown-text').textContent = text;
@@ -1049,7 +981,6 @@
             <button id="ready-button" class="button-primary">Bereit</button>
         `;
 
-        // Event-Listener MUSS hier hinzugefügt werden, da der Knopf neu erstellt wurde
         document.getElementById('ready-button').addEventListener('click', (e) => {
             e.target.disabled = true;
             e.target.textContent = 'Warte auf andere...';
@@ -1057,18 +988,17 @@
         });
 
         const timerBar = elements.game.timerBar;
-        timerBar.style.transition = 'none'; // Reset transition before setting width
-        timerBar.offsetHeight; // Force reflow
+        timerBar.style.transition = 'none';
+        timerBar.offsetHeight;
         timerBar.style.width = '100%';
-        timerBar.offsetHeight; // Force reflow again
+        timerBar.offsetHeight;
         setTimeout(() => {
             timerBar.style.transition = `width ${guessTime}s linear`;
             timerBar.style.width = '0%';
-        }, 100); // Small delay to ensure transition applies
+        }, 100);
     }
 
     function setupNewRound(data) {
-        // ... (Logik für Quiz, Timeline, Popularity bleibt gleich)
          elements.game.round.textContent = data.round;
         elements.game.totalRounds.textContent = data.totalRounds > 0 ? data.totalRounds : '∞';
 
@@ -1085,7 +1015,6 @@
                         </div>
                     </div>`).join('');
 
-                // Dynamischer Event Listener (Delegation)
                 guessArea.addEventListener('click', (e) => {
                     if (e.target.classList.contains('mc-option-button')) {
                         const btn = e.target;
@@ -1105,7 +1034,6 @@
             } else {
                 guessArea.innerHTML = `<input type="text" id="guess-title" placeholder="Titel des Songs..." autocomplete="off"><input type="text" id="guess-artist" placeholder="Künstler*in" autocomplete="off"><input type="number" id="guess-year" placeholder="Jahr" autocomplete="off" inputmode="numeric">`;
                 
-                // Dynamischer Event Listener (Delegation)
                 guessArea.addEventListener('input', (e) => {
                     if (e.target.tagName === 'INPUT') {
                          const guess = { title: document.getElementById('guess-title').value, artist: document.getElementById('guess-artist').value, year: document.getElementById('guess-year').value };
@@ -1116,7 +1044,7 @@
                 });
             }
         } else if (data.gameMode === 'timeline') {
-             currentGame.lastTimeline = data.timeline || []; // Ensure timeline is an array
+             currentGame.lastTimeline = data.timeline || [];
             let timelineHtml = '<div class="timeline-drop-zone" data-index="0"><i class="fa-solid fa-plus"></i></div>';
             timelineHtml += currentGame.lastTimeline.map((song, i) => `
                 <div class="timeline-card">
@@ -1135,7 +1063,6 @@
                     <div class="timeline-track">${timelineHtml}</div>
                 </div>`;
 
-            // Dynamischer Event Listener (Delegation)
             gameArea.addEventListener('click', (e) => {
                 const zone = e.target.closest('.timeline-drop-zone');
                 if (zone) {
@@ -1146,8 +1073,7 @@
                 }
             });
 
-             // Scroll to middle
-             requestAnimationFrame(() => { // Ensure elements are rendered
+             requestAnimationFrame(() => {
                  const scrollContainer = document.querySelector('.timeline-scroll-container');
                  const track = document.querySelector('.timeline-track');
                  if (scrollContainer && track) {
@@ -1159,8 +1085,8 @@
              const lastSong = timeline.length > 0 ? timeline[timeline.length - 1] : null;
              if (!lastSong || !data.song) {
                   console.error("Missing song data for popularity mode setup.");
-                  gameArea.innerHTML = `<p>Fehler beim Laden der Runde.</p>`; // Show error
-                  return; // Prevent further execution if data is bad
+                  gameArea.innerHTML = `<p>Fehler beim Laden der Runde.</p>`;
+                  return;
              }
 
             gameArea.innerHTML = `
@@ -1181,7 +1107,6 @@
                     </div>
                 </div>`;
 
-            // Dynamischer Event Listener (Delegation)
             gameArea.addEventListener('click', (e) => {
                 const btn = e.target.closest('.guess-button');
                 if(btn) {
@@ -1194,13 +1119,12 @@
         }
 
 
-        // Timer Bar Logic
         const timerBar = elements.game.timerBar;
-        const guessTime = data.guessTime || 30; // Fallback
+        const guessTime = data.guessTime || 30;
         timerBar.style.transition = 'none';
-        timerBar.offsetHeight; // Force reflow
+        timerBar.offsetHeight;
         timerBar.style.width = '100%';
-        timerBar.offsetHeight; // Force reflow
+        timerBar.offsetHeight;
         setTimeout(() => {
             timerBar.style.transition = `width ${guessTime}s linear`;
             timerBar.style.width = '0%';
@@ -1208,12 +1132,10 @@
     }
 
     function showRoundResult(data) {
-        // ... (Logik für Quiz, Timeline, Popularity bleibt gleich, evtl. Fallback Images hinzufügen)
         const gameArea = elements.game.gameContentArea;
-        const me = data.scores.find(p => p.id === currentUser?.id); // Use optional chaining
+        const me = data.scores.find(p => p.id === currentUser?.id);
         const resultText = data.wasCorrect ? 'Richtig!' : 'Falsch!';
         const colorClass = data.wasCorrect ? 'var(--success-color)' : 'var(--danger-color)';
-         // Check if livesLost is applicable
          const livesLost = gameCreationSettings.gameType === 'lives' && !data.wasCorrect;
 
         const leaderboardHtml = `
@@ -1229,10 +1151,10 @@
 
         if (currentGame.gameMode === 'quiz') {
             const albumArtContainer = gameArea.querySelector('.album-art-container');
-            if (albumArtContainer) { // Ensure container exists
+            if (albumArtContainer) {
                  albumArtContainer.innerHTML = `<img id="album-art" src="${data.song?.albumArtUrl || './placeholder.png'}" alt="Album Cover" onerror="this.src='./placeholder.png'">`;
              }
-            const breakdown = me?.lastPointsBreakdown || { artist: 0, title: 0, year: 0, total: 0 }; // Default breakdown if 'me' is undefined
+            const breakdown = me?.lastPointsBreakdown || { artist: 0, title: 0, year: 0, total: 0 };
             const guessArea = document.getElementById('game-guess-area');
             if(guessArea) {
                  guessArea.innerHTML = `
@@ -1245,58 +1167,57 @@
                     </div>${leaderboardHtml}`;
             } else {
                  console.error("Could not find #game-guess-area to show quiz results.");
-                 gameArea.innerHTML = leaderboardHtml; // Show at least the leaderboard
+                 gameArea.innerHTML = leaderboardHtml;
             }
         } else if (currentGame.gameMode === 'timeline') {
-             // Ensure currentGame.lastTimeline is an array
              const lastTimelineSafe = Array.isArray(currentGame.lastTimeline) ? currentGame.lastTimeline : [];
-
-            let timeline = [...lastTimelineSafe];
-            const newCard = { ...(data.song || {}), status: data.wasCorrect ? 'correct' : 'incorrect' };
-            timeline.splice(data.userIndex, 0, newCard); // Insert the card at the user's chosen index
 
             let timelineHtml = '';
 
             if (data.wasCorrect) {
-                // If correct, just render the updated timeline with the new card highlighted
+                let timeline = [...lastTimelineSafe];
+                const newCard = { ...(data.song || {}), status: 'correct', isExisting: false };
+                timeline.splice(data.userIndex, 0, newCard);
+
                 timelineHtml = timeline.map((song, index) => `
                     <div class="timeline-card ${song.status || ''}" ${song.status ? `id="newly-placed-card"` : ''}>
                         <img src="${song.albumArtUrl || './placeholder.png'}" alt="Album Art" onerror="this.src='./placeholder.png'">
                         <div class="year">${song.year}</div>
                     </div>`).join('');
             } else {
-                // If incorrect, render the timeline *as it was*, insert the incorrect card, and show ghost card at correct spot
-                 let incorrectRendered = false;
-                 let ghostRendered = false;
-                 for (let i = 0; i <= lastTimelineSafe.length; i++) {
-                     // Render Ghost card at correct position
-                     if (i === data.correctIndex && !ghostRendered) {
-                          timelineHtml += `<div class="timeline-card ghost"><div class="year">${data.song?.year || '?'}</div></div>`;
-                          ghostRendered = true;
-                     }
-                     // Render the incorrectly placed card
-                     if (i === data.userIndex && !incorrectRendered) {
-                          timelineHtml += `
-                            <div class="timeline-card incorrect" id="newly-placed-card">
-                                <img src="${data.song?.albumArtUrl || './placeholder.png'}" alt="Album Art" onerror="this.src='./placeholder.png'">
-                                <div class="year">${data.song?.year || '?'}</div>
-                            </div>`;
-                          incorrectRendered = true;
-                     }
-                     // Render existing card from the previous round
-                     if (i < lastTimelineSafe.length) {
-                           const song = lastTimelineSafe[i];
-                           timelineHtml += `
-                            <div class="timeline-card">
-                                <img src="${song.albumArtUrl || './placeholder.png'}" alt="Album Art" onerror="this.src='./placeholder.png'">
-                                <div class="year">${song.year}</div>
-                            </div>`;
-                     }
-                 }
-                  // Ensure ghost card is rendered if correct index was at the very end
-                 if (!ghostRendered && data.correctIndex === lastTimelineSafe.length) {
-                      timelineHtml += `<div class="timeline-card ghost"><div class="year">${data.song?.year || '?'}</div></div>`;
-                 }
+                // NEUE, ROBUSTERER LOGIK FÜR FALSCHE ANTWORT
+                const currentTimeline = lastTimelineSafe.map(item => ({...item, isExisting: true}));
+                const incorrectCard = {
+                    isExisting: false, isIncorrect: true, id: 'newly-placed-card',
+                    year: data.song?.year || '?', albumArtUrl: data.song?.albumArtUrl
+                };
+                const ghostCard = {
+                    isExisting: false, isGhost: true, id: 'ghost-card',
+                    year: data.song?.year || '?'
+                };
+                
+                if (data.correctIndex <= currentTimeline.length) {
+                    currentTimeline.splice(data.correctIndex, 0, ghostCard);
+                }
+                
+                let userIndex = data.userIndex;
+                if (data.correctIndex <= data.userIndex) { 
+                    userIndex++;
+                }
+                currentTimeline.splice(userIndex, 0, incorrectCard);
+
+                timelineHtml = currentTimeline.map(item => {
+                    if (item.isExisting) {
+                        return `<div class="timeline-card"><img src="${item.albumArtUrl || './placeholder.png'}" onerror="this.src='./placeholder.png'"><div class="year">${item.year}</div></div>`;
+                    }
+                    if (item.isIncorrect) {
+                        return `<div class="timeline-card incorrect" id="${item.id}"><img src="${item.albumArtUrl || './placeholder.png'}" onerror="this.src='./placeholder.png'"><div class="year">${item.year}</div></div>`;
+                    }
+                    if (item.isGhost) {
+                        return `<div class="timeline-card ghost" id="${item.id}"><div class="year">${item.year}</div></div>`;
+                    }
+                    return '';
+                }).join('');
             }
 
 
@@ -1308,7 +1229,6 @@
                 <div class="timeline-scroll-container"><div class="timeline-track">${timelineHtml}</div></div>
                 ${leaderboardHtml}`;
 
-            // Scroll to the newly placed card
             requestAnimationFrame(() => {
                  document.getElementById('newly-placed-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             });
@@ -1321,7 +1241,6 @@
                     <p>Popularität: ${data.song?.popularity ?? '?'}</p> </div>${leaderboardHtml}`;
         }
 
-        // Add event listener to the "Weiter" button (muss dynamisch sein)
         const readyButton = document.getElementById('ready-button');
          if (readyButton) {
             readyButton.addEventListener('click', (e) => {
@@ -1338,12 +1257,10 @@
 
 
     // --- Friends Modal Logic ---
-    // (loadFriendsData, renderRequestsList, renderFriendsList bleiben gleich)
      async function loadFriendsData() {
         if (!currentUser || currentUser.isGuest) return;
         console.log("Loading friends data...");
 
-        // 1. Lade offene Anfragen (wo ich der Empfänger bin)
         const { data: requests, error: reqError } = await supabase
             .from('friend_requests')
             .select('sender_id, sender:profiles!sender_id(username)')
@@ -1356,10 +1273,9 @@
         }
 
 
-        // 2. Lade bestehende Freunde
         const { data: friendsData, error: friendsError } = await supabase
             .from('friends')
-            .select('user_id1, user_id2') // Deine Spaltennamen
+            .select('user_id1, user_id2')
             .or(`user_id1.eq.${currentUser.id},user_id2.eq.${currentUser.id}`);
 
         if (friendsError) return console.error("Error loading friends:", friendsError);
@@ -1374,7 +1290,6 @@
             return;
         }
 
-        // 4. Lade die Profile meiner Freunde
         const { data: friendProfiles, error: profilesError } = await supabase
             .from('profiles')
             .select('id, username')
@@ -1388,16 +1303,15 @@
     }
 
     function renderRequestsList(requests) {
-        // ... (Bleibt gleich)
          const listEl = elements.friendsModal.requestsList;
         const countEl = elements.friendsModal.requestsCount;
 
-        if (!listEl || !countEl) return; // Defensive check
+        if (!listEl || !countEl) return;
 
         if (requests.length === 0) {
             listEl.innerHTML = '<li>Keine offenen Anfragen.</li>';
             countEl.classList.add('hidden');
-            countEl.textContent = '0'; // Ensure count is reset
+            countEl.textContent = '0';
             return;
         }
 
@@ -1419,7 +1333,6 @@
     }
 
     function renderFriendsList(friends) {
-        // ... (Bleibt gleich, evtl. Online-Status hinzufügen)
          const listEl = elements.friendsModal.friendsList;
          if (!listEl) return;
 
@@ -1428,7 +1341,6 @@
             return;
         }
 
-        // TODO: Online-Status mit `onlineFriends`-Array abgleichen
         listEl.innerHTML = friends.map(friend => `
             <li>
                 <div class="friend-info">
@@ -1443,15 +1355,6 @@
     }
 
     // --- Utility & Modal Functions ---
-    // (fetchHostData, renderPaginatedPlaylists, openCustomValueModal, etc.)
-    // Wichtig: handleCustomNumpad ist jetzt hier definiert
-     const handleCustomNumpad = (e) => {
-        const key = e.target.closest('button')?.dataset.key;
-        if (key && customValueInput.length < 3) customValueInput += key;
-        updateCustomValueDisplay();
-    };
-     const updateCustomValueDisplay = () => { elements.customValueModal.display.forEach((d, i) => d.textContent = customValueInput[i] || ""); };
-
      async function fetchHostData(isRefresh = false) {
         if (!spotifyToken) {
              console.warn("fetchHostData called without Spotify token.");
@@ -1474,17 +1377,15 @@
              console.log("Playlists fetched:", playlistsData);
 
             const deviceList = elements.deviceSelectModal.list;
-            deviceList.innerHTML = ''; // Clear previous list
+            deviceList.innerHTML = '';
             if (devices.devices && devices.devices.length > 0) {
                 devices.devices.forEach(d => {
                     const li = document.createElement('li');
                     li.textContent = d.name; li.dataset.id = d.id; li.dataset.name = d.name;
-                     // Mark active device
                     if(d.is_active) li.classList.add('selected');
                     deviceList.appendChild(li);
                 });
                 const activeDevice = devices.devices.find(d => d.is_active);
-                // Update settings only if not manually refreshed OR if no device was selected before
                 if (activeDevice && (!isRefresh || !currentGame.settings?.deviceId )) {
                     console.log("Auto-selecting active Spotify device:", activeDevice.name);
                     ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { deviceId: activeDevice.id, deviceName: activeDevice.name } }));
@@ -1493,9 +1394,8 @@
                 deviceList.innerHTML = '<li>Keine aktiven Geräte gefunden.</li>';
             }
 
-            // Speichere alle Playlists global und rendere die erste Seite
             allPlaylists = playlistsData.items || [];
-            renderPaginatedPlaylists(allPlaylists, 1); // Handle empty items array
+            renderPaginatedPlaylists(allPlaylists, 1);
 
         } catch (error) {
             console.error('Error fetching Spotify data:', error);
@@ -1504,9 +1404,7 @@
             if (isRefresh) setLoading(false);
         }
     }
-     // ... (renderPaginatedPlaylists, openCustomValueModal, showInvitePopup bleiben gleich) ...
      function renderPaginatedPlaylists(playlistsToRender, page = 1) {
-        // allPlaylists ist bereits global
         currentPage = page;
 
         const listEl = elements.playlistSelectModal.list;
@@ -1518,7 +1416,7 @@
         const filteredPlaylists = playlistsToRender.filter(p => p.name.toLowerCase().includes(searchTerm));
 
         const totalPages = Math.ceil(filteredPlaylists.length / itemsPerPage);
-         currentPage = Math.max(1, Math.min(page, totalPages || 1)); // Ensure currentPage is valid
+         currentPage = Math.max(1, Math.min(page, totalPages || 1));
 
         const start = (currentPage - 1) * itemsPerPage;
         const end = start + itemsPerPage;
@@ -1530,7 +1428,6 @@
             paginatedItems.forEach(p => {
                 const li = document.createElement('li');
                 li.textContent = p.name; li.dataset.id = p.id; li.dataset.name = p.name;
-                 // Mark selected playlist
                  if (currentGame.settings?.playlistId === p.id) {
                      li.classList.add('selected');
                  }
@@ -1552,15 +1449,14 @@
         currentCustomType = type;
         elements.customValueModal.title.textContent = title;
         customValueInput = "";
-        updateCustomValueDisplay();
+        elements.customValueModal.display.forEach((d, i) => d.textContent = customValueInput[i] || "");
         elements.customValueModal.overlay.classList.remove('hidden');
     }
 
      function showInvitePopup(from, pin) {
         const container = document.getElementById('invite-popup-container');
-        if (!container) return; // Defensive check
+        if (!container) return;
 
-        // Remove existing popups first
         container.innerHTML = '';
 
         const popup = document.createElement('div');
@@ -1572,11 +1468,9 @@
                 <button class="button-primary accept-invite">Annehmen</button>
             </div>`;
 
-        // Dynamische Listener für den Popup
         popup.querySelector('.decline-invite').addEventListener('click', () => popup.remove());
         popup.querySelector('.accept-invite').addEventListener('click', () => {
             if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
-                 // Ensure currentUser is available
                  if (!currentUser) {
                      showToast("Bitte melde dich zuerst an.", true);
                  } else {
@@ -1590,8 +1484,7 @@
 
         container.appendChild(popup);
 
-        // Auto-remove after some time?
-        setTimeout(() => popup.remove(), 15000); // Remove after 15 seconds
+        setTimeout(() => popup.remove(), 15000);
     }
 
     // #################################################################
@@ -1613,8 +1506,8 @@
             }
             localStorage.removeItem('fakesterGame');
             currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] };
-            screenHistory = ['auth-screen']; // Reset history
-            window.location.reload(); // Einfachste Methode
+            screenHistory = ['auth-screen'];
+            window.location.reload();
         });
 
         // --- Auth Screen ---
@@ -1687,7 +1580,6 @@
             if (modeBox && !modeBox.disabled) {
                 selectedGameMode = modeBox.dataset.mode;
                 console.log(`Game mode selected: ${selectedGameMode}`);
-                // Setze Spieltyp-Auswahl zurück
                 elements.gameTypeScreen.createLobbyBtn.disabled = true;
                 elements.gameTypeScreen.pointsBtn.classList.remove('active');
                 elements.gameTypeScreen.livesBtn.classList.remove('active');
@@ -1750,7 +1642,6 @@
 
         // --- Lobby Screen ---
         elements.lobby.inviteFriendsBtn.addEventListener('click', async () => {
-            // Lade nur online Freunde für Einladungen
             if (!supabase || !currentUser || currentUser.isGuest) return;
             try {
                 const { data, error } = await supabase.rpc('get_online_friends', { p_user_id: currentUser.id });
@@ -1780,7 +1671,7 @@
             if (button) {
                 const value = button.dataset.value;
                 if (value === 'custom') {
-                    const customType = button.dataset.type; // song-count or guess-time
+                    const customType = button.dataset.type;
                     const title = customType === 'song-count' ? 'Anzahl Songs' : 'Ratezeit (Sek.)';
                     openCustomValueModal(customType, title);
                 } else {
@@ -1926,7 +1817,6 @@
             let payload = {};
             if (currentCustomType === 'lives') {
                 gameCreationSettings.lives = value;
-                // Update button text in game-type-selection
                 const customBtn = elements.gameTypeScreen.livesPresets.querySelector('[data-value="custom"]');
                 if(customBtn) customBtn.textContent = value;
             } else {
@@ -1947,24 +1837,20 @@
             
             setLoading(true);
             try {
-                // 1. Update in 'profiles' table
                 const { error: profileError } = await supabase
                     .from('profiles')
                     .update({ username: newName })
                     .eq('id', currentUser.id);
                 if (profileError) throw profileError;
 
-                // 2. Update in 'auth.users' metadata
                 const { data, error: userError } = await supabase.auth.updateUser({
                     data: { username: newName }
                 })
                 if (userError) throw userError;
                 
-                // 3. Update local state
                 currentUser.username = newName;
                 document.getElementById('welcome-nickname').textContent = newName;
 
-                // 4. Informiere Server (falls in Lobby)
                 if (ws.socket && ws.socket.readyState === WebSocket.OPEN && currentGame.pin) {
                     ws.socket.send(JSON.stringify({ type: 'update-nickname', payload: { newName } }));
                 }
@@ -1973,7 +1859,7 @@
                 elements.changeNameModal.overlay.classList.add('hidden');
 
             } catch (error) {
-                 if (error.code === '23505') { // Unique constraint violation
+                 if (error.code === '23505') {
                     showToast("Dieser Benutzername ist bereits vergeben.", true);
                  } else {
                     console.error("Error changing name:", error);
@@ -2016,11 +1902,12 @@
             }
         });
         elements.playlistSelectModal.pagination.addEventListener('click', (e) => {
+            // FIX: Pagination logik korrigieren
             if (e.target.closest('#prev-page')) {
                 renderPaginatedPlaylists(allPlaylists, currentPage - 1);
             }
             if (e.target.closest('#next-page')) {
-                renderPaginatedPlaylists(allPlaylists, currentPage - 1);
+                renderPaginatedPlaylists(allPlaylists, currentPage + 1); // Korrektur von -1 zu +1
             }
         });
 
@@ -2046,7 +1933,6 @@
 
     async function initializeSupabase() {
         try {
-            // 1. Hole die Supabase-Schlüssel vom Server
             console.log("Fetching /api/config...");
             const response = await fetch('/api/config');
             if (!response.ok) throw new Error('Failed to fetch config from /api/config');
@@ -2056,12 +1942,6 @@
                 throw new Error("Supabase URL or Anon Key is missing from config.");
             }
 
-            // 2. Erstelle den Supabase-Client
-            // (window.supabase kommt aus dem <script> Tag in index.html)
-            
-            // #####################################################
-            // ### HIER IST DIE NEUE ÄNDERUNG (KOMBINIERTER FIX) ###
-            // #####################################################
             supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
                 global: {
                     fetch: (...args) => window.fetch(...args)
@@ -2069,8 +1949,6 @@
             });
             console.log("Supabase client initialized successfully.");
 
-            // 3. Richte den zentralen Auth-Listener ein
-            // Dieser reagiert auf SIGNED_IN und SIGNED_OUT
             supabase.auth.onAuthStateChange(async (event, session) => {
                 console.log(`Supabase Auth Event: ${event}`);
                 if (event === 'SIGNED_IN' && session?.user) {
@@ -2082,14 +1960,13 @@
                     spotifyToken = null;
                     ws.socket?.close();
                     localStorage.removeItem('fakesterGame');
-                    screenHistory = ['auth-screen']; // Reset
+                    screenHistory = ['auth-screen'];
                     showScreen('auth-screen');
-                    document.body.classList.add('is-guest'); // Reset to default
+                    document.body.classList.add('is-guest');
                     setLoading(false);
                 }
             });
 
-            // 4. Prüfe, ob bereits eine Session vorhanden ist (z.B. nach Reload)
             setLoading(true);
             const { data: { session } } = await supabase.auth.getSession();
             if (session) {
@@ -2101,8 +1978,6 @@
                 setLoading(false);
             }
 
-            // 5. FÜGE JETZT ERST DIE EVENT LISTENER HINZU
-            // (Damit `supabase` in den Auth-Handlern verfügbar ist)
             addEventListeners();
 
         } catch (error) {
@@ -2112,5 +1987,5 @@
     }
 
     // --- Main Execution ---
-    initializeSupabase(); // Starte die App
+    initializeSupabase();
 });
