@@ -405,9 +405,11 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Connecting WebSocket...");
             connectWebSocket();
              console.log("initializeApp finished successfully.");
+             
         } catch (error) {
             console.error("FATAL ERROR during initializeApp:", error);
             showToast("Ein kritischer Fehler ist aufgetreten. Bitte lade die Seite neu.", true);
+            showScreen('auth-screen');
         } finally {
             setLoading(false);
         }
@@ -470,17 +472,22 @@ document.addEventListener('DOMContentLoaded', () => {
             setLoading(false);
         }
     };
+    
     const handleLogout = async () => {
          console.log("Logout initiated.");
         setLoading(true);
         if (currentUser?.isGuest) {
             console.log("Guest logout, reloading page.");
-             return window.location.reload();
+             // Löscht die gesamte History und zwingt den Auth-Screen neu
+             window.location.replace(window.location.origin);
+             return;
         }
         try {
             const { error } = await supabase.auth.signOut();
             if (error) throw error;
             console.log("Supabase signOut successful.");
+            // FIX: History cleanen nach erfolgreichem Logout, um Redirect-Loops zu vermeiden
+            window.location.replace(window.location.origin);
         } catch (error) {
             console.error("Error during logout:", error);
             showToast("Ausloggen fehlgeschlagen.", true);
@@ -517,7 +524,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        // Lösche den alten Ping-Intervall, falls vorhanden
         if (wsPingInterval) clearInterval(wsPingInterval);
 
         const wsUrl = window.location.protocol.replace('http', 'ws') + '//' + window.location.host;
@@ -541,17 +547,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.removeItem('fakesterGame');
             }
             
-            // NEU: Client-seitige Heartbeat-Logik starten
             wsPingInterval = setInterval(() => {
                 if (ws.socket?.readyState === WebSocket.OPEN) {
-                    // Sende eine leere Nachricht oder ein "Ping"-Frame, um die Verbindung am Leben zu halten.
-                    // Da der Server PING/PONG implementiert, kann dies leer bleiben, aber zur Robustheit.
-                    // ws.socket.send(JSON.stringify({ type: 'client-ping' }));
+                    // Client-Heartbeat-Logik zur Robustheit
                 } else {
                     clearInterval(wsPingInterval);
                     wsPingInterval = null;
                 }
-            }, 30000); // 30 Sekunden Ping-Intervall
+            }, 30000);
         };
 
         ws.socket.onmessage = (event) => {
@@ -566,7 +569,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ws.socket.onclose = (event) => {
             console.warn(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`);
             
-            // NEU: Ping-Interval löschen
             if (wsPingInterval) clearInterval(wsPingInterval);
             wsPingInterval = null;
 
@@ -1581,6 +1583,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Home Screen ---
         elements.home.logoutBtn.addEventListener('click', handleLogout);
+        
+        // FIX: Spotify Connect Button Logik
+        document.getElementById('spotify-connect-button')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            // 1. Bereinige die History, bevor wir zu einer externen URL navigieren
+            // Dadurch wird der fehlerhafte Browser-Zurück-Button-State vermieden.
+            history.pushState(null, '', window.location.pathname);
+            
+            // 2. Leite zur Spotify-Login-Route um
+            window.location.href = '/login';
+        });
+
         elements.home.createRoomBtn.addEventListener('click', () => showScreen('mode-selection-screen'));
         elements.home.joinRoomBtn.addEventListener('click', () => {
             pinInput = "";
@@ -1796,7 +1810,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (declineBtn) {
                 const senderId = declineBtn.dataset.senderId;
-                const senderName = declineBtn.dataset.senderName;
+                const senderName = declineBtn.dataset.friendName;
                 showConfirmModal("Anfrage ablehnen?", `Möchtest du die Freundschaftsanfrage von ${senderName} wirklich ablehnen?`, () => {
                      ws.socket.send(JSON.stringify({ type: 'decline-friend-request', payload: { userId: senderId } }));
                      declineBtn.closest('li').remove();
@@ -1931,7 +1945,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         elements.playlistSelectModal.pagination.addEventListener('click', (e) => {
-            // FIX: Pagination logic korrigiert
             if (e.target.closest('#prev-page')) {
                 renderPaginatedPlaylists(allPlaylists, currentPage - 1);
             }
@@ -1987,6 +2000,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     userProfile = {};
                     userUnlockedAchievementIds = [];
                     spotifyToken = null;
+                    if (wsPingInterval) clearInterval(wsPingInterval);
+                    wsPingInterval = null;
+
                     ws.socket?.close();
                     localStorage.removeItem('fakesterGame');
                     screenHistory = ['auth-screen'];
@@ -1997,15 +2013,30 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             setLoading(true);
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-                console.log("Found active session, initializing app...");
-                await initializeApp(session.user, false);
-            } else {
-                console.log("No active session, showing auth screen.");
+            
+            // NEUE ROBUSTE PRÜFUNG MIT TRY/CATCH UM ASYNCHRONE CALLS
+            try {
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+                if (sessionError) {
+                    console.error("Supabase getSession Error:", sessionError);
+                    showToast("Fehler beim Abrufen der Sitzung.", true);
+                    showScreen('auth-screen');
+                } else if (session) {
+                    console.log("Found active session, initializing app...");
+                    await initializeApp(session.user, false);
+                } else {
+                    console.log("No active session, showing auth screen.");
+                    showScreen('auth-screen');
+                }
+            } catch (error) {
+                console.error("FATAL Error during getSession:", error);
+                showToast("Kritischer Fehler bei der Sitzungsprüfung.", true);
                 showScreen('auth-screen');
+            } finally {
                 setLoading(false);
             }
+            
 
             addEventListeners();
 
