@@ -128,36 +128,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // ### HIER SIND DIE ALERTS HINZUGEFÜGT WORDEN ###
     // #############################################
     const initializeApp = async (user, isGuest = false) => {
-        alert("Alert 0: Entering initializeApp"); // <<< NEU
+        alert("Alert 0: Entering initializeApp"); // <<< BLEIBT
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame');
-        if (supabase) {
-            console.log("Refreshing Supabase session...");
-            await supabase.auth.refreshSession();
-        }
+        // if (supabase) {
+        //     console.log("Refreshing Supabase session (SKIPPED FOR DEBUG)...");
+        //     // await supabase.auth.refreshSession(); // <<< VORÜBERGEHEND AUSKOMMENTIERT
+        // }
 
         try {
+            alert("Alert TRY: Entering try block"); // <<< NEUER ALERT
             if (isGuest) {
-                alert("Alert G1: Setting up guest"); // <<< NEU (Nur für Gast)
+                alert("Alert G1: Setting up guest");
                 console.log("Setting up guest user...");
                 currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest };
                 userProfile = { xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
                 userUnlockedAchievementIds = [];
                 console.log("Guest user setup complete.");
-                alert("Alert G2: Guest setup done"); // <<< NEU (Nur für Gast)
+                alert("Alert G2: Guest setup done");
             } else {
-                alert("Alert 1: Setting up logged-in user"); // <<< NEU
+                alert("Alert 1: Setting up logged-in user");
                 console.log("Setting up logged-in user...");
                 currentUser = { id: user.id, username: user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt', isGuest };
 
-                alert("Alert 2: Before Profile Fetch"); // <<< NEU
+                alert("Alert 2: Before Profile Fetch");
                 console.log("Log 1: Fetching profile data...");
                 const { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('*')
                     .eq('id', user.id)
                     .single();
-                alert("Alert 3: After Profile Fetch"); // <<< NEU
+                alert("Alert 3: After Profile Fetch");
 
                 if (profileError) {
                     console.error("Profil-Ladefehler:", profileError);
@@ -170,13 +171,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 console.log("Log 2: Profile fetch finished.");
 
-                alert("Alert 4: Before Achievements Fetch"); // <<< NEU
+                alert("Alert 4: Before Achievements Fetch");
                 console.log("Log 3: Fetching achievements...");
                 const { data: achievements, error: achError } = await supabase
                     .from('user_achievements')
                     .select('achievement_id')
                     .eq('user_id', user.id);
-                alert("Alert 5: After Achievements Fetch"); // <<< NEU
+                alert("Alert 5: After Achievements Fetch");
 
                 if (achError) {
                     console.error("Erfolg-Ladefehler:", achError);
@@ -187,17 +188,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 console.log("Log 4: Achievements fetch finished.");
 
-                alert("Alert 6: Before Spotify Check"); // <<< NEU
+                alert("Alert 6: Before Spotify Check");
                 console.log("Log 5: Checking Spotify status...");
                 await checkSpotifyStatus();
-                alert("Alert 7: After Spotify Check"); // <<< NEU
+                alert("Alert 7: After Spotify Check");
                 console.log("Log 6: Spotify status checked.");
 
                 if (spotifyToken && !userUnlockedAchievementIds.includes(9)) {
                     await awardClientSideAchievement(9);
                 }
 
-                alert("Alert 8: Before UI Rendering"); // <<< NEU
+                alert("Alert 8: Before UI Rendering");
                 console.log("Log 7: Rendering UI components...");
                 renderAchievements();
                 renderTitles();
@@ -220,26 +221,26 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.toggle('is-guest', isGuest);
             document.getElementById('welcome-nickname').textContent = currentUser.username;
 
-            alert("Alert 9: Before Show Screen Home"); // <<< NEU
+            alert("Alert 9: Before Show Screen Home");
             console.log("Showing home screen...");
             showScreen('home-screen');
 
-            alert("Alert 10: Before Connect WebSocket"); // <<< NEU
+            alert("Alert 10: Before Connect WebSocket");
             console.log("Connecting WebSocket...");
             connectWebSocket();
-            alert("Alert 11: After Connect WebSocket"); // <<< NEU
+            alert("Alert 11: After Connect WebSocket");
             console.log("initializeApp finished successfully.");
 
         } catch (error) {
-            alert(`ERROR in initializeApp: ${error.message}`); // <<< NEU: Zeigt Fehler im Alert
+            alert(`ERROR in initializeApp: ${error.message}`);
             console.error("FATAL ERROR during initializeApp:", error);
             showToast("Ein kritischer Fehler ist aufgetreten. Bitte lade die Seite neu.", true);
             showScreen('auth-screen');
         } finally {
-            alert("Alert FINAL: Entering finally block"); // <<< NEU
+            alert("Alert FINAL: Entering finally block");
             setLoading(false);
             console.log("initializeApp finally block executed. Loading overlay hidden.");
-            alert("Alert FINAL: Exiting finally block (Loading hidden)"); // <<< NEU
+            alert("Alert FINAL: Exiting finally block (Loading hidden)");
         }
     };
     // #############################################
@@ -264,7 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleLogout = async () => { console.log("Logout initiated."); setLoading(true); if (currentUser?.isGuest) { console.log("Guest logout, reloading page."); window.location.replace(window.location.origin); return; } try { const { error } = await supabase.auth.signOut(); if (error) throw error; console.log("Supabase signOut successful."); window.location.replace(window.location.origin); } catch (error) { console.error("Error during logout:", error); showToast("Ausloggen fehlgeschlagen.", true); setLoading(false); } };
 
     // --- Client-Side Achievement Vergabe ---
-    const awardClientSideAchievement = async (achievementId) => { if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return; console.log(`Awarding client-side achievement: ${achievementId}`); userUnlockedAchievementIds.push(achievementId); const achievement = achievementsList.find(a => a.id === achievementId); showToast(`Erfolg freigeschaltet: ${achievement?.name || ''}!`); renderAchievements(); renderTitles(); renderIcons(); const { error } = await supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: achievementId }); if (error) { console.error(`Fehler beim Speichern von Client-Achievement ${achievementId}:`, error); } };
+    const awardClientSideAchievement = async (achievementId) => { if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return; console.log(`Awarding client-side achievement: ${achievementId}`); userUnlockedAchievementIds.push(achievementId); const achievement = achievementsList.find(a => a.id === achievementId); showToast(`Erfolg freigeschaltet: ${achievement?.name || ''}!`); renderAchievements(); renderTitles(); renderIcons(); const { error } = await supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: achievementId }); if (error) { console.error(`Fehler beim Speichern von Client-Achievement ${achievementId}:`, error); /* Optional: Rollback UI */ } };
 
     // --- WebSocket Functions ---
     const connectWebSocket = () => { if(ws.socket && (ws.socket.readyState === WebSocket.OPEN || ws.socket.readyState === WebSocket.CONNECTING)) { console.log("WebSocket connection already open or connecting."); return; } if (wsPingInterval) clearInterval(wsPingInterval); const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; const wsUrl = `${wsProtocol}//${window.location.host}`; console.log(`Attempting to connect WebSocket to: ${wsUrl}`); try { ws.socket = new WebSocket(wsUrl); } catch (error) { console.error("WebSocket creation failed:", error); showToast("Verbindung zum Server konnte nicht aufgebaut werden.", true); return; } ws.socket.onopen = () => { console.info('✅ WebSocket connection established.'); if (currentUser && !currentUser.isGuest) { console.log(`Registering user ${currentUser.id} with WebSocket server.`); ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id } })); } const storedGame = JSON.parse(localStorage.getItem('fakesterGame')); if (storedGame && currentUser && storedGame.playerId === currentUser.id) { console.log("Found stored game, attempting to reconnect:", storedGame); currentGame = storedGame; showToast('Verbinde erneut mit dem Spiel...'); ws.socket.send(JSON.stringify({ type: 'reconnect', payload: { pin: currentGame.pin, playerId: currentGame.playerId } })); } else if (storedGame) { console.warn("Found stored game for a different user, removing."); localStorage.removeItem('fakesterGame'); } wsPingInterval = setInterval(() => { if (ws.socket?.readyState === WebSocket.OPEN) {} else { console.warn("WebSocket not open, clearing ping interval."); clearInterval(wsPingInterval); wsPingInterval = null; } }, 30000); }; ws.socket.onmessage = (event) => { try { const data = JSON.parse(event.data); handleWebSocketMessage(data); } catch (error) { console.error('Error processing WebSocket message:', error, event.data); } }; ws.socket.onclose = (event) => { console.warn(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; if (!document.getElementById('auth-screen')?.classList.contains('active')) { console.log("Attempting WebSocket reconnect in 5 seconds..."); setTimeout(connectWebSocket, 5000); } }; ws.socket.onerror = (errorEvent) => { console.error('WebSocket error:', errorEvent); showToast("WebSocket-Verbindungsfehler.", true); ws.socket?.close(); }; };
@@ -284,52 +285,39 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStatsDisplay() { if (!currentUser || currentUser.isGuest || !userProfile) return; const { games_played, wins, highscore, correct_answers } = userProfile; const gp = games_played || 0; const w = wins || 0; const hs = highscore || 0; const ca = correct_answers || 0; const xp = userProfile.xp || 0; elements.stats.gamesPlayed.textContent = gp; elements.stats.wins.textContent = w; elements.stats.winrate.textContent = gp > 0 ? `${Math.round((w / gp) * 100)}%` : '0%'; elements.stats.highscore.textContent = hs; elements.stats.correctAnswers.textContent = ca; elements.stats.avgScore.textContent = gp > 0 ? Math.round(xp / gp) : 0; elements.stats.gamesPlayedPreview.textContent = gp; elements.stats.winsPreview.textContent = w; elements.stats.correctAnswersPreview.textContent = ca; }
 
     // --- Game Logic Functions ---
-    // ... (Gekürzt, voller Code oben oder in vorherigen Antworten)
+    // (Gekürzt für Übersichtlichkeit - Siehe vorherige Antworten für vollen Code)
     function showCountdown(round, total) { /* ... */ }
     function setupPreRound(data) { /* ... */ }
     function setupNewRound(data) { /* ... */ }
     function showRoundResult(data) { /* ... */ }
-
     // --- Friends Modal Logic ---
-    // ... (Gekürzt)
     async function loadFriendsData() { /* ... */ }
     function renderRequestsList(requests) { /* ... */ }
     function renderFriendsList(friends) { /* ... */ }
-
     // --- Utility & Modal Functions ---
-    // ... (Gekürzt)
     async function fetchHostData(isRefresh = false) { /* ... */ }
     function renderPaginatedPlaylists(playlistsToRender, page = 1) { /* ... */ }
     function openCustomValueModal(type, title) { /* ... */ }
     function showInvitePopup(from, pin) { /* ... */ }
-
 
     // #################################################################
     // ### DER EVENT LISTENER BLOCK ###
     // #################################################################
     function addEventListeners() {
         console.log("Adding all application event listeners...");
-
         // --- Navigation & Allgemein ---
-        elements.leaveGameButton.addEventListener('click', goBack);
-        elements.leaveConfirmModal.cancelBtn.addEventListener('click', () => elements.leaveConfirmModal.overlay.classList.add('hidden'));
-        elements.leaveConfirmModal.confirmBtn.addEventListener('click', () => {
-            if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type: 'leave-game', payload: { pin: currentGame.pin, playerId: currentGame.playerId } })); }
-            localStorage.removeItem('fakesterGame'); currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] };
-            screenHistory = ['auth-screen', 'home-screen']; showScreen('home-screen'); elements.leaveConfirmModal.overlay.classList.add('hidden');
-        });
-
+        elements.leaveGameButton?.addEventListener('click', goBack);
+        elements.leaveConfirmModal.cancelBtn?.addEventListener('click', () => elements.leaveConfirmModal.overlay.classList.add('hidden'));
+        elements.leaveConfirmModal.confirmBtn?.addEventListener('click', () => { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type: 'leave-game', payload: { pin: currentGame.pin, playerId: currentGame.playerId } })); } localStorage.removeItem('fakesterGame'); currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] }; screenHistory = ['auth-screen', 'home-screen']; showScreen('home-screen'); elements.leaveConfirmModal.overlay.classList.add('hidden'); });
         // --- Auth Screen ---
         elements.auth.loginForm?.addEventListener('submit', (e) => { e.preventDefault(); if (!supabase) return; handleAuthAction(supabase.auth.signInWithPassword, e.target, false); });
         elements.auth.registerForm?.addEventListener('submit', (e) => { e.preventDefault(); if (!supabase) return; handleAuthAction(supabase.auth.signUp, e.target, true); });
         elements.auth.showRegister?.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
         elements.auth.showLogin?.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.remove('hidden'); elements.auth.registerForm.classList.add('hidden'); });
-
         // --- Gast Modal ---
         elements.guestModal.openBtn?.addEventListener('click', () => { elements.guestModal.overlay.classList.remove('hidden'); elements.guestModal.input.focus(); });
         elements.guestModal.closeBtn?.addEventListener('click', () => elements.guestModal.overlay.classList.add('hidden'));
         elements.guestModal.submitBtn?.addEventListener('click', () => { const nickname = elements.guestModal.input.value; if (nickname.trim().length < 3 || nickname.trim().length > 15) { showToast("Nickname muss 3-15 Zeichen lang sein.", true); return; } elements.guestModal.overlay.classList.add('hidden'); initializeApp({ username: nickname }, true); });
-
         // --- Home Screen ---
         elements.home.logoutBtn?.addEventListener('click', handleLogout);
         document.getElementById('spotify-connect-button')?.addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/login'; });
@@ -342,25 +330,21 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.home.profilePictureBtn?.addEventListener('click', () => showScreen('icon-selection-screen'));
         elements.home.friendsBtn?.addEventListener('click', () => { loadFriendsData(); elements.friendsModal.overlay.classList.remove('hidden'); });
         elements.home.usernameContainer?.addEventListener('click', () => { if (!currentUser || currentUser.isGuest) return; elements.changeNameModal.input.value = currentUser.username; elements.changeNameModal.overlay.classList.remove('hidden'); elements.changeNameModal.input.focus(); });
-
         // --- Modus & Spieltyp Auswahl ---
         elements.modeSelection.container?.addEventListener('click', (e) => { const modeBox = e.target.closest('.mode-box'); if (modeBox && !modeBox.disabled) { selectedGameMode = modeBox.dataset.mode; console.log(`Game mode selected: ${selectedGameMode}`); elements.gameTypeScreen.createLobbyBtn.disabled = true; elements.gameTypeScreen.pointsBtn.classList.remove('active'); elements.gameTypeScreen.livesBtn.classList.remove('active'); elements.gameTypeScreen.livesSettings.classList.add('hidden'); showScreen('game-type-selection-screen'); } });
         elements.gameTypeScreen.pointsBtn?.addEventListener('click', () => { gameCreationSettings.gameType = 'points'; elements.gameTypeScreen.pointsBtn.classList.add('active'); elements.gameTypeScreen.livesBtn.classList.remove('active'); elements.gameTypeScreen.livesSettings.classList.add('hidden'); elements.gameTypeScreen.createLobbyBtn.disabled = false; });
         elements.gameTypeScreen.livesBtn?.addEventListener('click', () => { gameCreationSettings.gameType = 'lives'; elements.gameTypeScreen.pointsBtn.classList.remove('active'); elements.gameTypeScreen.livesBtn.classList.add('active'); elements.gameTypeScreen.livesSettings.classList.remove('hidden'); elements.gameTypeScreen.createLobbyBtn.disabled = false; });
         elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const button = e.target.closest('.preset-button'); if (button) { elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active')); button.classList.add('active'); const value = button.dataset.value; if (value === 'custom') { openCustomValueModal('lives', 'Leben eingeben (1-10)'); } else { gameCreationSettings.lives = parseInt(value); console.log(`Lives set to: ${gameCreationSettings.lives}`); } } });
         elements.gameTypeScreen.createLobbyBtn?.addEventListener('click', () => { if (!selectedGameMode || !gameCreationSettings.gameType) { showToast("Fehler: Spielmodus oder Spieltyp nicht ausgewählt.", true); return; } if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) { showToast("Keine Verbindung zum Server.", true); return; } setLoading(true); ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: selectedGameMode, gameType: gameCreationSettings.gameType, lives: gameCreationSettings.gameType === 'lives' ? gameCreationSettings.lives : 3 } })); });
-
         // --- Lobby Screen ---
         elements.lobby.inviteFriendsBtn?.addEventListener('click', async () => { /* ... load friends ... */ });
         elements.lobby.deviceSelectBtn?.addEventListener('click', () => elements.deviceSelectModal.overlay.classList.remove('hidden'));
         elements.lobby.playlistSelectBtn?.addEventListener('click', () => elements.playlistSelectModal.overlay.classList.remove('hidden'));
         document.getElementById('host-settings')?.addEventListener('click', (e) => { const button = e.target.closest('.preset-button'); if (!button) return; const container = button.closest('.preset-group'); if (!container) return; const typeMap = { 'song-count-presets': 'song', 'guess-time-presets': 'time', 'answer-type-presets': 'answer' }; const type = typeMap[container.id]; if (type) { handlePresetClick(e, type); } });
         elements.lobby.startGameBtn?.addEventListener('click', () => { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { if (elements.lobby.startGameBtn.disabled) { showToast("Bitte wähle zuerst ein Gerät und eine Playlist.", true); return; } setLoading(true); ws.socket.send(JSON.stringify({ type: 'start-game', payload: { pin: currentGame.pin } })); } });
-
         // --- Item/Title/Icon Selection ---
         elements.titles.list?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { const titleId = parseInt(card.dataset.titleId); if (!isNaN(titleId)) equipTitle(titleId, true); } });
         elements.icons.list?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { const iconId = parseInt(card.dataset.iconId); if (!isNaN(iconId)) equipIcon(iconId, true); } });
-
         // --- Modals ---
         document.querySelectorAll('.button-exit-modal').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal-overlay')?.classList.add('hidden')));
         elements.joinModal.numpad?.addEventListener('click', (e) => { const button = e.target.closest('button'); if (!button) return; const key = button.dataset.key; const action = button.dataset.action; if (key >= '0' && key <= '9' && pinInput.length < 4) { pinInput += key; } else if (action === 'clear' || action === 'backspace') { pinInput = pinInput.slice(0, -1); } else if (action === 'confirm' && pinInput.length === 4) { if (!currentUser) { showToast("Bitte zuerst anmelden oder als Gast spielen.", true); return; } if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) { showToast("Keine Serververbindung.", true); return; } setLoading(true); ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } })); } elements.joinModal.pinDisplay.forEach((d, i) => d.textContent = pinInput[i] || ""); elements.joinModal.numpad.querySelector('[data-action="confirm"]').disabled = pinInput.length !== 4; });
@@ -379,19 +363,11 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.playlistSelectModal.pagination?.addEventListener('click', (e) => { /* ... pagination ... */ });
         elements.confirmActionModal.cancelBtn?.addEventListener('click', () => { elements.confirmActionModal.overlay.classList.add('hidden'); currentConfirmAction = null; });
         elements.confirmActionModal.confirmBtn?.addEventListener('click', () => { if (typeof currentConfirmAction === 'function') { currentConfirmAction(); } elements.confirmActionModal.overlay.classList.add('hidden'); currentConfirmAction = null; });
-
         // --- Console Buttons ---
         toggleConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.toggle('hidden'));
         closeConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.add('hidden'));
         clearConsoleBtn?.addEventListener('click', () => { if (consoleOutput) consoleOutput.innerHTML = ''; });
-        copyConsoleBtn?.addEventListener('click', () => {
-            if (!consoleOutput) return;
-            const logText = Array.from(consoleOutput.children).map(entry => entry.dataset.rawText || entry.textContent).join('\n');
-            navigator.clipboard.writeText(logText)
-                .then(() => { showToast('Logs kopiert!', false); })
-                .catch(err => { console.error('Fehler beim Kopieren der Logs:', err); showToast('Kopieren fehlgeschlagen.', true); });
-        });
-
+        copyConsoleBtn?.addEventListener('click', () => { if (!consoleOutput) return; const logText = Array.from(consoleOutput.children).map(entry => entry.dataset.rawText || entry.textContent).join('\n'); navigator.clipboard.writeText(logText).then(() => { showToast('Logs kopiert!', false); }).catch(err => { console.error('Fehler beim Kopieren der Logs:', err); showToast('Kopieren fehlgeschlagen.', true); }); });
         console.log("All event listeners added.");
     }
 
@@ -407,14 +383,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const config = await response.json();
             if (!config.supabaseUrl || !config.supabaseAnonKey) { throw new Error("Supabase URL or Anon Key is missing from config."); }
 
-            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, { global: { fetch: (...args) => window.fetch(...args) }, auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }); // Added Auth options
+            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, { global: { fetch: (...args) => window.fetch(...args) }, auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
             console.log("Supabase client initialized successfully.");
 
             supabase.auth.onAuthStateChange(async (event, session) => {
-                console.log(`Supabase Auth Event: ${event}`, session ? { userId: session.user.id, eventTime: new Date().toISOString() } : 'No session'); // Added timestamp
+                console.log(`Supabase Auth Event: ${event}`, session ? { userId: session.user.id, eventTime: new Date().toISOString() } : 'No session');
 
                 if (event === 'SIGNED_OUT') {
-                    // Cleanup logic as before...
                     currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null;
                     if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { console.log("Closing WebSocket due to SIGNED_OUT."); ws.socket.close(); }
                     if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null;
@@ -423,24 +398,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session?.user) {
-                     // Debounce or check if already initializing
                      if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id || event === 'SIGNED_IN')) {
-                          window.initializeAppRunning = true; // Set flag
+                          window.initializeAppRunning = true;
                           console.log(`Session available/updated for user ${session.user.id}. Initializing app...`);
                           setLoading(true);
-                          try {
-                              await initializeApp(session.user, false);
-                          } finally {
-                              window.initializeAppRunning = false; // Reset flag
-                          }
+                          try { await initializeApp(session.user, false); }
+                          finally { window.initializeAppRunning = false; }
                      } else if (event === 'TOKEN_REFRESHED') {
                           console.log("Token refreshed, checking Spotify status again.");
                           await checkSpotifyStatus();
                      } else if (!window.initializeAppRunning) {
                           console.log("App already initialized for this user session or init running.");
-                          setLoading(false); // Ensure loading is off if init is skipped
+                          setLoading(false);
                      }
-                } else if (!session && !['USER_UPDATED', 'PASSWORD_RECOVERY', 'MFA_CHALLENGE_VERIFIED'].includes(event)) { // Added MFA check
+                } else if (!session && !['USER_UPDATED', 'PASSWORD_RECOVERY', 'MFA_CHALLENGE_VERIFIED'].includes(event)) {
                      console.log(`No active session or session invalid (Event: ${event}). Showing auth screen.`);
                      if (currentUser) {
                           currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null;
@@ -451,14 +422,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Initial check might still race with INITIAL_SESSION, let listener handle it primarily
             const { data: { session: initialSession } } = await supabase.auth.getSession();
              if (!initialSession && !document.getElementById('auth-screen')?.classList.contains('active')) {
                   console.log("Initial check: No session, showing auth screen.");
                   showScreen('auth-screen');
                   setLoading(false);
              } else if (!initialSession) {
-                 setLoading(false); // Ensure loading is off if auth screen is already shown
+                 setLoading(false);
              }
 
             addEventListeners();
