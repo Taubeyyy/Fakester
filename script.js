@@ -27,16 +27,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- On-Page Konsole Setup ---
     const consoleOutput = document.getElementById('console-output');
     const onPageConsole = document.getElementById('on-page-console');
-    const toggleConsoleBtn = document.getElementById('toggle-console-btn');
+    const toggleConsoleBtn = document.getElementById('toggle-console-btn'); // Referenz zum Toggle Button
     const closeConsoleBtn = document.getElementById('close-console-btn');
     const clearConsoleBtn = document.getElementById('clear-console-btn');
-    const copyConsoleBtn = document.createElement('button'); // NEU: Copy Button Element
+    const copyConsoleBtn = document.createElement('button'); // Copy Button Element
 
-    copyConsoleBtn.textContent = 'Kopieren'; // NEU: Text für den Button
-    copyConsoleBtn.id = 'copy-console-btn'; // NEU: ID für den Button
+    copyConsoleBtn.textContent = 'Kopieren';
+    copyConsoleBtn.id = 'copy-console-btn';
 
-    // Füge den Copy Button zum Header hinzu (wenn der Header existiert)
-    document.querySelector('.console-header')?.insertBefore(copyConsoleBtn, clearConsoleBtn); // NEU: Button einfügen
+    // Füge den Copy Button zum Header hinzu
+    document.querySelector('.console-header')?.insertBefore(copyConsoleBtn, clearConsoleBtn);
 
     const originalConsole = { ...console };
 
@@ -61,7 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const message = args.map(formatArg).join(' ');
             const logEntry = document.createElement('div');
             logEntry.classList.add(`log-${type}`);
-            // Speichere die Roh-Text-Nachricht für das Kopieren
             logEntry.dataset.rawText = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: ${message}`;
             logEntry.innerHTML = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: <pre>${message}</pre>`;
             consoleOutput.appendChild(logEntry);
@@ -88,23 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
         originalConsole.error('Unhandled Promise Rejection:', reason);
         logToPage('error', ['🚧 Unhandled Promise Rejection:', reason]);
     };
-
     // Event Listener für Konsolen-Buttons werden am Ende in addEventListeners hinzugefügt
     // --- Ende On-Page Konsole ---
 
 
     // --- ERWEITERTE DATENBANKEN ---
-    const achievementsList = [
-        { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' }, { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' }, { id: 4, name: 'Historiker', description: 'Gewinne eine Timeline-Runde.' }, { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' }, { id: 6, name: 'Musik-Lexikon', description: 'Beantworte 500 Fragen richtig (gesamt).' }, { id: 7, name: 'Unbesiegbar', description: 'Gewinne 5 Spiele in Folge.' }, { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt (gesamt).' }, { id: 9, name: 'Spotify-Junkie', description: 'Verbinde dein Spotify-Konto.' }, { id: 10, name: 'Gastgeber', description: 'Hoste dein erstes Spiel.' }, { id: 11, name: 'Party-Löwe', description: 'Spiele mit 3+ Freunden (in einer Lobby).' }, { id: 12, name: ' knapp daneben', description: 'Antworte 5 Mal falsch in einem Spiel.' }, { id: 13, name: 'Präzisionsarbeit', description: 'Errate Titel, Künstler UND Jahr exakt in einer Runde (Quiz).'}, { id: 14, name: 'Sozial vernetzt', description: 'Füge deinen ersten Freund hinzu.' }, { id: 15, name: 'Sammler', description: 'Schalte 5 Titel frei.' }, { id: 16, name: 'Icon-Liebhaber', description: 'Schalte 5 Icons frei.' }, { id: 17, name: 'Aufwärmrunde', description: 'Spiele 3 Spiele.' }, { id: 18, name: 'Highscorer', description: 'Erreiche über 1000 Punkte in einem Spiel.' }, { id: 19, name: 'Perfektionist', description: 'Beantworte alle Fragen in einem Spiel richtig (min. 5 Runden).'}, { id: 20, name: 'Dabei sein ist alles', description: 'Verliere 3 Spiele.'}
-    ];
+    const achievementsList = [ { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' }, { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' }, { id: 4, name: 'Historiker', description: 'Gewinne eine Timeline-Runde.' }, { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' }, { id: 6, name: 'Musik-Lexikon', description: 'Beantworte 500 Fragen richtig (gesamt).' }, { id: 7, name: 'Unbesiegbar', description: 'Gewinne 5 Spiele in Folge.' }, { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt (gesamt).' }, { id: 9, name: 'Spotify-Junkie', description: 'Verbinde dein Spotify-Konto.' }, { id: 10, name: 'Gastgeber', description: 'Hoste dein erstes Spiel.' }, { id: 11, name: 'Party-Löwe', description: 'Spiele mit 3+ Freunden (in einer Lobby).' }, { id: 12, name: ' knapp daneben', description: 'Antworte 5 Mal falsch in einem Spiel.' }, { id: 13, name: 'Präzisionsarbeit', description: 'Errate Titel, Künstler UND Jahr exakt in einer Runde (Quiz).'}, { id: 14, name: 'Sozial vernetzt', description: 'Füge deinen ersten Freund hinzu.' }, { id: 15, name: 'Sammler', description: 'Schalte 5 Titel frei.' }, { id: 16, name: 'Icon-Liebhaber', description: 'Schalte 5 Icons frei.' }, { id: 17, name: 'Aufwärmrunde', description: 'Spiele 3 Spiele.' }, { id: 18, name: 'Highscorer', description: 'Erreiche über 1000 Punkte in einem Spiel.' }, { id: 19, name: 'Perfektionist', description: 'Beantworte alle Fragen in einem Spiel richtig (min. 5 Runden).'}, { id: 20, name: 'Dabei sein ist alles', description: 'Verliere 3 Spiele.'} ];
     const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100));
     const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
-    const titlesList = [
-        { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1 }, { id: 2, name: 'Musik-Kenner', unlockType: 'achievement', unlockValue: 2 }, { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3 }, { id: 4, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4 }, { id: 5, 'name': 'Star-Experte', unlockType: 'achievement', unlockValue: 5 }, { id: 6, name: ' Pechvogel', unlockType: 'achievement', unlockValue: 12 }, { id: 7, name: 'Präzise', unlockType: 'achievement', unlockValue: 13 }, { id: 8, name: 'Gesellig', unlockType: 'achievement', unlockValue: 14 }, { id: 9, name: 'Sammler', unlockType: 'achievement', unlockValue: 15 }, { id: 10, name: 'Kenner', unlockType: 'level', unlockValue: 5 }, { id: 11, name: 'Experte', unlockType: 'level', unlockValue: 10 }, { id: 12, name: 'Meister', unlockType: 'level', unlockValue: 15 }, { id: 13, name: 'Virtuose', unlockType: 'level', unlockValue: 20 }, { id: 14, name: 'Maestro', unlockType: 'level', unlockValue: 25 }, { id: 15, name: 'Großmeister', unlockType: 'level', unlockValue: 30 }, { id: 16, name: 'Orakel', unlockType: 'level', unlockValue: 40 }, { id: 17, name: 'Musikgott', unlockType: 'level', unlockValue: 50 }, { id: 18, name: 'Perfektionist', unlockType: 'achievement', unlockValue: 19 }, { id: 19, name: 'Highscorer', unlockType: 'achievement', unlockValue: 18 }, { id: 20, name: 'Dauerbrenner', unlockType: 'achievement', unlockValue: 17 }, { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon' }
-    ];
-    const iconsList = [
-        { id: 1, iconClass: 'fa-user', unlockType: 'level', unlockValue: 1, description: 'Standard-Icon' }, { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5' }, { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10' }, { id: 4, iconClass: 'fa-trophy', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger' }, { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20' }, { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser' }, { id: 7, iconClass: 'fa-guitar', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15' }, { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 25, description: 'Erreiche Level 25' }, { id: 9, iconClass: 'fa-record-vinyl', unlockType: 'level', unlockValue: 30, description: 'Erreiche Level 30' }, { id: 10, iconClass: 'fa-fire', unlockType: 'level', unlockValue: 40, description: 'Erreiche Level 40' }, { id: 11, iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45' }, { id: 12, iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50' }, { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber'}, { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon' }
-    ];
+    const titlesList = [ { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1 }, { id: 2, name: 'Musik-Kenner', unlockType: 'achievement', unlockValue: 2 }, { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3 }, { id: 4, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4 }, { id: 5, 'name': 'Star-Experte', unlockType: 'achievement', unlockValue: 5 }, { id: 6, name: ' Pechvogel', unlockType: 'achievement', unlockValue: 12 }, { id: 7, name: 'Präzise', unlockType: 'achievement', unlockValue: 13 }, { id: 8, name: 'Gesellig', unlockType: 'achievement', unlockValue: 14 }, { id: 9, name: 'Sammler', unlockType: 'achievement', unlockValue: 15 }, { id: 10, name: 'Kenner', unlockType: 'level', unlockValue: 5 }, { id: 11, name: 'Experte', unlockType: 'level', unlockValue: 10 }, { id: 12, name: 'Meister', unlockType: 'level', unlockValue: 15 }, { id: 13, name: 'Virtuose', unlockType: 'level', unlockValue: 20 }, { id: 14, name: 'Maestro', unlockType: 'level', unlockValue: 25 }, { id: 15, name: 'Großmeister', unlockType: 'level', unlockValue: 30 }, { id: 16, name: 'Orakel', unlockType: 'level', unlockValue: 40 }, { id: 17, name: 'Musikgott', unlockType: 'level', unlockValue: 50 }, { id: 18, name: 'Perfektionist', unlockType: 'achievement', unlockValue: 19 }, { id: 19, name: 'Highscorer', unlockType: 'achievement', unlockValue: 18 }, { id: 20, name: 'Dauerbrenner', unlockType: 'achievement', unlockValue: 17 }, { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon' } ];
+    const iconsList = [ { id: 1, iconClass: 'fa-user', unlockType: 'level', unlockValue: 1, description: 'Standard-Icon' }, { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5' }, { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10' }, { id: 4, iconClass: 'fa-trophy', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger' }, { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20' }, { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser' }, { id: 7, iconClass: 'fa-guitar', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15' }, { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 25, description: 'Erreiche Level 25' }, { id: 9, iconClass: 'fa-record-vinyl', unlockType: 'level', unlockValue: 30, description: 'Erreiche Level 30' }, { id: 10, iconClass: 'fa-fire', unlockType: 'level', unlockValue: 40, description: 'Erreiche Level 40' }, { id: 11, iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45' }, { id: 12, iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50' }, { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber'}, { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon' } ];
     const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
     // --- DOM Element References ---
@@ -124,9 +116,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function getUnlockDescription(item) { if (!item) return ''; switch (item.unlockType) { case 'level': return `Erreiche Level ${item.unlockValue}`; case 'achievement': const ach = achievementsList.find(a => a.id === item.unlockValue); return `Erfolg: ${ach ? ach.name : 'Unbekannt'}`; case 'special': return 'Spezial'; default: return ''; } }
 
     // --- Initialization and Auth ---
-    // #############################################
-    // ### HIER SIND DIE ALERTS HINZUGEFÜGT WORDEN ###
-    // #############################################
+    // ##############################################################
+    // ### HIER SIND DIE ALERTS UND refreshSession ist auskommentiert ###
+    // ##############################################################
     const initializeApp = async (user, isGuest = false) => {
         alert("Alert 0: Entering initializeApp"); // <<< BLEIBT
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
@@ -151,26 +143,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Setting up logged-in user...");
                 currentUser = { id: user.id, username: user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt', isGuest };
 
-                alert("Alert 2: Before Profile Fetch");
-                console.log("Log 1: Fetching profile data...");
-                const { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', user.id)
-                    .single();
-                alert("Alert 3: After Profile Fetch");
+                // --- NEUER TRY...CATCH um die Profilabfrage ---
+                let profileData, profileErrorData;
+                try {
+                    alert("Alert 2: Before Profile Fetch");
+                    console.log("Log 1: Fetching profile data...");
+                    const { data: profileResult, error: profileErrorResult } = await supabase
+                        .from('profiles')
+                        .select('*')
+                        .eq('id', user.id)
+                        .single();
+                    profileData = profileResult;
+                    profileErrorData = profileErrorResult;
+                    alert("Alert 3: After Profile Fetch Attempt"); // Geändert: Versuch abgeschlossen
+                } catch (fetchError) {
+                    alert(`!!! CATCH Profile Fetch Error: ${fetchError.message}`); // <<< Fängt Fehler beim Await selbst ab
+                    console.error("!!! CATCH Profile Fetch Error:", fetchError);
+                    profileErrorData = fetchError; // Setze den Fehler, damit er unten behandelt wird
+                }
+                // --- ENDE NEUER TRY...CATCH ---
 
-                if (profileError) {
-                    console.error("Profil-Ladefehler:", profileError);
+                if (profileErrorData) {
+                    alert(`Profile Error Detected: ${profileErrorData.message}`); // <<< Zeigt den Fehler an
+                    console.error("Profil-Ladefehler:", profileErrorData);
                     showToast("Fehler beim Laden deines Profils.", true);
                     userProfile = { id: user.id, username: currentUser.username, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
-                } else {
-                    userProfile = profile;
-                    currentUser.username = profile.username;
+                } else if (!profileData) {
+                    alert("Profile Error: No data received, but no explicit error."); // <<< Neuer Fall: Keine Daten
+                    console.error("Profil-Ladefehler: Keine Daten empfangen, aber kein Fehlerobjekt.");
+                    showToast("Profil nicht gefunden oder Ladefehler.", true);
+                    userProfile = { id: user.id, username: currentUser.username, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
+                }
+                else {
+                    userProfile = profileData;
+                    currentUser.username = profileData.username;
                     console.log("Profile data fetched:", userProfile);
                 }
-                console.log("Log 2: Profile fetch finished.");
+                console.log("Log 2: Profile fetch finished processing."); // Angepasst
 
+                // --- Restliche Funktion (Achievements, Spotify etc.) ---
                 alert("Alert 4: Before Achievements Fetch");
                 console.log("Log 3: Fetching achievements...");
                 const { data: achievements, error: achError } = await supabase
@@ -194,26 +205,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert("Alert 7: After Spotify Check");
                 console.log("Log 6: Spotify status checked.");
 
-                if (spotifyToken && !userUnlockedAchievementIds.includes(9)) {
-                    await awardClientSideAchievement(9);
-                }
-
+                if (spotifyToken && !userUnlockedAchievementIds.includes(9)) { await awardClientSideAchievement(9); }
                 alert("Alert 8: Before UI Rendering");
                 console.log("Log 7: Rendering UI components...");
-                renderAchievements();
-                renderTitles();
-                renderIcons();
-                renderLevelProgress();
-                updateStatsDisplay();
+                renderAchievements(); renderTitles(); renderIcons(); renderLevelProgress(); updateStatsDisplay();
                 console.log("UI components rendered.");
-
-                console.log("Equipping title and icon...");
-                equipTitle(userProfile.equipped_title_id || 1, false);
-                equipIcon(userProfile.equipped_icon_id || 1, false);
+                console.log("Equipping title and icon..."); equipTitle(userProfile.equipped_title_id || 1, false); equipIcon(userProfile.equipped_icon_id || 1, false);
                 console.log("Title and icon equipped visually.");
-
-                console.log("Updating player progress display...");
-                updatePlayerProgressDisplay();
+                console.log("Updating player progress display..."); updatePlayerProgressDisplay();
                 console.log("Player progress display updated.");
                 console.log("Logged-in user setup complete.");
             }
@@ -232,7 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("initializeApp finished successfully.");
 
         } catch (error) {
-            alert(`ERROR in initializeApp: ${error.message}`);
+            alert(`ERROR in initializeApp (Outer Catch): ${error.message}`); // <<< Äußerer Catch
             console.error("FATAL ERROR during initializeApp:", error);
             showToast("Ein kritischer Fehler ist aufgetreten. Bitte lade die Seite neu.", true);
             showScreen('auth-screen');
@@ -247,6 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ### ENDE DER ÄNDERUNGEN IN initializeApp ###
     // #############################################
 
+    // (Restliche Funktionen: checkSpotifyStatus, handleAuthAction, handleLogout, awardClientSideAchievement, connectWebSocket, handleWebSocketMessage, UI Rendering, Game Logic, Friends Modal, Utility & Modals, addEventListeners, initializeSupabase bleiben wie in der vorherigen Antwort)
 
     const checkSpotifyStatus = async () => {
         spotifyToken = null; // Reset token before check
@@ -264,10 +264,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const handleLogout = async () => { console.log("Logout initiated."); setLoading(true); if (currentUser?.isGuest) { console.log("Guest logout, reloading page."); window.location.replace(window.location.origin); return; } try { const { error } = await supabase.auth.signOut(); if (error) throw error; console.log("Supabase signOut successful."); window.location.replace(window.location.origin); } catch (error) { console.error("Error during logout:", error); showToast("Ausloggen fehlgeschlagen.", true); setLoading(false); } };
 
-    // --- Client-Side Achievement Vergabe ---
-    const awardClientSideAchievement = async (achievementId) => { if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return; console.log(`Awarding client-side achievement: ${achievementId}`); userUnlockedAchievementIds.push(achievementId); const achievement = achievementsList.find(a => a.id === achievementId); showToast(`Erfolg freigeschaltet: ${achievement?.name || ''}!`); renderAchievements(); renderTitles(); renderIcons(); const { error } = await supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: achievementId }); if (error) { console.error(`Fehler beim Speichern von Client-Achievement ${achievementId}:`, error); /* Optional: Rollback UI */ } };
+    const awardClientSideAchievement = async (achievementId) => { if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return; console.log(`Awarding client-side achievement: ${achievementId}`); userUnlockedAchievementIds.push(achievementId); const achievement = achievementsList.find(a => a.id === achievementId); showToast(`Erfolg freigeschaltet: ${achievement?.name || ''}!`); renderAchievements(); renderTitles(); renderIcons(); const { error } = await supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: achievementId }); if (error) { console.error(`Fehler beim Speichern von Client-Achievement ${achievementId}:`, error); } };
 
-    // --- WebSocket Functions ---
     const connectWebSocket = () => { if(ws.socket && (ws.socket.readyState === WebSocket.OPEN || ws.socket.readyState === WebSocket.CONNECTING)) { console.log("WebSocket connection already open or connecting."); return; } if (wsPingInterval) clearInterval(wsPingInterval); const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; const wsUrl = `${wsProtocol}//${window.location.host}`; console.log(`Attempting to connect WebSocket to: ${wsUrl}`); try { ws.socket = new WebSocket(wsUrl); } catch (error) { console.error("WebSocket creation failed:", error); showToast("Verbindung zum Server konnte nicht aufgebaut werden.", true); return; } ws.socket.onopen = () => { console.info('✅ WebSocket connection established.'); if (currentUser && !currentUser.isGuest) { console.log(`Registering user ${currentUser.id} with WebSocket server.`); ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id } })); } const storedGame = JSON.parse(localStorage.getItem('fakesterGame')); if (storedGame && currentUser && storedGame.playerId === currentUser.id) { console.log("Found stored game, attempting to reconnect:", storedGame); currentGame = storedGame; showToast('Verbinde erneut mit dem Spiel...'); ws.socket.send(JSON.stringify({ type: 'reconnect', payload: { pin: currentGame.pin, playerId: currentGame.playerId } })); } else if (storedGame) { console.warn("Found stored game for a different user, removing."); localStorage.removeItem('fakesterGame'); } wsPingInterval = setInterval(() => { if (ws.socket?.readyState === WebSocket.OPEN) {} else { console.warn("WebSocket not open, clearing ping interval."); clearInterval(wsPingInterval); wsPingInterval = null; } }, 30000); }; ws.socket.onmessage = (event) => { try { const data = JSON.parse(event.data); handleWebSocketMessage(data); } catch (error) { console.error('Error processing WebSocket message:', error, event.data); } }; ws.socket.onclose = (event) => { console.warn(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; if (!document.getElementById('auth-screen')?.classList.contains('active')) { console.log("Attempting WebSocket reconnect in 5 seconds..."); setTimeout(connectWebSocket, 5000); } }; ws.socket.onerror = (errorEvent) => { console.error('WebSocket error:', errorEvent); showToast("WebSocket-Verbindungsfehler.", true); ws.socket?.close(); }; };
     const handleWebSocketMessage = ({ type, payload }) => { console.log(`Processing WebSocket message: Type=${type}`, payload); if (type !== 'round-countdown') elements.countdownOverlay.classList.add('hidden'); switch (type) { case 'game-created': case 'join-success': setLoading(false); currentGame = { ...currentGame, pin: payload.pin, playerId: payload.playerId, isHost: payload.isHost, gameMode: payload.gameMode }; localStorage.setItem('fakesterGame', JSON.stringify(currentGame)); if (currentGame.isHost) { fetchHostData(); } elements.joinModal.overlay.classList.add('hidden'); showScreen('lobby-screen'); break; case 'lobby-update': elements.lobby.pinDisplay.textContent = payload.pin; renderPlayerList(payload.players, payload.hostId); updateHostSettings(payload.settings, currentGame.isHost); break; case 'reconnect-to-game': setLoading(false); console.log("Reconnected mid-game, showing game screen."); showScreen('game-screen'); /* TODO: Request current game state */ break; case 'game-starting': showScreen('game-screen'); setupPreRound(payload); break; case 'round-countdown': setLoading(false); showCountdown(payload.round, payload.totalRounds); break; case 'new-round': setLoading(false); showScreen('game-screen'); setupNewRound(payload); break; case 'round-result': showRoundResult(payload); break; case 'game-over': localStorage.removeItem('fakesterGame'); const myFinalScore = payload.scores.find(s => s.id === currentUser?.id)?.score || 0; showToast(`Spiel vorbei! Du hast ${myFinalScore} XP erhalten!`); if (!currentUser?.isGuest) { updatePlayerProgress(myFinalScore); } setTimeout(() => { screenHistory = ['auth-screen', 'home-screen']; showScreen('home-screen'); }, 7000); break; case 'invite-received': showInvitePopup(payload.from, payload.pin); break; case 'friend-request-received': showToast(`Du hast eine Freundschaftsanfrage von ${payload.from}!`); if (!elements.friendsModal.overlay.classList.contains('hidden')) { loadFriendsData(); } else { const countEl = elements.friendsModal.requestsCount; const currentCount = parseInt(countEl.textContent || '0'); countEl.textContent = currentCount + 1; countEl.classList.remove('hidden'); } break; case 'toast': setLoading(false); showToast(payload.message, payload.isError); break; case 'error': setLoading(false); showToast(payload.message, true); pinInput = ""; document.querySelectorAll('#join-pin-display .pin-digit').forEach(d => d.textContent = ""); if (!elements.joinModal.overlay?.classList.contains('hidden')) { elements.joinModal.overlay.classList.add('hidden'); } break; default: console.warn(`Unhandled WebSocket message type: ${type}`); } };
 
@@ -284,17 +282,16 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updatePlayerProgress(xpGained, showNotification = true) { if (!currentUser || currentUser.isGuest) return; console.log(`Updating player progress post-game. XP Gained: ${xpGained}, Show Notification: ${showNotification}`); const oldLevel = getLevelForXp(userProfile.xp || 0); console.log("Fetching latest profile data for progress update..."); const { data, error } = await supabase.from('profiles').select('xp, games_played, wins, correct_answers, highscore').eq('id', currentUser.id).single(); if (error) { console.error("Error fetching profile data after game:", error); updatePlayerProgressDisplay(); return; } console.log("Latest profile data fetched:", data); userProfile = { ...userProfile, ...data }; console.log("Fetching updated achievements..."); const { data: achievements, error: achError } = await supabase.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id); if (achError) { console.error("Error fetching updated achievements:", achError); } else { userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id)); console.log("Updated achievements:", userUnlockedAchievementIds); } updatePlayerProgressDisplay(); updateStatsDisplay(); const newLevel = getLevelForXp(userProfile.xp || 0); console.log(`Old Level: ${oldLevel}, New Level: ${newLevel}`); if (showNotification && newLevel > oldLevel) { console.info(`Level Up! ${oldLevel} -> ${newLevel}`); showToast(`Level Up! Du hast Level ${newLevel} erreicht!`); renderIcons(); renderTitles(); renderLevelProgress(); } renderAchievements(); console.log("Player progress update complete."); }
     function updateStatsDisplay() { if (!currentUser || currentUser.isGuest || !userProfile) return; const { games_played, wins, highscore, correct_answers } = userProfile; const gp = games_played || 0; const w = wins || 0; const hs = highscore || 0; const ca = correct_answers || 0; const xp = userProfile.xp || 0; elements.stats.gamesPlayed.textContent = gp; elements.stats.wins.textContent = w; elements.stats.winrate.textContent = gp > 0 ? `${Math.round((w / gp) * 100)}%` : '0%'; elements.stats.highscore.textContent = hs; elements.stats.correctAnswers.textContent = ca; elements.stats.avgScore.textContent = gp > 0 ? Math.round(xp / gp) : 0; elements.stats.gamesPlayedPreview.textContent = gp; elements.stats.winsPreview.textContent = w; elements.stats.correctAnswersPreview.textContent = ca; }
 
-    // --- Game Logic Functions ---
-    // (Gekürzt für Übersichtlichkeit - Siehe vorherige Antworten für vollen Code)
+    // --- Game Logic Functions (gekürzt) ---
     function showCountdown(round, total) { /* ... */ }
     function setupPreRound(data) { /* ... */ }
     function setupNewRound(data) { /* ... */ }
     function showRoundResult(data) { /* ... */ }
-    // --- Friends Modal Logic ---
+    // --- Friends Modal Logic (gekürzt) ---
     async function loadFriendsData() { /* ... */ }
     function renderRequestsList(requests) { /* ... */ }
     function renderFriendsList(friends) { /* ... */ }
-    // --- Utility & Modal Functions ---
+    // --- Utility & Modal Functions (gekürzt) ---
     async function fetchHostData(isRefresh = false) { /* ... */ }
     function renderPaginatedPlaylists(playlistsToRender, page = 1) { /* ... */ }
     function openCustomValueModal(type, title) { /* ... */ }
@@ -364,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.confirmActionModal.cancelBtn?.addEventListener('click', () => { elements.confirmActionModal.overlay.classList.add('hidden'); currentConfirmAction = null; });
         elements.confirmActionModal.confirmBtn?.addEventListener('click', () => { if (typeof currentConfirmAction === 'function') { currentConfirmAction(); } elements.confirmActionModal.overlay.classList.add('hidden'); currentConfirmAction = null; });
         // --- Console Buttons ---
-        toggleConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.toggle('hidden'));
+        toggleConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.toggle('hidden')); // Sicherstellen, dass der Listener hier ist
         closeConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.add('hidden'));
         clearConsoleBtn?.addEventListener('click', () => { if (consoleOutput) consoleOutput.innerHTML = ''; });
         copyConsoleBtn?.addEventListener('click', () => { if (!consoleOutput) return; const logText = Array.from(consoleOutput.children).map(entry => entry.dataset.rawText || entry.textContent).join('\n'); navigator.clipboard.writeText(logText).then(() => { showToast('Logs kopiert!', false); }).catch(err => { console.error('Fehler beim Kopieren der Logs:', err); showToast('Kopieren fehlgeschlagen.', true); }); });
@@ -431,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
                  setLoading(false);
              }
 
-            addEventListeners();
+            addEventListeners(); // Stelle sicher, dass dies NACH der Supabase-Initialisierung aufgerufen wird
 
         } catch (error) {
             console.error("FATAL ERROR during Supabase initialization:", error);
@@ -443,3 +440,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Main Execution ---
     initializeSupabase(); // Start the initialization process
 });
+
