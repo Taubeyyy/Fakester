@@ -116,11 +116,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function getUnlockDescription(item) { if (!item) return ''; switch (item.unlockType) { case 'level': return `Erreiche Level ${item.unlockValue}`; case 'achievement': const ach = achievementsList.find(a => a.id === item.unlockValue); return `Erfolg: ${ach ? ach.name : 'Unbekannt'}`; case 'special': return 'Spezial'; default: return ''; } }
 
     // --- Initialization and Auth ---
-    // ##############################################################
-    // ### HIER SIND DIE ALERTS UND refreshSession ist auskommentiert ###
-    // ##############################################################
+    // ######################################################################
+    // ### HIER WURDEN DIE 'alert()' BEFEHLE ENTFERNT ###
+    // ######################################################################
     const initializeApp = async (user, isGuest = false) => {
-        alert("Alert 0: Entering initializeApp"); // <<< BLEIBT
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame');
         // if (supabase) {
@@ -129,24 +128,19 @@ document.addEventListener('DOMContentLoaded', () => {
         // }
 
         try {
-            alert("Alert TRY: Entering try block"); // <<< NEUER ALERT
             if (isGuest) {
-                alert("Alert G1: Setting up guest");
                 console.log("Setting up guest user...");
                 currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest };
                 userProfile = { xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
                 userUnlockedAchievementIds = [];
                 console.log("Guest user setup complete.");
-                alert("Alert G2: Guest setup done");
             } else {
-                alert("Alert 1: Setting up logged-in user");
                 console.log("Setting up logged-in user...");
                 currentUser = { id: user.id, username: user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt', isGuest };
 
                 // --- NEUER TRY...CATCH um die Profilabfrage ---
                 let profileData, profileErrorData;
                 try {
-                    alert("Alert 2: Before Profile Fetch");
                     console.log("Log 1: Fetching profile data...");
                     const { data: profileResult, error: profileErrorResult } = await supabase
                         .from('profiles')
@@ -155,21 +149,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         .single();
                     profileData = profileResult;
                     profileErrorData = profileErrorResult;
-                    alert("Alert 3: After Profile Fetch Attempt"); // Geändert: Versuch abgeschlossen
                 } catch (fetchError) {
-                    alert(`!!! CATCH Profile Fetch Error: ${fetchError.message}`); // <<< Fängt Fehler beim Await selbst ab
                     console.error("!!! CATCH Profile Fetch Error:", fetchError);
                     profileErrorData = fetchError; // Setze den Fehler, damit er unten behandelt wird
                 }
                 // --- ENDE NEUER TRY...CATCH ---
 
                 if (profileErrorData) {
-                    alert(`Profile Error Detected: ${profileErrorData.message}`); // <<< Zeigt den Fehler an
                     console.error("Profil-Ladefehler:", profileErrorData);
                     showToast("Fehler beim Laden deines Profils.", true);
                     userProfile = { id: user.id, username: currentUser.username, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
                 } else if (!profileData) {
-                    alert("Profile Error: No data received, but no explicit error."); // <<< Neuer Fall: Keine Daten
                     console.error("Profil-Ladefehler: Keine Daten empfangen, aber kein Fehlerobjekt.");
                     showToast("Profil nicht gefunden oder Ladefehler.", true);
                     userProfile = { id: user.id, username: currentUser.username, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
@@ -182,13 +172,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Log 2: Profile fetch finished processing."); // Angepasst
 
                 // --- Restliche Funktion (Achievements, Spotify etc.) ---
-                alert("Alert 4: Before Achievements Fetch");
                 console.log("Log 3: Fetching achievements...");
                 const { data: achievements, error: achError } = await supabase
                     .from('user_achievements')
                     .select('achievement_id')
                     .eq('user_id', user.id);
-                alert("Alert 5: After Achievements Fetch");
 
                 if (achError) {
                     console.error("Erfolg-Ladefehler:", achError);
@@ -199,14 +187,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 console.log("Log 4: Achievements fetch finished.");
 
-                alert("Alert 6: Before Spotify Check");
                 console.log("Log 5: Checking Spotify status...");
                 await checkSpotifyStatus();
-                alert("Alert 7: After Spotify Check");
                 console.log("Log 6: Spotify status checked.");
 
                 if (spotifyToken && !userUnlockedAchievementIds.includes(9)) { await awardClientSideAchievement(9); }
-                alert("Alert 8: Before UI Rendering");
                 console.log("Log 7: Rendering UI components...");
                 renderAchievements(); renderTitles(); renderIcons(); renderLevelProgress(); updateStatsDisplay();
                 console.log("UI components rendered.");
@@ -220,26 +205,20 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.classList.toggle('is-guest', isGuest);
             document.getElementById('welcome-nickname').textContent = currentUser.username;
 
-            alert("Alert 9: Before Show Screen Home");
             console.log("Showing home screen...");
             showScreen('home-screen');
 
-            alert("Alert 10: Before Connect WebSocket");
             console.log("Connecting WebSocket...");
             connectWebSocket();
-            alert("Alert 11: After Connect WebSocket");
             console.log("initializeApp finished successfully.");
 
         } catch (error) {
-            alert(`ERROR in initializeApp (Outer Catch): ${error.message}`); // <<< Äußerer Catch
             console.error("FATAL ERROR during initializeApp:", error);
             showToast("Ein kritischer Fehler ist aufgetreten. Bitte lade die Seite neu.", true);
             showScreen('auth-screen');
         } finally {
-            alert("Alert FINAL: Entering finally block");
             setLoading(false);
             console.log("initializeApp finally block executed. Loading overlay hidden.");
-            alert("Alert FINAL: Exiting finally block (Loading hidden)");
         }
     };
     // #############################################
