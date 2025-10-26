@@ -117,14 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialization and Auth ---
     // ###############################################################
-    // ### DIES IST DIE KORRIGIERTE initializeApp FUNKTION ###
+    // ### FINALE KORRIGIERTE initializeApp FUNKTION ###
     // ###############################################################
     const initializeApp = async (user, isGuest = false) => {
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame');
 
-        // KORRIGIERT: Hole den Benutzernamen sicher aus dem 'user'-Objekt, nicht aus 'currentUser'
-        // 'user.username' ist für Gast-Modus, 'user.user_metadata...' für Supabase-User
+        // KORRIGIERT: Hole den Benutzernamen sicher aus dem 'user'-Objekt
         const fallbackUsername = isGuest
             ? user.username
             : user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt';
@@ -185,6 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Log 2: Profile fetch finished processing.");
 
                 console.log("Log 3: Fetching achievements...");
+                // Dieses 'await' ist ok, da es schnell gehen sollte
                 const { data: achievements, error: achError } = await supabase
                     .from('user_achievements')
                     .select('achievement_id')
@@ -199,16 +199,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 console.log("Log 4: Achievements fetch finished.");
 
-                console.log("Log 5: Checking Spotify status...");
-                await checkSpotifyStatus();
-                console.log("Log 6: Spotify status checked.");
+                console.log("Log 5: Checking Spotify status (async)...");
+                // ###############################################################
+                // ### 'await' HIER ENTFERNT, UM BLOCKIEREN ZU VERHINDERN ###
+                // ###############################################################
+                checkSpotifyStatus().then(() => {
+                    // Nachdem der Status geprüft wurde, prüfen wir den Erfolg
+                    console.log("Log 6: Spotify status checked (async).");
+                    if (spotifyToken && !userUnlockedAchievementIds.includes(9)) {
+                        awardClientSideAchievement(9); // Diese Funktion ist bereits nicht-blockierend
+                    }
+                    // Wichtig: UI muss ggf. neu gerendert werden, falls sich Spotify-Status ändert
+                    // (Das passiert aber schon im 'finally' Block von checkSpotifyStatus)
+                });
+                // ###############################################################
 
-                if (spotifyToken && !userUnlockedAchievementIds.includes(9)) {
-                    // await entfernt, damit es nicht blockiert
-                    awardClientSideAchievement(9);
-                }
-
-                console.log("Log 7: Rendering UI components...");
+                console.log("Log 7: Rendering UI components (immediately)...");
                 renderAchievements(); renderTitles(); renderIcons(); renderLevelProgress(); updateStatsDisplay();
                 console.log("UI components rendered.");
                 console.log("Equipping title and icon...");
@@ -229,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showScreen('home-screen');
 
             console.log("Connecting WebSocket...");
-            connectWebSocket();
+            connectWebSocket(); // Diese Funktion ist ok, sie blockiert nicht
             console.log("initializeApp finished successfully.");
 
         } catch (error) {
@@ -237,6 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast("Ein kritischer Fehler ist aufgetreten. Bitte lade die Seite neu.", true);
             showScreen('auth-screen');
         } finally {
+            // Dies wird jetzt SOFORT erreicht
             setLoading(false);
             console.log("initializeApp finally block executed. Loading overlay hidden.");
         }
@@ -268,14 +275,11 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAchievements(); renderTitles(); renderIcons();
 
         // Wir führen das Speichern im Hintergrund aus ("fire-and-forget").
-        // Die App muss nicht darauf warten und kann weiterladen.
         supabase
             .from('user_achievements')
             .insert({ user_id: currentUser.id, achievement_id: achievementId })
             .then(({ error }) => {
                 if (error) {
-                    // Wenn es fehlschlägt, sehen wir es jetzt in der Konsole,
-                    // aber die App ist nicht mehr blockiert.
                     console.error(`Fehler beim Speichern von Client-Achievement ${achievementId} im Hintergrund:`, error);
                 } else {
                     console.log(`Client-Achievement ${achievementId} erfolgreich im Hintergrund gespeichert.`);
@@ -300,19 +304,19 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStatsDisplay() { if (!currentUser || currentUser.isGuest || !userProfile) return; const { games_played, wins, highscore, correct_answers } = userProfile; const gp = games_played || 0; const w = wins || 0; const hs = highscore || 0; const ca = correct_answers || 0; const xp = userProfile.xp || 0; elements.stats.gamesPlayed.textContent = gp; elements.stats.wins.textContent = w; elements.stats.winrate.textContent = gp > 0 ? `${Math.round((w / gp) * 100)}%` : '0%'; elements.stats.highscore.textContent = hs; elements.stats.correctAnswers.textContent = ca; elements.stats.avgScore.textContent = gp > 0 ? Math.round(xp / gp) : 0; elements.stats.gamesPlayedPreview.textContent = gp; elements.stats.winsPreview.textContent = w; elements.stats.correctAnswersPreview.textContent = ca; }
 
     // --- Game Logic Functions (gekürzt) ---
-    function showCountdown(round, total) { /* ... */ }
-    function setupPreRound(data) { /* ... */ }
-    function setupNewRound(data) { /* ... */ }
-    function showRoundResult(data) { /* ... */ }
+    function showCountdown(round, total) { /* ... Implementiere Logik basierend auf den Server-Daten ... */ }
+    function setupPreRound(data) { /* ... Implementiere Logik basierend auf den Server-Daten ... */ }
+    function setupNewRound(data) { /* ... Implementiere Logik basierend auf den Server-Daten ... */ }
+    function showRoundResult(data) { /* ... Implementiere Logik basierend auf den Server-Daten ... */ }
     // --- Friends Modal Logic (gekürzt) ---
-    async function loadFriendsData() { /* ... */ }
-    function renderRequestsList(requests) { /* ... */ }
-    function renderFriendsList(friends) { /* ... */ }
+    async function loadFriendsData() { /* ... Implementiere Logik zum Laden und Anzeigen von Freunden/Anfragen ... */ }
+    function renderRequestsList(requests) { /* ... Implementiere Logik ... */ }
+    function renderFriendsList(friends) { /* ... Implementiere Logik ... */ }
     // --- Utility & Modal Functions (gekürzt) ---
-    async function fetchHostData(isRefresh = false) { /* ... */ }
-    function renderPaginatedPlaylists(playlistsToRender, page = 1) { /* ... */ }
-    function openCustomValueModal(type, title) { /* ... */ }
-    function showInvitePopup(from, pin) { /* ... */ }
+    async function fetchHostData(isRefresh = false) { /* ... Implementiere Logik zum Holen von Spotify-Daten ... */ }
+    function renderPaginatedPlaylists(playlistsToRender, page = 1) { /* ... Implementiere Logik ... */ }
+    function openCustomValueModal(type, title) { /* ... Implementiere Logik ... */ }
+    function showInvitePopup(from, pin) { /* ... Implementiere Logik ... */ }
 
     // #################################################################
     // ### DER EVENT LISTENER BLOCK ###
