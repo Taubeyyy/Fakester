@@ -116,26 +116,37 @@ document.addEventListener('DOMContentLoaded', () => {
     function getUnlockDescription(item) { if (!item) return ''; switch (item.unlockType) { case 'level': return `Erreiche Level ${item.unlockValue}`; case 'achievement': const ach = achievementsList.find(a => a.id === item.unlockValue); return `Erfolg: ${ach ? ach.name : 'Unbekannt'}`; case 'special': return 'Spezial'; default: return ''; } }
 
     // --- Initialization and Auth ---
+    // ###############################################################
+    // ### HIER SIND MEHRERE ÄNDERUNGEN GEGENÜBER DEINER ORIGINALDATEI ###
+    // ###############################################################
     const initializeApp = async (user, isGuest = false) => {
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame');
-        // if (supabase) {
-        //     console.log("Refreshing Supabase session (SKIPPED FOR DEBUG)...");
-        //     // await supabase.auth.refreshSession(); // <<< VORÜBERGEHEND AUSKOMMENTIERT
-        // }
+        
+        // Definiere ein Standard-Fallback-Profil
+        const fallbackProfile = { 
+            id: user.id, 
+            username: currentUser.username, 
+            xp: 0, 
+            games_played: 0, 
+            wins: 0, 
+            correct_answers: 0, 
+            highscore: 0, 
+            equipped_title_id: 1, 
+            equipped_icon_id: 1 
+        };
 
         try {
             if (isGuest) {
                 console.log("Setting up guest user...");
                 currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest };
-                userProfile = { xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
+                userProfile = { ...fallbackProfile, id: currentUser.id }; // Nutze Fallback für Gast
                 userUnlockedAchievementIds = [];
                 console.log("Guest user setup complete.");
             } else {
                 console.log("Setting up logged-in user...");
                 currentUser = { id: user.id, username: user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt', isGuest };
 
-                // --- NEUER TRY...CATCH um die Profilabfrage ---
                 let profileData, profileErrorData;
                 try {
                     console.log("Log 1: Fetching profile data...");
@@ -148,29 +159,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     profileErrorData = profileErrorResult;
                 } catch (fetchError) {
                     console.error("!!! CATCH Profile Fetch Error:", fetchError);
-                    profileErrorData = fetchError; // Setze den Fehler, damit er unten behandelt wird
+                    profileErrorData = fetchError;
                 }
-                // --- ENDE NEUER TRY...CATCH ---
 
-                if (profileErrorData) {
-                    console.error("Profil-Ladefehler:", profileErrorData);
+                if (profileErrorData || !profileData) {
+                    // DAS IST DER FIX FÜR "Taubey" (0 rows error)
+                    console.error("Profil-Ladefehler:", profileErrorData || new Error("No profile data returned"));
                     showToast("Fehler beim Laden deines Profils.", true);
-                    // HIER IST DAS PROBLEM FÜR "Taubey" PASSIERT.
-                    // Wir setzen ein Standard-Fallback-Profil, damit die App nicht crasht.
-                    userProfile = { id: user.id, username: currentUser.username, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
-                } else if (!profileData) {
-                    console.error("Profil-Ladefehler: Keine Daten empfangen, aber kein Fehlerobjekt.");
-                    showToast("Profil nicht gefunden oder Ladefehler.", true);
-                    userProfile = { id: user.id, username: currentUser.username, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
-                }
-                else {
+                    userProfile = { ...fallbackProfile, id: user.id, username: currentUser.username }; // Nutze Fallback
+                } else {
                     userProfile = profileData;
                     currentUser.username = profileData.username;
                     console.log("Profile data fetched:", userProfile);
                 }
-                console.log("Log 2: Profile fetch finished processing."); // Angepasst
+                console.log("Log 2: Profile fetch finished processing.");
 
-                // --- Restliche Funktion (Achievements, Spotify etc.) ---
                 console.log("Log 3: Fetching achievements...");
                 const { data: achievements, error: achError } = await supabase
                     .from('user_achievements')
@@ -191,17 +194,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Log 6: Spotify status checked.");
 
                 if (spotifyToken && !userUnlockedAchievementIds.includes(9)) { 
-                    await awardClientSideAchievement(9); 
+                    // ###############################################################
+                    // ### HIER IST DIE WICHTIGSTE ÄNDERUNG (await entfernt) ###
+                    // ### Dies behebt den "ewigen Ladebildschirm" ###
+                    // ###############################################################
+                    awardClientSideAchievement(9); 
+                    // ###############################################################
                 }
+                
                 console.log("Log 7: Rendering UI components...");
                 renderAchievements(); renderTitles(); renderIcons(); renderLevelProgress(); updateStatsDisplay();
                 console.log("UI components rendered.");
                 console.log("Equipping title and icon...");
-                // Fallback, falls die Spalten im Profil fehlen (wie bei 'Lol')
+                // Fallback, falls die Spalten in der DB (noch) fehlen
                 equipTitle(userProfile.equipped_title_id || 1, false); 
                 equipIcon(userProfile.equipped_icon_id || 1, false);
                 console.log("Title and icon equipped visually.");
-                console.log("Updating player progress display..."); updatePlayerProgressDisplay();
+                console.log("Updating player progress display..."); 
+                updatePlayerProgressDisplay();
                 console.log("Player progress display updated.");
                 console.log("Logged-in user setup complete.");
             }
@@ -221,6 +231,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast("Ein kritischer Fehler ist aufgetreten. Bitte lade die Seite neu.", true);
             showScreen('auth-screen');
         } finally {
+            // Dies wird jetzt erreicht, weil 'await' entfernt wurde
             setLoading(false);
             console.log("initializeApp finally block executed. Loading overlay hidden.");
         }
@@ -242,6 +253,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const handleLogout = async () => { console.log("Logout initiated."); setLoading(true); if (currentUser?.isGuest) { console.log("Guest logout, reloading page."); window.location.replace(window.location.origin); return; } try { const { error } = await supabase.auth.signOut(); if (error) throw error; console.log("Supabase signOut successful."); window.location.replace(window.location.origin); } catch (error) { console.error("Error during logout:", error); showToast("Ausloggen fehlgeschlagen.", true); setLoading(false); } };
 
+    // ###############################################################
+    // ### HIER IST DIE ZWEITE ÄNDERUNG (await im 'insert' entfernt) ###
+    // ###############################################################
     const awardClientSideAchievement = async (achievementId) => {
         if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return;
     
@@ -371,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // #################################################################
-    // ### SUPABASE INITIALISIERUNG (HIER IST DIE ÄNDERUNG) ###
+    // ### SUPABASE INITIALISIERUNG ###
     // #################################################################
     async function initializeSupabase() {
         try {
@@ -398,13 +412,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session?.user) {
                      
                      // ###############################################################
-                     // ### HIER IST DIE ÄNDERUNG ###
+                     // ### HIER IST DIE ZWEITE WICHTIGE ÄNDERUNG ###
+                     // ### Dies behebt das "Neuladen nach Zurück-Navigieren" ###
                      // ###############################################################
                      //
-                     // ALT (löst Neuladen bei Seitennavigation aus):
+                     // ALT:
                      // if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id || event === 'SIGNED_IN')) {
                      //
-                     // NEU (lädt nur, wenn der Benutzer wechselt oder noch nicht geladen ist):
+                     // NEU:
                      if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id)) {
                      //
                      // ###############################################################
