@@ -155,6 +155,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (profileErrorData) {
                     console.error("Profil-Ladefehler:", profileErrorData);
                     showToast("Fehler beim Laden deines Profils.", true);
+                    // HIER IST DAS PROBLEM FÜR "Taubey" PASSIERT.
+                    // Wir setzen ein Standard-Fallback-Profil, damit die App nicht crasht.
                     userProfile = { id: user.id, username: currentUser.username, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, equipped_title_id: 1, equipped_icon_id: 1 };
                 } else if (!profileData) {
                     console.error("Profil-Ladefehler: Keine Daten empfangen, aber kein Fehlerobjekt.");
@@ -188,14 +190,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 await checkSpotifyStatus();
                 console.log("Log 6: Spotify status checked.");
 
-                if (spotifyToken && !userUnlockedAchievementIds.includes(9)) {
-                    // HIER IST DIE FUNKTION, DIE DAS PROBLEM VERURSACHT
+                if (spotifyToken && !userUnlockedAchievementIds.includes(9)) { 
                     await awardClientSideAchievement(9); 
                 }
                 console.log("Log 7: Rendering UI components...");
                 renderAchievements(); renderTitles(); renderIcons(); renderLevelProgress(); updateStatsDisplay();
                 console.log("UI components rendered.");
-                console.log("Equipping title and icon..."); equipTitle(userProfile.equipped_title_id || 1, false); equipIcon(userProfile.equipped_icon_id || 1, false);
+                console.log("Equipping title and icon...");
+                // Fallback, falls die Spalten im Profil fehlen (wie bei 'Lol')
+                equipTitle(userProfile.equipped_title_id || 1, false); 
+                equipIcon(userProfile.equipped_icon_id || 1, false);
                 console.log("Title and icon equipped visually.");
                 console.log("Updating player progress display..."); updatePlayerProgressDisplay();
                 console.log("Player progress display updated.");
@@ -238,9 +242,6 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const handleLogout = async () => { console.log("Logout initiated."); setLoading(true); if (currentUser?.isGuest) { console.log("Guest logout, reloading page."); window.location.replace(window.location.origin); return; } try { const { error } = await supabase.auth.signOut(); if (error) throw error; console.log("Supabase signOut successful."); window.location.replace(window.location.origin); } catch (error) { console.error("Error during logout:", error); showToast("Ausloggen fehlgeschlagen.", true); setLoading(false); } };
 
-    // ###############################################################
-    // ### HIER IST DIE ÄNDERUNG ###
-    // ###############################################################
     const awardClientSideAchievement = async (achievementId) => {
         if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return;
     
@@ -250,11 +251,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast(`Erfolg freigeschaltet: ${achievement?.name || ''}!`);
         renderAchievements(); renderTitles(); renderIcons();
     
-        // ALT (Blockierend):
-        // const { error } = await supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: achievementId });
-        // if (error) { console.error(`Fehler beim Speichern von Client-Achievement ${achievementId}:`, error); }
-    
-        // NEU (Nicht-Blockierend):
         // Wir führen das Speichern im Hintergrund aus ("fire-and-forget").
         // Die App muss nicht darauf warten und kann weiterladen.
         supabase
@@ -270,9 +266,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
     };
-    // ###############################################################
-    // ### ENDE DER ÄNDERUNG ###
-    // ###############################################################
 
     const connectWebSocket = () => { if(ws.socket && (ws.socket.readyState === WebSocket.OPEN || ws.socket.readyState === WebSocket.CONNECTING)) { console.log("WebSocket connection already open or connecting."); return; } if (wsPingInterval) clearInterval(wsPingInterval); const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; const wsUrl = `${wsProtocol}//${window.location.host}`; console.log(`Attempting to connect WebSocket to: ${wsUrl}`); try { ws.socket = new WebSocket(wsUrl); } catch (error) { console.error("WebSocket creation failed:", error); showToast("Verbindung zum Server konnte nicht aufgebaut werden.", true); return; } ws.socket.onopen = () => { console.info('✅ WebSocket connection established.'); if (currentUser && !currentUser.isGuest) { console.log(`Registering user ${currentUser.id} with WebSocket server.`); ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id } })); } const storedGame = JSON.parse(localStorage.getItem('fakesterGame')); if (storedGame && currentUser && storedGame.playerId === currentUser.id) { console.log("Found stored game, attempting to reconnect:", storedGame); currentGame = storedGame; showToast('Verbinde erneut mit dem Spiel...'); ws.socket.send(JSON.stringify({ type: 'reconnect', payload: { pin: currentGame.pin, playerId: currentGame.playerId } })); } else if (storedGame) { console.warn("Found stored game for a different user, removing."); localStorage.removeItem('fakesterGame'); } wsPingInterval = setInterval(() => { if (ws.socket?.readyState === WebSocket.OPEN) {} else { console.warn("WebSocket not open, clearing ping interval."); clearInterval(wsPingInterval); wsPingInterval = null; } }, 30000); }; ws.socket.onmessage = (event) => { try { const data = JSON.parse(event.data); handleWebSocketMessage(data); } catch (error) { console.error('Error processing WebSocket message:', error, event.data); } }; ws.socket.onclose = (event) => { console.warn(`WebSocket connection closed. Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; if (!document.getElementById('auth-screen')?.classList.contains('active')) { console.log("Attempting WebSocket reconnect in 5 seconds..."); setTimeout(connectWebSocket, 5000); } }; ws.socket.onerror = (errorEvent) => { console.error('WebSocket error:', errorEvent); showToast("WebSocket-Verbindungsfehler.", true); ws.socket?.close(); }; };
     const handleWebSocketMessage = ({ type, payload }) => { console.log(`Processing WebSocket message: Type=${type}`, payload); if (type !== 'round-countdown') elements.countdownOverlay.classList.add('hidden'); switch (type) { case 'game-created': case 'join-success': setLoading(false); currentGame = { ...currentGame, pin: payload.pin, playerId: payload.playerId, isHost: payload.isHost, gameMode: payload.gameMode }; localStorage.setItem('fakesterGame', JSON.stringify(currentGame)); if (currentGame.isHost) { fetchHostData(); } elements.joinModal.overlay.classList.add('hidden'); showScreen('lobby-screen'); break; case 'lobby-update': elements.lobby.pinDisplay.textContent = payload.pin; renderPlayerList(payload.players, payload.hostId); updateHostSettings(payload.settings, currentGame.isHost); break; case 'reconnect-to-game': setLoading(false); console.log("Reconnected mid-game, showing game screen."); showScreen('game-screen'); /* TODO: Request current game state */ break; case 'game-starting': showScreen('game-screen'); setupPreRound(payload); break; case 'round-countdown': setLoading(false); showCountdown(payload.round, payload.totalRounds); break; case 'new-round': setLoading(false); showScreen('game-screen'); setupNewRound(payload); break; case 'round-result': showRoundResult(payload); break; case 'game-over': localStorage.removeItem('fakesterGame'); const myFinalScore = payload.scores.find(s => s.id === currentUser?.id)?.score || 0; showToast(`Spiel vorbei! Du hast ${myFinalScore} XP erhalten!`); if (!currentUser?.isGuest) { updatePlayerProgress(myFinalScore); } setTimeout(() => { screenHistory = ['auth-screen', 'home-screen']; showScreen('home-screen'); }, 7000); break; case 'invite-received': showInvitePopup(payload.from, payload.pin); break; case 'friend-request-received': showToast(`Du hast eine Freundschaftsanfrage von ${payload.from}!`); if (!elements.friendsModal.overlay.classList.contains('hidden')) { loadFriendsData(); } else { const countEl = elements.friendsModal.requestsCount; const currentCount = parseInt(countEl.textContent || '0'); countEl.textContent = currentCount + 1; countEl.classList.remove('hidden'); } break; case 'toast': setLoading(false); showToast(payload.message, payload.isError); break; case 'error': setLoading(false); showToast(payload.message, true); pinInput = ""; document.querySelectorAll('#join-pin-display .pin-digit').forEach(d => d.textContent = ""); if (!elements.joinModal.overlay?.classList.contains('hidden')) { elements.joinModal.overlay.classList.add('hidden'); } break; default: console.warn(`Unhandled WebSocket message type: ${type}`); } };
@@ -378,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // #################################################################
-    // ### SUPABASE INITIALISIERUNG ###
+    // ### SUPABASE INITIALISIERUNG (HIER IST DIE ÄNDERUNG) ###
     // #################################################################
     async function initializeSupabase() {
         try {
@@ -403,7 +396,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session?.user) {
-                     if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id || event === 'SIGNED_IN')) {
+                     
+                     // ###############################################################
+                     // ### HIER IST DIE ÄNDERUNG ###
+                     // ###############################################################
+                     //
+                     // ALT (löst Neuladen bei Seitennavigation aus):
+                     // if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id || event === 'SIGNED_IN')) {
+                     //
+                     // NEU (lädt nur, wenn der Benutzer wechselt oder noch nicht geladen ist):
+                     if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id)) {
+                     //
+                     // ###############################################################
+                     
                           window.initializeAppRunning = true;
                           console.log(`Session available/updated for user ${session.user.id}. Initializing app...`);
                           setLoading(true);
@@ -421,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      if (currentUser) {
                           currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null;
                           if (ws.socket && ws.socket.readyState === WebSocket.OPEN) ws.socket.close(); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null;
-                          localStorage.removeItem('fakesterGame');
+localStorage.removeItem('fakesterGame');
                      }
                      screenHistory = ['auth-screen']; showScreen('auth-screen'); document.body.classList.add('is-guest'); setLoading(false);
                 }
