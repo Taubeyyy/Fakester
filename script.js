@@ -117,35 +117,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialization and Auth ---
     // ###############################################################
-    // ### HIER SIND MEHRERE ÄNDERUNGEN GEGENÜBER DEINER ORIGINALDATEI ###
+    // ### DIES IST DIE KORRIGIERTE initializeApp FUNKTION ###
     // ###############################################################
     const initializeApp = async (user, isGuest = false) => {
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame');
-        
-        // Definiere ein Standard-Fallback-Profil
-        const fallbackProfile = { 
-            id: user.id, 
-            username: currentUser.username, 
-            xp: 0, 
-            games_played: 0, 
-            wins: 0, 
-            correct_answers: 0, 
-            highscore: 0, 
-            equipped_title_id: 1, 
-            equipped_icon_id: 1 
+
+        // KORRIGIERT: Hole den Benutzernamen sicher aus dem 'user'-Objekt, nicht aus 'currentUser'
+        // 'user.username' ist für Gast-Modus, 'user.user_metadata...' für Supabase-User
+        const fallbackUsername = isGuest
+            ? user.username
+            : user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt';
+
+        // Definiere das Fallback-Profil HIER, NACHDEM fallbackUsername ermittelt wurde
+        const fallbackProfile = {
+            id: user.id,
+            username: fallbackUsername, // <<< KORRIGIERT
+            xp: 0,
+            games_played: 0,
+            wins: 0,
+            correct_answers: 0,
+            highscore: 0,
+            equipped_title_id: 1,
+            equipped_icon_id: 1
         };
 
         try {
             if (isGuest) {
                 console.log("Setting up guest user...");
+                // KORRIGIERT: Setze currentUser hier korrekt
                 currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest };
-                userProfile = { ...fallbackProfile, id: currentUser.id }; // Nutze Fallback für Gast
+                // Nutze Fallback für Gast, überschreibe ID und Name
+                userProfile = { ...fallbackProfile, id: currentUser.id, username: currentUser.username };
                 userUnlockedAchievementIds = [];
                 console.log("Guest user setup complete.");
             } else {
                 console.log("Setting up logged-in user...");
-                currentUser = { id: user.id, username: user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt', isGuest };
+                 // KORRIGIERT: Setze currentUser hier korrekt und FRÜHER
+                currentUser = { id: user.id, username: fallbackUsername, isGuest };
 
                 let profileData, profileErrorData;
                 try {
@@ -163,12 +172,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (profileErrorData || !profileData) {
-                    // DAS IST DER FIX FÜR "Taubey" (0 rows error)
                     console.error("Profil-Ladefehler:", profileErrorData || new Error("No profile data returned"));
                     showToast("Fehler beim Laden deines Profils.", true);
-                    userProfile = { ...fallbackProfile, id: user.id, username: currentUser.username }; // Nutze Fallback
+                    // KORRIGIERT: Nutze das korrigierte Fallback-Profil, stelle ID sicher
+                    userProfile = { ...fallbackProfile, id: user.id, username: currentUser.username };
                 } else {
                     userProfile = profileData;
+                     // Aktualisiere currentUser.username mit dem korrekten Namen aus der DB
                     currentUser.username = profileData.username;
                     console.log("Profile data fetched:", userProfile);
                 }
@@ -193,30 +203,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 await checkSpotifyStatus();
                 console.log("Log 6: Spotify status checked.");
 
-                if (spotifyToken && !userUnlockedAchievementIds.includes(9)) { 
-                    // ###############################################################
-                    // ### HIER IST DIE WICHTIGSTE ÄNDERUNG (await entfernt) ###
-                    // ### Dies behebt den "ewigen Ladebildschirm" ###
-                    // ###############################################################
-                    awardClientSideAchievement(9); 
-                    // ###############################################################
+                if (spotifyToken && !userUnlockedAchievementIds.includes(9)) {
+                    // await entfernt, damit es nicht blockiert
+                    awardClientSideAchievement(9);
                 }
-                
+
                 console.log("Log 7: Rendering UI components...");
                 renderAchievements(); renderTitles(); renderIcons(); renderLevelProgress(); updateStatsDisplay();
                 console.log("UI components rendered.");
                 console.log("Equipping title and icon...");
-                // Fallback, falls die Spalten in der DB (noch) fehlen
-                equipTitle(userProfile.equipped_title_id || 1, false); 
+                equipTitle(userProfile.equipped_title_id || 1, false);
                 equipIcon(userProfile.equipped_icon_id || 1, false);
                 console.log("Title and icon equipped visually.");
-                console.log("Updating player progress display..."); 
+                console.log("Updating player progress display...");
                 updatePlayerProgressDisplay();
                 console.log("Player progress display updated.");
                 console.log("Logged-in user setup complete.");
             }
 
             document.body.classList.toggle('is-guest', isGuest);
+            // KORRIGIERT: Greife erst hier sicher auf currentUser.username zu
             document.getElementById('welcome-nickname').textContent = currentUser.username;
 
             console.log("Showing home screen...");
@@ -231,7 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast("Ein kritischer Fehler ist aufgetreten. Bitte lade die Seite neu.", true);
             showScreen('auth-screen');
         } finally {
-            // Dies wird jetzt erreicht, weil 'await' entfernt wurde
             setLoading(false);
             console.log("initializeApp finally block executed. Loading overlay hidden.");
         }
@@ -253,18 +258,15 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const handleLogout = async () => { console.log("Logout initiated."); setLoading(true); if (currentUser?.isGuest) { console.log("Guest logout, reloading page."); window.location.replace(window.location.origin); return; } try { const { error } = await supabase.auth.signOut(); if (error) throw error; console.log("Supabase signOut successful."); window.location.replace(window.location.origin); } catch (error) { console.error("Error during logout:", error); showToast("Ausloggen fehlgeschlagen.", true); setLoading(false); } };
 
-    // ###############################################################
-    // ### HIER IST DIE ZWEITE ÄNDERUNG (await im 'insert' entfernt) ###
-    // ###############################################################
     const awardClientSideAchievement = async (achievementId) => {
         if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return;
-    
+
         console.log(`Awarding client-side achievement: ${achievementId}`);
         userUnlockedAchievementIds.push(achievementId);
         const achievement = achievementsList.find(a => a.id === achievementId);
         showToast(`Erfolg freigeschaltet: ${achievement?.name || ''}!`);
         renderAchievements(); renderTitles(); renderIcons();
-    
+
         // Wir führen das Speichern im Hintergrund aus ("fire-and-forget").
         // Die App muss nicht darauf warten und kann weiterladen.
         supabase
@@ -385,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // #################################################################
-    // ### SUPABASE INITIALISIERUNG ###
+    // ### SUPABASE INITIALISIERUNG (Mit Korrektur für 'SIGNED_IN' Event) ###
     // #################################################################
     async function initializeSupabase() {
         try {
@@ -410,20 +412,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') && session?.user) {
-                     
-                     // ###############################################################
-                     // ### HIER IST DIE ZWEITE WICHTIGE ÄNDERUNG ###
-                     // ### Dies behebt das "Neuladen nach Zurück-Navigieren" ###
-                     // ###############################################################
-                     //
-                     // ALT:
-                     // if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id || event === 'SIGNED_IN')) {
-                     //
-                     // NEU:
+
+                     // KORRIGIERT: Lädt die App nur neu, wenn der Benutzer wechselt oder noch nicht geladen ist
                      if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id)) {
-                     //
-                     // ###############################################################
-                     
+
                           window.initializeAppRunning = true;
                           console.log(`Session available/updated for user ${session.user.id}. Initializing app...`);
                           setLoading(true);
@@ -434,7 +426,8 @@ document.addEventListener('DOMContentLoaded', () => {
                           await checkSpotifyStatus();
                      } else if (!window.initializeAppRunning) {
                           console.log("App already initialized for this user session or init running.");
-                          setLoading(false);
+                          // WICHTIG: setLoading(false) hier entfernen, falls initializeApp noch läuft
+                          // setLoading(false);
                      }
                 } else if (!session && !['USER_UPDATED', 'PASSWORD_RECOVERY', 'MFA_CHALLENGE_VERIFIED'].includes(event)) {
                      console.log(`No active session or session invalid (Event: ${event}). Showing auth screen.`);
@@ -453,8 +446,11 @@ localStorage.removeItem('fakesterGame');
                   showScreen('auth-screen');
                   setLoading(false);
              } else if (!initialSession) {
+                 // Wenn keine Session da ist, aber der Auth-Screen schon angezeigt wird,
+                 // muss der Lade-Overlay trotzdem weg.
                  setLoading(false);
              }
+             // Wenn eine Session da ist, wird onAuthStateChange das setLoading(false) übernehmen
 
             addEventListeners(); // Stelle sicher, dass dies NACH der Supabase-Initialisierung aufgerufen wird
 
