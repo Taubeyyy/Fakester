@@ -280,8 +280,17 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 
 .shop-section { width: 100%; }
 .shop-section h3 { margin-bottom: 15px; padding-bottom: 8px; color: var(--text-muted-color); font-size: 1.1rem; text-align: left; }
-.shop-items-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; }
-.shop-items-grid.icon-grid { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); }
+
+/* KORREKTUR: Die 'auto-fit' Regel ist jetzt die Standardregel */
+.shop-items-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+    gap: 15px; 
+}
+/* KORREKTUR: 'icon-grid' nutzt 'auto-fit' mit 100px */
+.shop-items-grid.icon-grid { 
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); 
+}
 
 .shop-item {
     background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); text-align: center;
@@ -349,9 +358,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     background-clip: padding-box; /* Stellt sicher, dass der Rand nicht übermalt wird */
 }
 
-/* FIX: Sorgt dafür, dass das Grid immer 2 Spalten hat,
-   auch wenn nur 1 Item da ist (wie bei Consumables vorher) */
-.shop-items-grid {
-    grid-template-columns: repeat(2, 1fr);
+/* KORREKTUR: Eigene (kleinere) Spalten für die Farbenliste, damit 3+ passen */
+#shop-colors-list {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
 }
-/* ### ENDE HINZUGEFÜGTER BLOCK ### */
+
+/* KORREKTUR: Der falsche FIX am Ende der Datei wurde entfernt. */
