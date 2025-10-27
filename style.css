@@ -390,3 +390,198 @@ body.is-guest .corner-button { display: flex !important; }
 .console-output .log-warn { color: #ffd18a; }
 .console-output .log-info { color: #8affd7; }
 .console-output div { border-bottom: 1px solid #333; padding: 3px 0; }
+
+/* ==================
+   Spots & Shop Styles
+   ================== */
+
+/* Spots Anzeige */
+.spots-display {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-top: 8px; /* Etwas Abstand */
+    text-align: left; /* Sicherstellen, dass es linksbündig ist */
+}
+.spots-display span { /* Die Zahl selbst */
+    font-weight: 800;
+}
+.spots-display i.fa-coins { /* Optional: Münz-Icon statt Note */
+    margin-left: 3px;
+    margin-right: 3px;
+}
+
+
+/* Shop Screen */
+#shop-screen .container {
+    gap: 30px; /* Mehr Abstand zwischen Sektionen */
+}
+
+.shop-section {
+    width: 100%;
+}
+.shop-section h3 {
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--dark-grey);
+    padding-bottom: 8px;
+    color: var(--text-muted-color);
+    font-size: 1.2rem;
+    text-align: left;
+}
+.shop-items-grid {
+    display: grid;
+    /* Nutzt auto-fit für Responsivität */
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+/* Spezifisch für Icons, falls gewünscht */
+.shop-items-grid.icon-grid {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+}
+
+.shop-item {
+    background-color: var(--surface-color);
+    padding: 15px;
+    border-radius: var(--border-radius);
+    text-align: center;
+    border: 2px solid var(--medium-grey);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 8px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    min-height: 180px; /* Mindesthöhe für Konsistenz */
+}
+.shop-item:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-3px);
+}
+
+.shop-item.owned {
+    opacity: 0.7;
+    border-color: var(--dark-grey);
+    background-color: var(--dark-grey);
+    pointer-events: none; /* Nicht mehr klickbar machen */
+}
+.shop-item.cannot-afford {
+     border-color: var(--danger-color);
+}
+
+
+.shop-item .item-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-color);
+    margin-bottom: 5px; /* Kleiner Abstand */
+}
+.shop-item .item-description {
+    font-size: 0.75rem;
+    color: var(--text-muted-color);
+    flex-grow: 1; /* Nimmt verfügbaren Platz ein */
+    margin-bottom: 10px;
+    line-height: 1.4;
+}
+.shop-item .item-cost {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    margin-top: auto; /* Drückt Kosten und Button nach unten */
+}
+.shop-item .buy-button {
+    width: 100%; /* Button füllt Breite aus */
+    margin-top: 10px;
+}
+.shop-item .buy-button:disabled {
+     background-color: var(--medium-grey);
+     cursor: not-allowed;
+     opacity: 0.8;
+}
+
+
+/* Shop Item Previews */
+.shop-item .item-preview-icon {
+    font-size: 2.5rem;
+    margin: 5px 0 10px 0;
+    color: var(--primary-color);
+    line-height: 1;
+}
+.shop-item .item-preview-background {
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    background-size: cover;
+    background-position: center;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px solid var(--dark-grey);
+    background-color: var(--dark-grey); /* Fallback Farbe */
+}
+
+
+/* ==================
+   Reaktionen & Gifting
+   ================== */
+
+/* Reaktions-Buttons in der Lobby */
+.reaction-buttons {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap; /* Umbruch bei vielen Buttons */
+    gap: 10px;
+    margin: 20px auto 0 auto; /* Zentriert und Abstand nach oben */
+    max-width: 300px; /* Verhindert zu breite Anordnung */
+}
+.reaction-btn {
+    font-size: 1.4rem;
+    width: 45px;
+    height: 45px;
+    background-color: var(--dark-grey);
+    transition: transform 0.1s ease;
+}
+.reaction-btn:active {
+    transform: scale(0.9);
+}
+
+/* Animation für aufsteigende Reaktionen */
+.player-reaction-popup {
+    position: absolute;
+    /* Position über der Spielerkarte zentriert */
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.8rem;
+    animation: floatUpAndFade 1.5s ease-out forwards;
+    pointer-events: none; /* Verhindert Klicks auf die Animation */
+    z-index: 10;
+    text-shadow: 0 0 5px rgba(0,0,0,0.5); /* Bessere Lesbarkeit */
+}
+@keyframes floatUpAndFade {
+    0% { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -40px); } /* Steigt 40px auf */
+}
+
+/* Geschenk Button im Freunde-Modal */
+.button-gift {
+    color: var(--primary-color); /* Hebt den Button hervor */
+    width: 35px; /* Gleiche Größe wie Entfernen-Button */
+    height: 35px;
+    font-size: 0.9rem;
+    padding: 0; /* Icons zentrieren */
+}
+
+/* ==================
+   Lobby Hintergrund
+   ================== */
+#lobby-screen {
+    /* Standard-Hintergrund (optional) */
+    background-image: none; /* Überschreibt evtl. app-background */
+    background-size: cover;
+    background-position: center;
+    transition: background-image 0.5s ease-in-out; /* Weicher Übergang */
+}
+/* Style für das Hintergrundauswahl-Modal */
+#background-select-modal-overlay .selection-list button.button-select {
+    width: 100%;
+    text-align: left;
+    margin-bottom: 5px; /* Kleiner Abstand zwischen Buttons */
+}
+

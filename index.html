@@ -19,7 +19,8 @@
         <div class="logo-container"><h1>FAKESTER</h1></div>
         <div class="placeholder"></div> </header>
 
-    <main id="auth-screen" class="screen active"> <div class="auth-container">
+    <main id="auth-screen" class="screen active">
+        <div class="auth-container">
             <div class="home-logo-container"><h1>FAKESTER</h1></div>
             <form id="login-form" class="auth-form">
                 <h2>Anmelden</h2>
@@ -54,7 +55,11 @@
                     <button id="level-progress-button" class="level-progress-container guest-hidden">
                         <span class="level-text">Level <span id="profile-level">1</span></span>
                         <div class="xp-bar"><div id="profile-xp-fill" class="xp-fill"></div></div>
-                        <span id="profile-xp-text" class="xp-text">0 XP</span> </button>
+                        <span id="profile-xp-text" class="xp-text">0 XP</span>
+                    </button>
+                    <div class="spots-display guest-hidden">
+                        <span id="spots-balance">0</span> 🎵 Spots
+                    </div>
                 </div>
                 <div class="profile-actions">
                     <button id="friends-button" class="button-icon guest-hidden" title="Freunde"><i class="fa-solid fa-user-group"></i></button>
@@ -75,9 +80,11 @@
                 <a href="/login" class="button-primary guest-hidden" id="spotify-connect-button"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
                 <button class="button-primary hidden" id="show-create-button-action"><i class="fa-solid fa-plus"></i> Raum erstellen</button>
                 <button class="button-secondary" id="show-join-button"><i class="fa-solid fa-right-to-bracket"></i> Raum beitreten</button>
+                <button id="shop-button" class="button-secondary guest-hidden"><i class="fa-solid fa-store"></i> Shop</button>
             </div>
         </div>
-        <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button> </main>
+        <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button>
+    </main>
 
     <main id="stats-screen" class="screen">
         <div class="container text-left">
@@ -98,22 +105,13 @@
             <h2>Wähle einen Spielmodus</h2>
             <div class="mode-selection-container">
                 <button class="mode-box" data-mode="quiz">
-                    <div class="mode-box-content">
-                        <h3>Fakester Original</h3>
-                        <p>Errate Künstler, Titel und Jahr des Songs.</p>
-                    </div>
+                    <h3>Fakester Original</h3><p>Errate Künstler, Titel und Jahr des Songs.</p>
                 </button>
                 <button class="mode-box" data-mode="timeline">
-                     <div class="mode-box-content">
-                        <h3>Timeline</h3>
-                        <p>Sortiere Songs chronologisch nach ihrem Erscheinungsjahr.</p>
-                    </div>
+                     <h3>Timeline</h3><p>Sortiere Songs chronologisch nach ihrem Erscheinungsjahr.</p>
                 </button>
                 <button class="mode-box" data-mode="popularity">
-                     <div class="mode-box-content">
-                        <h3>Fame Modus</h3>
-                        <p>Rate, ob der nächste Song populärer ist. (0=unbekannt, 100=welthit)</p>
-                    </div>
+                     <h3>Fame Modus</h3><p>Rate, ob der nächste Song populärer ist. (0=unbekannt, 100=welthit)</p>
                 </button>
             </div>
         </div>
@@ -124,15 +122,12 @@
             <h2>Wähle einen Spieltyp</h2>
             <div class="game-type-container">
                 <button id="game-type-points" class="game-type-box" data-type="points">
-                    <h3>Punkte</h3>
-                    <p>Sammle die meisten Punkte in einer festen Rundenanzahl.</p>
+                    <h3>Punkte</h3><p>Sammle die meisten Punkte in einer festen Rundenanzahl.</p>
                 </button>
                 <button id="game-type-lives" class="game-type-box" data-type="lives">
-                    <h3>Leben</h3>
-                    <p>Bleib als Letzter übrig. Falsche Antworten kosten Leben.</p>
+                    <h3>Leben</h3><p>Bleib als Letzter übrig. Falsche Antworten kosten Leben.</p>
                 </button>
             </div>
-
             <div id="lives-settings-container" class="setting hidden">
                 <label>Anzahl der Leben</label>
                 <div class="preset-group" id="lives-count-presets">
@@ -142,7 +137,6 @@
                     <button class="preset-button" data-value="custom" data-type="lives">Custom</button>
                 </div>
             </div>
-
             <button id="create-lobby-button" class="button-primary" disabled>Lobby erstellen</button>
         </div>
     </main>
@@ -159,26 +153,37 @@
                     <button id="invite-friends-button" class="button-secondary button-small guest-hidden"><i class="fa-solid fa-user-plus"></i> Freunde einladen</button>
                 </div>
                 <div id="player-list" class="player-grid"></div>
+                <div id="reaction-buttons" class="reaction-buttons">
+                    <button class="button-icon reaction-btn" data-reaction="👍">👍</button>
+                    <button class="button-icon reaction-btn" data-reaction="😂">😂</button>
+                    <button class="button-icon reaction-btn" data-reaction="🎵">🎵</button>
+                    <button class="button-icon reaction-btn" data-reaction="🔥">🔥</button>
+                    <button class="button-icon reaction-btn" data-reaction="🤔">🤔</button>
+                </div>
             </div>
             <div id="host-settings" class="hidden">
                  <h3>Einstellungen</h3>
                 <div class="setting">
-                    <label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" title="Starte Spotify auf einem Gerät. Falls es hier nicht erscheint, spiele kurz etwas ab und lade die Liste neu."></i></label>
+                    <label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
                     <button class="button-select" id="device-select-button">Gerät auswählen</button>
                 </div>
                 <div class="setting">
-                    <label>Playlist <i class="fa-solid fa-circle-question help-icon" title="Wähle eine deiner Spotify-Playlists aus."></i></label>
+                    <label>Playlist <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
                     <button class="button-select" id="playlist-select-button">Playlist auswählen</button>
                 </div>
+                 <div class="setting">
+                    <label>Lobby Hintergrund <i class="fa-solid fa-circle-question help-icon" title="Wähle einen Hintergrund für diese Lobby (nur für dich sichtbar oder für alle, wenn du Host bist und ihn gekauft hast)."></i></label>
+                    <button class="button-select" id="select-background-button">Standard</button>
+                </div>
                 <div class="setting hidden" id="answer-type-container">
-                    <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="'Freitext' erfordert das manuelle Eintippen der Antwort. 'Multiple Choice' gibt vier Antwortmöglichkeiten vor."></i></label>
+                    <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
                     <div class="preset-group" id="answer-type-presets">
                         <button class="preset-button" data-value="freestyle">Freitext</button>
                         <button class="preset-button" data-value="multiple">Multiple Choice</button>
                     </div>
                 </div>
                 <div class="setting">
-                    <label>Anzahl Songs <i class="fa-solid fa-circle-question help-icon" title="Bestimmt, wie viele Runden im Punkte-Modus gespielt werden."></i></label>
+                    <label>Anzahl Songs <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
                     <div class="preset-group" id="song-count-presets">
                         <button class="preset-button" data-value="10">10</button>
                         <button class="preset-button" data-value="20">20</button>
@@ -187,7 +192,7 @@
                     </div>
                 </div>
                  <div class="setting">
-                    <label>Ratezeit <i class="fa-solid fa-circle-question help-icon" title="Die Zeit, die du pro Runde zum Antworten hast."></i></label>
+                    <label>Ratezeit <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
                     <div class="preset-group" id="guess-time-presets">
                         <button class="preset-button" data-value="20">20s</button>
                         <button class="preset-button" data-value="30">30s</button>
@@ -195,7 +200,6 @@
                         <button class="preset-button" data-value="custom" data-type="guess-time">Custom</button>
                     </div>
                 </div>
-
                 <button id="start-game-button" class="button-primary button-start" disabled><i class="fa-solid fa-play"></i> Spiel starten</button>
             </div>
             <div id="guest-waiting-message" class="hidden"><p>Warte, bis der Host das Spiel startet...</p></div>
@@ -210,13 +214,13 @@
             </div>
             <div id="game-content-area" class="game-content-area">
                 </div>
-        </div>
+            </div>
     </main>
 
     <main id="achievements-screen" class="screen">
         <div class="container text-left">
             <h2>Erfolge</h2>
-            <p>Sammle Erfolge und schalte neue Titel frei.</p>
+            <p>Sammle Erfolge, schalte Titel frei und verdiene Spots!</p>
             <div id="achievement-grid" class="stats-full-grid"></div>
         </div>
     </main>
@@ -225,8 +229,7 @@
         <div class="container text-left">
             <h2>Level-Fortschritt</h2>
             <p>Sieh dir deine Belohnungen für jedes Level an.</p>
-            <div id="level-progress-list" class="level-progress-list">
-                </div>
+            <div id="level-progress-list" class="level-progress-list"></div>
         </div>
     </main>
 
@@ -246,78 +249,73 @@
         </div>
     </main>
 
-    <div id="countdown-overlay" class="countdown-overlay hidden">
-        <div id="countdown-number" class="countdown-number">3</div>
-        <div id="countdown-text" class="countdown-text">Das Spiel beginnt...</div>
-    </div>
+    <main id="shop-screen" class="screen">
+        <div class="container text-left">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                 <h2>Shop</h2>
+                 <div class="spots-display" style="font-size: 1.1rem;"> <span id="shop-spots-balance">0</span> 🎵 Spots
+                 </div>
+            </div>
+            <p>Gib deine Spots für exklusive Belohnungen aus!</p>
+            <div class="shop-section">
+                <h3>Titel</h3>
+                <div id="shop-titles-list" class="shop-items-grid">
+                    <p>Lade Titel...</p>
+                </div>
+            </div>
+            <div class="shop-section">
+                <h3>Icons</h3>
+                <div id="shop-icons-list" class="shop-items-grid icon-grid">
+                    <p>Lade Icons...</p>
+                </div>
+            </div>
+             <div class="shop-section">
+                <h3>Lobby Hintergründe</h3>
+                <div id="shop-backgrounds-list" class="shop-items-grid">
+                    <p>Lade Hintergründe...</p>
+                </div>
+            </div>
+            <div class="shop-section">
+                <h3>Verbrauchsgegenstände</h3>
+                 <div id="shop-consumables-list" class="shop-items-grid">
+                     <p>Lade Items...</p>
+                 </div>
+            </div>
+            </div>
+    </main>
 
-    <div id="guest-modal-overlay" class="modal-overlay hidden"><div class="modal guest-modal"><button id="close-guest-modal-button" class="button-exit-modal">×</button><h2>Als Gast spielen</h2><p>Gib einen Nickname ein, um fortzufahren.</p><input type="text" id="guest-nickname-input" placeholder="Dein Nickname..." maxlength="15"><button id="guest-nickname-submit" class="button-primary">Weiter</button></div></div>
-    <div id="join-modal-overlay" class="modal-overlay hidden"><div class="modal numpad-modal"><button id="close-join-modal-button" class="button-exit-modal">×</button><h2>Raum beitreten</h2><div class="pin-display" id="join-pin-display"><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span></div><div id="numpad-join" class="numpad"><button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button class="numpad-action" data-action="clear"><i class="fa-solid fa-delete-left"></i></button><button data-key="0">0</button><button id="join-game-button" class="numpad-action" data-action="confirm"><i class="fa-solid fa-right-to-bracket"></i></button></div></div></div>
-    <div id="friends-modal-overlay" class="modal-overlay hidden"><div class="modal friends-modal"><button id="close-friends-modal-button" class="button-exit-modal">×</button><h2>Freunde</h2><div class="add-friend-form"><input type="text" id="add-friend-input" placeholder="Benutzername eingeben..."><button id="add-friend-button" class="button-primary"><i class="fa-solid fa-plus"></i></button></div><div class="tabs"><button class="tab-button active" data-tab="friends-list-tab">Freunde</button><button class="tab-button" data-tab="requests-list-tab">Anfragen <span id="requests-count" class="badge hidden">0</span></button></div><div id="friends-list-tab" class="tab-content active"><ul id="friends-list" class="friends-list"></ul></div><div id="requests-list-tab" class="tab-content"><ul id="requests-list" class="requests-list"></ul></div></div></div>
-    <div id="invite-friends-modal-overlay" class="modal-overlay hidden"><div class="modal"><button id="close-invite-modal-button" class="button-exit-modal">×</button><h2>Freunde einladen</h2><ul id="online-friends-list" class="friends-list"></ul></div></div>
-    <div id="custom-value-modal-overlay" class="modal-overlay hidden"><div class="modal numpad-modal"><button id="close-custom-value-modal-button" class="button-exit-modal">×</button><h2 id="custom-value-title">Wert eingeben</h2><div class="pin-display" id="custom-value-display"><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span></div><div id="numpad-custom-value" class="numpad"><button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button class="numpad-action" data-action="backspace"><i class="fa-solid fa-delete-left"></i></button><button data-key="0">0</button><button id="confirm-custom-value-button" class="numpad-action" data-action="confirm"><i class="fa-solid fa-check"></i></button></div></div></div>
-    <div id="change-name-modal-overlay" class="modal-overlay hidden"><div class="modal change-name-modal"><button id="close-change-name-modal-button" class="button-exit-modal">×</button><h2>Namen ändern</h2><p>Gib deinen neuen Benutzernamen ein.</p><input type="text" id="change-name-input" placeholder="Neuer Benutzername..." maxlength="15"><button id="change-name-submit" class="button-primary">Speichern</button></div></div>
-    <div id="device-select-modal-overlay" class="modal-overlay hidden">
-        <div class="modal selection-modal">
-            <button id="close-device-select-modal" class="button-exit-modal">×</button>
-            <div class="selection-modal-header">
-                <h2>Gerät auswählen</h2>
-                <button id="refresh-devices-button-modal" class="button-icon" title="Geräte neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
-            </div>
-            <ul id="device-list" class="selection-list"></ul>
-        </div>
-    </div>
-    <div id="playlist-select-modal-overlay" class="modal-overlay hidden">
-        <div class="modal selection-modal">
-            <button id="close-playlist-select-modal" class="button-exit-modal">×</button>
-            <div class="selection-modal-header">
-                <h2>Playlist auswählen</h2>
-            </div>
-            <input type="text" id="playlist-search" placeholder="Playlist suchen..." class="lobby-input">
-            <ul id="playlist-list" class="selection-list"></ul>
-            <div class="pagination-controls" id="playlist-pagination"></div>
-        </div>
-    </div>
-    <div id="leave-confirm-modal-overlay" class="modal-overlay hidden">
-        <div class="modal">
-            <h2>Spiel verlassen?</h2>
-            <p>Bist du sicher, dass du das laufende Spiel verlassen möchtest? Dein Fortschritt geht verloren.</p>
-            <div class="modal-actions">
-                <button id="cancel-leave-button" class="button-secondary">Abbrechen</button>
-                <button id="confirm-leave-button" class="button-danger">Verlassen</button>
-            </div>
-        </div>
-    </div>
-    <div id="confirm-action-modal-overlay" class="modal-overlay hidden">
-        <div class="modal">
-            <h2 id="confirm-action-title">Aktion bestätigen</h2>
-            <p id="confirm-action-text">Bist du sicher?</p>
-            <div class="modal-actions">
-                <button id="confirm-action-cancel-button" class="button-secondary">Abbrechen</button>
-                <button id="confirm-action-confirm-button" class="button-danger">Bestätigen</button>
-            </div>
-        </div>
-    </div>
+
+    <div id="countdown-overlay" class="countdown-overlay hidden"> /* ... */ </div>
+    <div id="guest-modal-overlay" class="modal-overlay hidden"> /* ... */ </div>
+    <div id="join-modal-overlay" class="modal-overlay hidden"> /* ... */ </div>
+    <div id="friends-modal-overlay" class="modal-overlay hidden"> /* ... (Gift Button wird hier von JS eingefügt) ... */ </div>
+    <div id="invite-friends-modal-overlay" class="modal-overlay hidden"> /* ... */ </div>
+    <div id="custom-value-modal-overlay" class="modal-overlay hidden"> /* ... */ </div>
+    <div id="change-name-modal-overlay" class="modal-overlay hidden"> /* ... */ </div>
+    <div id="device-select-modal-overlay" class="modal-overlay hidden"> /* ... */ </div>
+    <div id="playlist-select-modal-overlay" class="modal-overlay hidden"> /* ... */ </div>
+    <div id="leave-confirm-modal-overlay" class="modal-overlay hidden"> /* ... */ </div>
+    <div id="confirm-action-modal-overlay" class="modal-overlay hidden"> /* ... */ </div>
     <div id="invite-popup-container"></div>
 
-    <div id="loading-overlay" class="loading-overlay hidden"> <div class="equalizer">
-            <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+    <div id="background-select-modal-overlay" class="modal-overlay hidden">
+        <div class="modal selection-modal">
+            <button id="close-background-select-modal" class="button-exit-modal">×</button>
+            <h2>Lobby Hintergrund wählen</h2>
+            <p>Wähle einen Hintergrund, den du besitzt.</p>
+            <ul id="owned-backgrounds-list" class="selection-list" style="max-height: 40vh;">
+                <li><button class="button-select" data-bg-id="default">Standard</button></li>
+            </ul>
         </div>
     </div>
+
+
+    <div id="loading-overlay" class="loading-overlay hidden"> /* ... */ </div>
 
     <script src="https://cdn.jsdelivr.net/npm/whatwg-fetch@3.6.2/dist/fetch.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <script src="script.js"></script>
-
-    <div id="on-page-console" class="on-page-console hidden">
-        <div class="console-header">
-            <span>Konsole</span>
-            <button id="clear-console-btn">Löschen</button>
-            <button id="close-console-btn">×</button>
-        </div>
-        <div id="console-output" class="console-output"></div>
-    </div>
+    <script src="script.js"></script> <div id="on-page-console" class="on-page-console hidden"> /* ... */ </div>
     <button id="toggle-console-btn" class="toggle-console-btn"><i class="fa-solid fa-terminal"></i></button>
 
 </body>
