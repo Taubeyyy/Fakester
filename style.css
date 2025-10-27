@@ -278,3 +278,27 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
      font-style: italic;
      margin-left: 30px; /* Einrücken wie andere Belohnungen */
 }
+
+/* ### START HINZUGEFÜGTER BLOCK ### */
+/* NEU: Styling für die Farbfelder im Shop */
+.shop-item .item-preview-color {
+    width: 100%;
+    height: 80px; /* Höhe anpassen, wie du magst */
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px solid var(--dark-grey);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    color: rgba(255, 255, 255, 0.5); /* Icon-Farbe */
+    text-shadow: 0 0 5px rgba(0,0,0,0.5);
+    background-clip: padding-box; /* Stellt sicher, dass der Rand nicht übermalt wird */
+}
+
+/* FIX: Sorgt dafür, dass das Grid immer 2 Spalten hat,
+   auch wenn nur 1 Item da ist (wie bei Consumables vorher) */
+.shop-items-grid {
+    grid-template-columns: repeat(2, 1fr);
+}
+/* ### ENDE HINZUGEFÜGTER BLOCK ### */

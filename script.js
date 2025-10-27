@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ownedTitleIds = new Set();
     let ownedIconIds = new Set();
     let ownedBackgroundIds = new Set();
+    let ownedColorIds = new Set(); // <-- HINZUGEFÜGT
     let inventory = {}; // { itemId: quantity }
 
     let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] };
@@ -92,8 +93,11 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 11, iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45', type:'icon' },
         { id: 12, iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50', type:'icon' },
         { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber', type:'icon'},
-        { id: 201, iconClass: 'fa-diamond', unlockType: 'spots', cost: 250, unlockValue: 250, description: 'Nur im Shop', type:'icon' },
-        { id: 202, iconClass: 'fa-hat-wizard', unlockType: 'spots', cost: 300, unlockValue: 300, description: 'Nur im Shop', type:'icon' },
+        
+        // FIX: 'name' HINZUGEFÜGT
+        { id: 201, name: 'Diamant', iconClass: 'fa-diamond', unlockType: 'spots', cost: 250, unlockValue: 250, description: 'Nur im Shop', type:'icon' },
+        { id: 202, name: 'Zauberhut', iconClass: 'fa-hat-wizard', unlockType: 'spots', cost: 300, unlockValue: 300, description: 'Nur im Shop', type:'icon' },
+        
         { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' }
     ];
     const backgroundsList = [
@@ -101,22 +105,30 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: '301', name: 'Synthwave', imageUrl: '/assets/img/bg_synthwave.jpg', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '301'},
         { id: '302', name: 'Konzertbühne', imageUrl: '/assets/img/bg_stage.jpg', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '302'},
     ];
-    const consumablesList = [
-        { id: '401', name: 'Doppelte Punkte (1 Runde)', itemId: 'double_points_1r', cost: 50, unlockType: 'spots', unlockValue: 50, type: 'consumable', description: 'Verdoppelt deine Punkte.' },
-    ];
-    const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...consumablesList]; // Kombinierte Liste für einfachen Zugriff
     
-    // Mache Listen global verfügbar, damit loadShopItems sie finden kann
+    // NEU: Namensfarben-Liste
+    const nameColorsList = [
+        { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' },
+        { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' },
+        { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }
+    ];
+    
+    // 'consumablesList' entfernt
+
+    // ANGEPASST: allItems (mit Colors, ohne Consumables)
+    const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList];
+    
+    // Mache Listen global verfügbar
     window.titlesList = titlesList;
     window.iconsList = iconsList;
     window.backgroundsList = backgroundsList;
-    window.consumablesList = consumablesList;
+    window.nameColorsList = nameColorsList; // <-- NEU
+    // 'consumablesList' entfernt
     window.allItems = allItems;
 
     const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
     // --- DOM Element References ---
-    // (Verwende die Referenzen aus der vorherigen Antwort, stelle sicher, dass alle neuen IDs vorhanden sind)
     const elements = {
         screens: document.querySelectorAll('.screen'), leaveGameButton: document.getElementById('leave-game-button'), loadingOverlay: document.getElementById('loading-overlay'), countdownOverlay: document.getElementById('countdown-overlay'),
         auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form') },
@@ -140,7 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
         leaveConfirmModal: { overlay: document.getElementById('leave-confirm-modal-overlay'), confirmBtn: document.getElementById('confirm-leave-button'), cancelBtn: document.getElementById('cancel-leave-button'), },
         confirmActionModal: { overlay: document.getElementById('confirm-action-modal-overlay'), title: document.getElementById('confirm-action-title'), text: document.getElementById('confirm-action-text'), confirmBtn: document.getElementById('confirm-action-confirm-button'), cancelBtn: document.getElementById('confirm-action-cancel-button'), },
         stats: { screen: document.getElementById('stats-screen'), gamesPlayed: document.getElementById('stat-games-played'), wins: document.getElementById('stat-wins'), winrate: document.getElementById('stat-winrate'), highscore: document.getElementById('stat-highscore'), correctAnswers: document.getElementById('stat-correct-answers'), avgScore: document.getElementById('stat-avg-score'), gamesPlayedPreview: document.getElementById('stat-games-played-preview'), winsPreview: document.getElementById('stat-wins-preview'), correctAnswersPreview: document.getElementById('stat-correct-answers-preview'), },
-        shop: { screen: document.getElementById('shop-screen'), titlesList: document.getElementById('shop-titles-list'), iconsList: document.getElementById('shop-icons-list'), backgroundsList: document.getElementById('shop-backgrounds-list'), consumablesList: document.getElementById('shop-consumables-list'), spotsBalance: document.getElementById('shop-spots-balance'), }, // Spots im Shop
+        // GEÄNDERT: consumablesList -> colorsList
+        shop: { screen: document.getElementById('shop-screen'), titlesList: document.getElementById('shop-titles-list'), iconsList: document.getElementById('shop-icons-list'), backgroundsList: document.getElementById('shop-backgrounds-list'), colorsList: document.getElementById('shop-colors-list'), spotsBalance: document.getElementById('shop-spots-balance'), },
         backgroundSelectModal: { overlay: document.getElementById('background-select-modal-overlay'), closeBtn: document.getElementById('close-background-select-modal'), list: document.getElementById('owned-backgrounds-list'), },
     };
 
@@ -161,7 +174,8 @@ document.addEventListener('DOMContentLoaded', () => {
              if (currentUser.isGuest) return false;
             if (item.type === 'title') return ownedTitleIds.has(item.id);
             if (item.type === 'icon') return ownedIconIds.has(item.id);
-            if (item.type === 'background') return ownedBackgroundIds.has(item.backgroundId); // Prüfe backgroundId
+            if (item.type === 'background') return ownedBackgroundIds.has(item.backgroundId);
+            if (item.type === 'color') return ownedColorIds.has(item.id); // <-- NEU
         }
 
         switch (item.unlockType) {
@@ -208,11 +222,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isGuest) {
             currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest };
             userProfile = { ...fallbackProfile, id: currentUser.id, username: currentUser.username };
-            userUnlockedAchievementIds = []; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); inventory = {};
+            userUnlockedAchievementIds = []; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {};
         } else {
             currentUser = { id: user.id, username: fallbackUsername, isGuest };
             userProfile = { ...fallbackProfile, id: user.id, username: currentUser.username };
-            userUnlockedAchievementIds = []; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); inventory = {};
+            userUnlockedAchievementIds = []; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {};
         }
 
         console.log("Setting up initial UI with fallback data...");
@@ -244,16 +258,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 supabase.from('user_owned_titles').select('title_id').eq('user_id', user.id),
                 supabase.from('user_owned_icons').select('icon_id').eq('user_id', user.id),
                 supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', user.id),
+                // Hier müsste man 'user_owned_items' abfragen und dann aufteilen
+                // supabase.from('user_owned_items').select('item_id, item_type').eq('user_id', user.id),
                 supabase.from('user_inventory').select('item_id, quantity').eq('user_id', user.id)
             ]).then((results) => {
                 const [profileResult, titlesResult, iconsResult, backgroundsResult, inventoryResult] = results;
                 // 1. Profil verarbeiten
                 if (profileResult.error || !profileResult.data) { console.error("BG Profile Error:", profileResult.error || "No data"); if (!profileResult.error?.details?.includes("0 rows")) showToast("Fehler beim Laden des Profils.", true); document.getElementById('welcome-nickname').textContent = currentUser.username; updatePlayerProgressDisplay(); updateStatsDisplay(); updateSpotsDisplay(); }
                 else { userProfile = profileResult.data; currentUser.username = profileResult.data.username; console.log("BG Profile fetched:", userProfile); document.getElementById('welcome-nickname').textContent = currentUser.username; equipTitle(userProfile.equipped_title_id || 1, false); equipIcon(userProfile.equipped_icon_id || 1, false); updatePlayerProgressDisplay(); updateStatsDisplay(); updateSpotsDisplay(); }
-                 // 2. Besitz verarbeiten
-                 ownedTitleIds = new Set(titlesResult.data?.map(t => t.title_id) || []); ownedIconIds = new Set(iconsResult.data?.map(i => i.icon_id) || []); ownedBackgroundIds = new Set(backgroundsResult.data?.map(b => b.background_id) || []); inventory = {}; inventoryResult.data?.forEach(item => inventory[item.item_id] = item.quantity); console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, B: ownedBackgroundIds.size, Inv: Object.keys(inventory).length });
+                 
+                 // 2. Besitz verarbeiten (Noch alte Logik, muss auf 'user_owned_items' umgestellt werden)
+                 ownedTitleIds = new Set(titlesResult.data?.map(t => t.title_id) || []); 
+                 ownedIconIds = new Set(iconsResult.data?.map(i => i.icon_id) || []); 
+                 ownedBackgroundIds = new Set(backgroundsResult.data?.map(b => b.background_id) || []); 
+                 // ownedColorIds = new Set(itemsData.filter(i => i.item_type === 'color').map(i => i.item_id));
+                 inventory = {}; inventoryResult.data?.forEach(item => inventory[item.item_id] = item.quantity); 
+                 
+                 console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, B: ownedBackgroundIds.size, C: ownedColorIds.size, Inv: Object.keys(inventory).length });
+                 
                  // UI neu rendern, die von Besitz/Level abhängt
                  if(elements.titles.list) renderTitles(); if(elements.icons.list) renderIcons(); if(elements.levelProgress.list) renderLevelProgress();
+                
                 // 3. Erfolge laden
                 return supabase.from('user_achievements').select('achievement_id').eq('user_id', user.id);
             })
@@ -320,7 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Holt die Daten aus den globalen Listen (die schon in script.js existieren)
-        const { titlesList, iconsList, backgroundsList, consumablesList } = window;
+        const { titlesList, iconsList, backgroundsList, nameColorsList } = window;
         const userSpots = userProfile.spots ?? 0;
         
         // Kontostand im Shop-Header aktualisieren
@@ -348,6 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (itemType === 'title') isOwned = ownedTitleIds.has(item.id);
                 else if (itemType === 'icon') isOwned = ownedIconIds.has(item.id);
                 else if (itemType === 'background') isOwned = ownedBackgroundIds.has(item.backgroundId);
+                else if (itemType === 'color') isOwned = ownedColorIds.has(item.id); // <-- NEU
                 // Consumables (Verbrauchsgegenstände) sind nie "owned"
                 
                 html += renderShopItem(item, userSpots, isOwned);
@@ -359,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderList(elements.shop.titlesList, titlesList, 'title');
         renderList(elements.shop.iconsList, iconsList, 'icon');
         renderList(elements.shop.backgroundsList, backgroundsList, 'background');
-        renderList(elements.shop.consumablesList, consumablesList, 'consumable');
+        renderList(elements.shop.colorsList, nameColorsList, 'color'); // <-- GEÄNDERT
     }
 
     function renderShopItem(item, userSpots, isOwned) {
@@ -380,14 +406,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (item.type === 'background') {
             const bgStyle = item.imageUrl ? `style="background-image: url('${item.imageUrl}')"` : 'style="background-color: var(--dark-grey);"';
             previewHtml = `<div class="item-preview-background" ${bgStyle}></div>`;
+        
+        // NEUE LOGIK FÜR FARBEN
+        } else if (item.type === 'color') {
+            previewHtml = `<div class="item-preview-color" style="background-color: ${item.colorHex || '#333'};"><i class="fa-solid fa-paint-brush"></i></div>`;
         } else if (item.type === 'consumable') {
-            previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-box-open"></i></div>`; // Standard-Icon für Consumables
+            previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-box-open"></i></div>`; // (Fallback)
         } else if (item.type === 'title') {
-            previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-tags"></i></div>`; // Standard-Icon für Titel
+            // BESSERES ICON
+            previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-id-badge"></i></div>`;
         }
 
         let buttonHtml = '';
-        const itemId = item.id; // Eindeutige ID (z.B. 101, 201, 301, 401)
+        const itemId = item.id; // Eindeutige ID (z.B. 101, 201, 301, 501)
         
         if (isOwned) {
             buttonHtml = '<button class="buy-button" disabled>Im Besitz</button>';
@@ -396,13 +427,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const isDisabled = !canAfford;
             buttonHtml = `<button class="buy-button" data-item-id="${itemId}" ${isDisabled ? 'disabled' : ''}>Kaufen</button>`;
         }
-
+        
+        // FIX: 'item.name' HINZUGEFÜGT (behebt "undefined")
+        const itemName = item.name || 'Unbenanntes Item';
         const description = item.description || (item.type === 'title' ? 'Ein neuer Titel für dein Profil.' : item.type === 'icon' ? 'Ein neues Icon für dein Profil.' : item.type === 'background' ? 'Ein neuer Lobby-Hintergrund.' : 'Ein nützliches Item.');
 
         return `
             <div class="${classList.join(' ')}">
                 ${previewHtml}
-                <div class="item-name">${item.name}</div>
+                <div class="item-name">${itemName}</div>
                 <div class="item-description">${description}</div>
                 <div class="item-cost">${item.cost} 🎵</div>
                 ${buttonHtml}
@@ -442,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     const token = sessionData.session.access_token;
 
-                    // 2. Anfrage an deinen Server-Endpunkt senden (angepasst an deine server.js)
+                    // 2. Anfrage an deinen Server-Endpunkt senden (KORRIGIERTE URL)
                     const response = await fetch('/api/shop/buy', {
                         method: 'POST',
                         headers: {
@@ -466,16 +499,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     userProfile.spots = data.newSpots; // Neuen Kontostand speichern
                     updateSpotsDisplay(); // Spots-Anzeige im Header aktualisieren
 
-                    // 4. Besitz-Listen im Client aktualisieren
+                    // 4. Besitz-Listen im Client aktualisieren (ANGEPASST)
                     if (data.itemType === 'title') {
                         ownedTitleIds.add(item.id);
                     } else if (data.itemType === 'icon') {
                         ownedIconIds.add(item.id);
                     } else if (data.itemType === 'background') {
                         ownedBackgroundIds.add(item.backgroundId);
-                    } else if (data.itemType === 'consumable') {
-                        inventory[item.itemId] = (inventory[item.itemId] || 0) + 1;
+                    } else if (data.itemType === 'color') {
+                        ownedColorIds.add(item.id); // <-- NEU
                     }
+                    // 'consumable' Logik entfernt
 
                     // 5. Shop UI neu laden, um "Im Besitz" / "Nicht leistbar" zu aktualisieren
                     await loadShopItems(); 
@@ -483,6 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 6. Andere Screens (Titel/Icon-Auswahl) auch aktualisieren
                     if (elements.titles.list) renderTitles();
                     if (elements.icons.list) renderIcons();
+                    // (Hier könnte man später noch renderColors() hinzufügen)
 
                 } catch (error) {
                     console.error("Fehler beim Kaufen des Items:", error);
@@ -608,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             supabase.auth.onAuthStateChange(async (event, session) => {
                 console.log(`Supabase Auth Event: ${event}`, session ? `User: ${session.user.id}` : 'No session');
-                if (event === 'SIGNED_OUT') { currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); inventory = {}; if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); document.body.classList.add('is-guest'); setLoading(false); return; }
+                if (event === 'SIGNED_OUT') { currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); document.body.classList.add('is-guest'); setLoading(false); return; }
                 if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
                      if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id)) {
                           window.initializeAppRunning = true; console.log(`Session available/updated for ${session.user.id}. Initializing app...`); setLoading(true); // Set loading HERE before non-blocking init
@@ -619,7 +654,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      else if (!window.initializeAppRunning) { console.log("App already initialized for this session or init running."); }
                 } else if (!session && !['USER_UPDATED', 'PASSWORD_RECOVERY', 'MFA_CHALLENGE_VERIFIED'].includes(event)) {
                      console.log(`No active session or invalid (Event: ${event}). Showing auth.`);
-                     if (currentUser) { currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); inventory = {}; if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; localStorage.removeItem('fakesterGame'); }
+                     if (currentUser) { currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; localStorage.removeItem('fakesterGame'); }
                      screenHistory = ['auth-screen']; showScreen('auth-screen'); document.body.classList.add('is-guest'); setLoading(false);
                 }
             });

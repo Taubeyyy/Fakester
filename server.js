@@ -90,16 +90,28 @@ let games = {};
 const onlineUsers = new Map(); // Maps userId to WebSocket object
 const HEARTBEAT_INTERVAL = 30000;
 
+// ### START GEÄNDERTER BLOCK ###
 // --- Shop Data (Could be loaded from DB) ---
 const shopItems = [
+    // Titel (Unverändert)
     { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Zeige allen dein Wissen!' },
     { id: 102, type: 'title', name: 'Playlist-Meister', cost: 150, unlockType: 'spots', description: 'Für echte Kenner.' },
-    { id: 201, type: 'icon', iconClass: 'fa-diamond', cost: 250, unlockType: 'spots', description: 'Ein glänzendes Icon.' },
-    { id: 202, type: 'icon', iconClass: 'fa-hat-wizard', cost: 300, unlockType: 'spots', description: 'Magisch!' },
+    
+    // Icons (FIX: 'name' hinzugefügt)
+    { id: 201, type: 'icon', name: 'Diamant', iconClass: 'fa-diamond', cost: 250, unlockType: 'spots', description: 'Ein glänzendes Icon.' },
+    { id: 202, type: 'icon', name: 'Zauberhut', iconClass: 'fa-hat-wizard', cost: 300, unlockType: 'spots', description: 'Magisch!' },
+    
+    // Hintergründe (Unverändert)
     { id: 301, type: 'background', name: 'Synthwave', imageUrl: '/assets/img/bg_synthwave.jpg', cost: 500, unlockType: 'spots', description: 'Retro-Vibes.', backgroundId: '301' },
     { id: 302, type: 'background', name: 'Konzertbühne', imageUrl: '/assets/img/bg_stage.jpg', cost: 600, unlockType: 'spots', description: 'Fühl dich wie ein Star.', backgroundId: '302' },
-    { id: 401, type: 'consumable', name: 'Doppelte Punkte (1 Runde)', itemId: 'double_points_1r', cost: 50, unlockType: 'spots', description: 'Verdoppelt Punkte.' },
+    
+    // NEU: Namensfarben (Consumable ersetzt)
+    { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' },
+    { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' },
+    { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }
 ];
+// ### ENDE GEÄNDERTER BLOCK ###
+
 
 // --- Helper Functions ---
 function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws?.playerId, nickname: p.nickname, score: p.score, lives: p.lives, isConnected: p.isConnected, lastPointsBreakdown: p.lastPointsBreakdown })).filter(p => p.id).sort((a, b) => b.score - a.score); }
@@ -197,7 +209,7 @@ apiRouter.get('/shop/items', async (req, res) => { // Use apiRouter
     res.json({ items: itemsWithOwnership });
 });
 
-// ### START ERSETZTER BLOCK ###
+// ### START ERSETZTER BLOCK (aus vorheriger Antwort) ###
 apiRouter.post('/shop/buy', async (req, res) => { // Nutzt apiRouter und auth middleware
     const { itemId } = req.body;
     const userId = req.userId; // KORREKT! Du nutzt req.userId aus deiner Middleware
@@ -215,7 +227,6 @@ apiRouter.post('/shop/buy', async (req, res) => { // Nutzt apiRouter und auth mi
 
     try {
         // WICHTIG: Wir rufen die RPC-Funktion 'purchase_item' auf
-        // (die du in Schritt 3 in Supabase erstellst)
         const { data, error } = await supabase.rpc('purchase_item', {
             p_user_id: userId,
             p_item_id: itemToBuy.id.toString(), // ID als Text (z.B. '101', '301')
@@ -233,7 +244,7 @@ apiRouter.post('/shop/buy', async (req, res) => { // Nutzt apiRouter und auth mi
 
         // Erfolg! 'data' ist der Rückgabewert (neue Spots)
         res.json({
-            success: true, // success-Flag für Konsistenz, obwohl der Client es nicht prüft
+            success: true, 
             message: `"${itemToBuy.name}" erfolgreich gekauft!`, // Eigene Erfolgsnachricht
             newSpots: data, // Die neuen Spots von der DB
             itemType: itemToBuy.type // Wichtig für den Client
