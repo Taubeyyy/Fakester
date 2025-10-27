@@ -664,12 +664,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if(sessionError){ console.error("Error getting initial session:", sessionError); showScreen('auth-screen'); setLoading(false); }
             else if (!initialSession) { if (!document.getElementById('auth-screen')?.classList.contains('active')) { console.log("Initial: No session, show auth."); showScreen('auth-screen'); } else { console.log("Initial: No session, auth active."); } setLoading(false); }
             // If session exists, onAuthStateChange handles init
-
-            addEventListeners(); // Add listeners AFTER Supabase client is ready
+            
+            // HIER WAR DER FEHLER: 'addEventListeners()' wurde hier aufgerufen, was zu spät war.
+            // addEventListeners(); // <-- Dieser Aufruf wurde entfernt
 
         } catch (error) { console.error("FATAL Supabase init error:", error); document.body.innerHTML = `<div class="fatal-error"><h1>Init Fehler</h1><p>App konnte nicht laden. (${error.message})</p></div>`; setLoading(false); }
     }
 
     // --- Main Execution ---
+    // KORREKTUR: 'addEventListeners' wird jetzt hier, SOFORT aufgerufen.
+    addEventListeners();
     initializeSupabase();
 });
