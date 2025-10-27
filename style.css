@@ -175,9 +175,62 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .preset-button.active { background-color: var(--primary-color); border-color: var(--primary-color); color: var(--background-color); }
 .button-start { padding: 15px; font-size: 1.1rem; }
 
-/* ... (Modals bleiben ähnlich, ggf. kleine Anpassungen) ... */
-.modal-overlay { /* ... */ }
-.modal { /* ... */ }
+/* ### START FEHLENDER BLOCK ### */
+/* KORREKTUR: Die gesamten Modal-Styles haben gefehlt */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7); /* Dunkler Overlay */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    padding: 20px;
+}
+/* :not(.hidden) statt .active, um mit deinem JS zu funktionieren */
+.modal-overlay:not(.hidden) {
+    opacity: 1;
+    visibility: visible;
+}
+.modal {
+    background-color: var(--surface-color);
+    padding: 25px;
+    border-radius: var(--border-radius);
+    width: 100%;
+    max-width: 450px; /* Passt zum restlichen Layout */
+    text-align: left;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    transform: scale(0.95);
+    transition: transform 0.3s ease;
+}
+.modal-overlay:not(.hidden) .modal {
+    transform: scale(1);
+}
+.modal h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    text-align: center; /* Zentriert im Modal-Header */
+}
+.button-exit-modal {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 2rem;
+    color: var(--text-muted-color);
+    cursor: pointer;
+    line-height: 1;
+    padding: 5px;
+}
+/* ### ENDE FEHLENDER BLOCK ### */
 
 /* ... (Loading Overlay, Countdown bleiben gleich) ... */
 
