@@ -117,9 +117,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Initialization and Auth ---
     // ###############################################################
-    // ### FINALE KORRIGIERTE initializeApp FUNKTION ###
+    // ### FINALE KORRIGIERTE initializeApp FUNKTION (NON-BLOCKING) ###
     // ###############################################################
-    const initializeApp = async (user, isGuest = false) => {
+    const initializeApp = (user, isGuest = false) => { // 'async' entfernt!
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`);
         localStorage.removeItem('fakesterGame');
 
@@ -154,100 +154,117 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("Setting up logged-in user...");
                  // KORRIGIERT: Setze currentUser hier korrekt und FRÜHER
                 currentUser = { id: user.id, username: fallbackUsername, isGuest };
-
-                let profileData, profileErrorData;
-                try {
-                    console.log("Log 1: Fetching profile data...");
-                    const { data: profileResult, error: profileErrorResult } = await supabase
-                        .from('profiles')
-                        .select('*')
-                        .eq('id', user.id)
-                        .single();
-                    profileData = profileResult;
-                    profileErrorData = profileErrorResult;
-                } catch (fetchError) {
-                    console.error("!!! CATCH Profile Fetch Error:", fetchError);
-                    profileErrorData = fetchError;
-                }
-
-                if (profileErrorData || !profileData) {
-                    console.error("Profil-Ladefehler:", profileErrorData || new Error("No profile data returned"));
-                    showToast("Fehler beim Laden deines Profils.", true);
-                    // KORRIGIERT: Nutze das korrigierte Fallback-Profil, stelle ID sicher
-                    userProfile = { ...fallbackProfile, id: user.id, username: currentUser.username };
-                } else {
-                    userProfile = profileData;
-                     // Aktualisiere currentUser.username mit dem korrekten Namen aus der DB
-                    currentUser.username = profileData.username;
-                    console.log("Profile data fetched:", userProfile);
-                }
-                console.log("Log 2: Profile fetch finished processing.");
-
-                console.log("Log 3: Fetching achievements...");
-                // Dieses 'await' ist ok, da es schnell gehen sollte
-                const { data: achievements, error: achError } = await supabase
-                    .from('user_achievements')
-                    .select('achievement_id')
-                    .eq('user_id', user.id);
-
-                if (achError) {
-                    console.error("Erfolg-Ladefehler:", achError);
-                    userUnlockedAchievementIds = [];
-                } else {
-                    userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id));
-                    console.log("Achievements fetched:", userUnlockedAchievementIds);
-                }
-                console.log("Log 4: Achievements fetch finished.");
-
-                console.log("Log 5: Checking Spotify status (async)...");
-                // ###############################################################
-                // ### 'await' HIER ENTFERNT, UM BLOCKIEREN ZU VERHINDERN ###
-                // ###############################################################
-                checkSpotifyStatus().then(() => {
-                    // Nachdem der Status geprüft wurde, prüfen wir den Erfolg
-                    console.log("Log 6: Spotify status checked (async).");
-                    if (spotifyToken && !userUnlockedAchievementIds.includes(9)) {
-                        awardClientSideAchievement(9); // Diese Funktion ist bereits nicht-blockierend
-                    }
-                    // Wichtig: UI muss ggf. neu gerendert werden, falls sich Spotify-Status ändert
-                    // (Das passiert aber schon im 'finally' Block von checkSpotifyStatus)
-                });
-                // ###############################################################
-
-                console.log("Log 7: Rendering UI components (immediately)...");
-                renderAchievements(); renderTitles(); renderIcons(); renderLevelProgress(); updateStatsDisplay();
-                console.log("UI components rendered.");
-                console.log("Equipping title and icon...");
-                equipTitle(userProfile.equipped_title_id || 1, false);
-                equipIcon(userProfile.equipped_icon_id || 1, false);
-                console.log("Title and icon equipped visually.");
-                console.log("Updating player progress display...");
-                updatePlayerProgressDisplay();
-                console.log("Player progress display updated.");
-                console.log("Logged-in user setup complete.");
+                // Starte mit Fallback-Profil, wird unten ggf. überschrieben
+                userProfile = { ...fallbackProfile, id: user.id, username: currentUser.username };
+                userUnlockedAchievementIds = [];
             }
 
+            // UI SOFORT mit Fallback-Daten anzeigen
+            console.log("Setting up initial UI with fallback data...");
             document.body.classList.toggle('is-guest', isGuest);
-            // KORRIGIERT: Greife erst hier sicher auf currentUser.username zu
             document.getElementById('welcome-nickname').textContent = currentUser.username;
+            // Stelle sicher, dass equipTitle/Icon aufgerufen werden können
+            if(document.getElementById('profile-title')) equipTitle(userProfile.equipped_title_id || 1, false);
+            if(document.getElementById('profile-icon')) equipIcon(userProfile.equipped_icon_id || 1, false);
+            if(elements.home.profileLevel) updatePlayerProgressDisplay(); // Zeige Level 1 / 0 XP
+            if(elements.stats.gamesPlayed) updateStatsDisplay();         // Zeige Nullen
+            if(elements.achievements.grid) renderAchievements();         // Zeige leere/gesperrte Erfolge
+            if(elements.titles.list) renderTitles();               // Zeige Titel (nur Standard freigeschaltet)
+            if(elements.icons.list) renderIcons();                // Zeige Icons (nur Standard freigeschaltet)
+            if(elements.levelProgress.list) renderLevelProgress();        // Zeige Level-Fortschritt
 
-            console.log("Showing home screen...");
+            console.log("Showing home screen (non-blocking)...");
             showScreen('home-screen');
+            setLoading(false); // Ladebildschirm SOFORT ausblenden
 
-            console.log("Connecting WebSocket...");
-            connectWebSocket(); // Diese Funktion ist ok, sie blockiert nicht
-            console.log("initializeApp finished successfully.");
+            // === DATEN IM HINTERGRUND LADEN (nur für eingeloggte User) ===
+            if (!isGuest) {
+                console.log("Fetching profile, achievements, and Spotify status in background...");
+
+                // 1. Profil laden (nicht-blockierend)
+                supabase.from('profiles').select('*').eq('id', user.id).single()
+                    .then(({ data: profileData, error: profileErrorData }) => {
+                        if (profileErrorData || !profileData) {
+                            console.error("Hintergrund-Profil-Ladefehler:", profileErrorData || new Error("No profile data returned"));
+                            // Zeige Toast nur, wenn es nicht der "0 rows" Fehler ist (dafür gibt es Fallback)
+                            if (!profileErrorData || !profileErrorData.details?.includes("0 rows")) {
+                                showToast("Fehler beim Laden deines Profils.", true);
+                            }
+                            // userProfile bleibt das Fallback-Profil
+                            // Stelle sicher, dass UI trotzdem up-to-date ist (falls Fallback genutzt wird)
+                             document.getElementById('welcome-nickname').textContent = currentUser.username; // Name aus Fallback/currentUser
+                             updatePlayerProgressDisplay();
+                             updateStatsDisplay();
+                        } else {
+                            userProfile = profileData;
+                            currentUser.username = profileData.username; // Update globalen Namen
+                            console.log("Profile data fetched in background:", userProfile);
+                            // UI mit echten Daten aktualisieren
+                            document.getElementById('welcome-nickname').textContent = currentUser.username;
+                            equipTitle(userProfile.equipped_title_id || 1, false);
+                            equipIcon(userProfile.equipped_icon_id || 1, false);
+                            updatePlayerProgressDisplay();
+                            updateStatsDisplay();
+                            // Diese müssen neu gerendert werden, da Freischaltungen von XP abhängen
+                            renderTitles();
+                            renderIcons();
+                            renderLevelProgress();
+                        }
+
+                        // 2. Erfolge laden (NACHDEM Profil geladen wurde oder Fallback sicher ist)
+                        console.log("Fetching achievements in background (after profile)...");
+                        return supabase.from('user_achievements').select('achievement_id').eq('user_id', user.id);
+                    })
+                    .then(({ data: achievements, error: achError }) => {
+                        if (achError) {
+                            console.error("Hintergrund-Erfolg-Ladefehler:", achError);
+                            userUnlockedAchievementIds = [];
+                        } else {
+                            userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id));
+                            console.log("Achievements fetched in background:", userUnlockedAchievementIds);
+                            // UI mit echten Erfolgen aktualisieren (jetzt wo userProfile/Level bekannt ist)
+                            renderAchievements();
+                            renderTitles(); // Neu rendern, falls Titel durch Erfolge freigeschaltet wurden
+                            renderIcons(); // Neu rendern
+                        }
+
+                        // 3. Spotify Status prüfen & Erfolg vergeben (NACHDEM Erfolge geladen wurden)
+                         console.log("Checking Spotify status after achievements (async)...");
+                         return checkSpotifyStatus(); // Gibt Promise zurück
+                    })
+                     .then(() => {
+                         console.log("Spotify status checked after achievements (async).");
+                         if (spotifyToken && !userUnlockedAchievementIds.includes(9)) {
+                             awardClientSideAchievement(9); // Bereits nicht-blockierend
+                         }
+                         // WebSocket erst verbinden, wenn alles andere (asynchron) fertig ist
+                         console.log("Connecting WebSocket for logged-in user (after async loads)...");
+                         connectWebSocket();
+                    })
+                    .catch(error => {
+                         console.error("Error during background data loading chain:", error);
+                         // Trotzdem versuchen, WebSocket zu verbinden
+                         console.log("Connecting WebSocket despite background load error...");
+                         connectWebSocket();
+                    });
+
+            } else {
+                // Für Gäste: UI ist schon da, nur WebSocket verbinden
+                 console.log("Connecting WebSocket for guest...");
+                 connectWebSocket();
+            }
+
+            console.log("initializeApp finished (non-blocking setup complete).");
 
         } catch (error) {
-            console.error("FATAL ERROR during initializeApp:", error);
+            console.error("FATAL ERROR during initializeApp (synchronous part):", error);
             showToast("Ein kritischer Fehler ist aufgetreten. Bitte lade die Seite neu.", true);
             showScreen('auth-screen');
-        } finally {
-            // Dies wird jetzt SOFORT erreicht
-            setLoading(false);
-            console.log("initializeApp finally block executed. Loading overlay hidden.");
+            setLoading(false); // Sicherstellen, dass Loading weg ist
         }
+        // 'finally' Block hier nicht mehr nötig, setLoading(false) ist oben
     };
+
 
     const checkSpotifyStatus = async () => {
         spotifyToken = null; // Reset token before check
@@ -257,7 +274,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) { console.warn(`Spotify status check failed: Server responded with status ${response.status}`); }
             else { const data = await response.json(); if (data.loggedIn && data.token) { spotifyToken = data.token; console.log("Spotify status: Logged In"); } else { console.log("Spotify status: Not Logged In"); } }
         } catch (error) { console.error("Error during checkSpotifyStatus fetch:", error); showToast("Verbindung zu Spotify konnte nicht geprüft werden.", true); }
-        finally { document.getElementById('spotify-connect-button')?.classList.toggle('hidden', !!spotifyToken); elements.home.createRoomBtn?.classList.toggle('hidden', !spotifyToken); console.log("Spotify UI buttons updated."); }
+        finally {
+             // Stelle sicher, dass die Elemente existieren, bevor darauf zugegriffen wird
+             const spotifyButton = document.getElementById('spotify-connect-button');
+             const createButton = elements.home.createRoomBtn;
+             if (spotifyButton) spotifyButton.classList.toggle('hidden', !!spotifyToken);
+             if (createButton) createButton.classList.toggle('hidden', !spotifyToken);
+             console.log("Spotify UI buttons updated.");
+         }
     };
 
     const handleAuthAction = async (action, form, isRegister = false) => {
@@ -265,16 +289,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const handleLogout = async () => { console.log("Logout initiated."); setLoading(true); if (currentUser?.isGuest) { console.log("Guest logout, reloading page."); window.location.replace(window.location.origin); return; } try { const { error } = await supabase.auth.signOut(); if (error) throw error; console.log("Supabase signOut successful."); window.location.replace(window.location.origin); } catch (error) { console.error("Error during logout:", error); showToast("Ausloggen fehlgeschlagen.", true); setLoading(false); } };
 
-    const awardClientSideAchievement = async (achievementId) => {
+    const awardClientSideAchievement = (achievementId) => { // 'async' entfernt
         if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) return;
 
         console.log(`Awarding client-side achievement: ${achievementId}`);
         userUnlockedAchievementIds.push(achievementId);
         const achievement = achievementsList.find(a => a.id === achievementId);
         showToast(`Erfolg freigeschaltet: ${achievement?.name || ''}!`);
-        renderAchievements(); renderTitles(); renderIcons();
+        // Rendere UI-Elemente, die von Erfolgen abhängen
+        if(elements.achievements.grid) renderAchievements();
+        if(elements.titles.list) renderTitles();
+        if(elements.icons.list) renderIcons();
 
-        // Wir führen das Speichern im Hintergrund aus ("fire-and-forget").
+        // Speichern im Hintergrund
         supabase
             .from('user_achievements')
             .insert({ user_id: currentUser.id, achievement_id: achievementId })
@@ -294,32 +321,33 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderPlayerList(players, hostId) { const playerList = elements.lobby.playerList; if (!playerList) return; const existingPlayerIds = new Set([...playerList.querySelectorAll('.player-card')].map(el => el.dataset.playerId)); const incomingPlayerIds = new Set(players.map(p => p.id)); existingPlayerIds.forEach(id => { if (!incomingPlayerIds.has(id)) { playerList.querySelector(`[data-player-id="${id}"]`)?.remove(); } }); players.forEach(player => { let card = playerList.querySelector(`[data-player-id="${player.id}"]`); if (!card) { card = document.createElement('div'); card.dataset.playerId = player.id; card.classList.add('player-card', 'new'); playerList.appendChild(card); setTimeout(() => card.classList.remove('new'), 500); } const isHost = player.id === hostId; card.className = `player-card ${!player.isConnected ? 'disconnected' : ''} ${isHost ? 'host' : ''}`; card.innerHTML = `<i class="fa-solid fa-user player-icon ${isHost ? 'host' : ''}"></i><span class="player-name">${player.nickname}</span>`; }); }
     function updateHostSettings(settings, isHost) { if (!elements.lobby.hostSettings || !elements.lobby.guestWaitingMessage) return; elements.lobby.hostSettings.classList.toggle('hidden', !isHost); elements.lobby.guestWaitingMessage.classList.toggle('hidden', isHost); if (!isHost || !settings) return; elements.lobby.answerTypeContainer.classList.toggle('hidden', currentGame.gameMode !== 'quiz'); ['song-count-presets', 'guess-time-presets', 'answer-type-presets', 'lives-count-presets'].forEach(id => { const container = document.getElementById(id); if(!container) return; let valueToMatch, settingKey; if (id.includes('song')) { valueToMatch = settings.songCount; settingKey = 'songCount'; } else if (id.includes('time')) { valueToMatch = settings.guessTime; settingKey = 'guessTime'; } else if (id.includes('answer')) { valueToMatch = settings.answerType; settingKey = 'answerType'; } else if (id.includes('lives')) { valueToMatch = settings.lives; settingKey = 'lives'; } let customButton = container.querySelector('[data-value="custom"]'); let matchFound = false; container.querySelectorAll('.preset-button').forEach(btn => { const isActive = btn.dataset.value == valueToMatch; btn.classList.toggle('active', isActive); if(isActive) matchFound = true; if(customButton && btn === customButton && !isActive) { customButton.textContent = 'Custom'; } }); if (!matchFound && customButton) { customButton.classList.add('active'); customButton.textContent = valueToMatch + (settingKey === 'guessTime' ? 's' : ''); } else if (customButton && !customButton.classList.contains('active')) { customButton.textContent = 'Custom'; } }); elements.lobby.deviceSelectBtn.textContent = settings.deviceName || 'Gerät auswählen'; elements.lobby.playlistSelectBtn.textContent = settings.playlistName || 'Playlist auswählen'; elements.lobby.startGameBtn.disabled = !(settings.deviceId && settings.playlistId); }
     function renderAchievements() { if (!elements.achievements.grid) return; elements.achievements.grid.innerHTML = achievementsList.map(a => `<div class="stat-card ${!userUnlockedAchievementIds.includes(a.id) ? 'locked' : ''}"><span class="stat-value">${a.name}</span><span class="stat-label">${a.description}</span></div>`).join(''); }
-    async function equipTitle(titleId, saveToDb = true) { const title = titlesList.find(t => t.id === titleId); if (title) { console.log(`Equipping title: ${title.name} (ID: ${titleId}), Save: ${saveToDb}`); document.getElementById('profile-title').textContent = title.name; userProfile.equipped_title_id = titleId; if (saveToDb && !currentUser.isGuest) { console.log(`Saving title ${titleId} to DB for user ${currentUser.id}`); const { error } = await supabase.from('profiles').update({ equipped_title_id: titleId }).eq('id', currentUser.id); if (error) { console.error("Failed to save title:", error); showToast("Titel konnte nicht gespeichert werden.", true); } else { console.log("Title saved successfully."); } } } else { console.warn(`Title ID ${titleId} not found.`); } renderTitles(); }
+    async function equipTitle(titleId, saveToDb = true) { const title = titlesList.find(t => t.id === titleId); if (title) { console.log(`Equipping title: ${title.name} (ID: ${titleId}), Save: ${saveToDb}`); document.getElementById('profile-title').textContent = title.name; userProfile.equipped_title_id = titleId; if (saveToDb && !currentUser.isGuest && supabase) { console.log(`Saving title ${titleId} to DB for user ${currentUser.id}`); const { error } = await supabase.from('profiles').update({ equipped_title_id: titleId }).eq('id', currentUser.id); if (error) { console.error("Failed to save title:", error); showToast("Titel konnte nicht gespeichert werden.", true); } else { console.log("Title saved successfully."); } } } else { console.warn(`Title ID ${titleId} not found.`); } if(elements.titles.list) renderTitles(); }
     function renderTitles() { if (!elements.titles.list) return; const currentLevel = getLevelForXp(userProfile.xp || 0); const equippedTitleId = userProfile.equipped_title_id || 1; const unlockedTitleCount = titlesList.filter(t => isItemUnlocked(t, currentLevel)).length; elements.titles.list.innerHTML = titlesList.map(t => { const isUnlocked = isItemUnlocked(t, currentLevel); const isEquipped = t.id === equippedTitleId; const unlockDescription = getUnlockDescription(t); if (unlockedTitleCount >= 5 && !userUnlockedAchievementIds.includes(15)) { awardClientSideAchievement(15); } return `<div class="title-card ${isEquipped ? 'equipped' : ''} ${!isUnlocked ? 'locked' : ''}" data-title-id="${t.id}" ${!isUnlocked ? 'disabled' : ''}><span class="stat-value">${t.name}</span><span class="stat-label">${isUnlocked ? 'Freigeschaltet' : unlockDescription}</span></div>`; }).join(''); }
-    async function equipIcon(iconId, saveToDb = true) { const icon = iconsList.find(i => i.id === iconId); if(icon){ console.log(`Equipping icon: ${icon.iconClass} (ID: ${iconId}), Save: ${saveToDb}`); elements.home.profileIcon.className = `fa-solid ${icon.iconClass}`; userProfile.equipped_icon_id = iconId; if (saveToDb && !currentUser.isGuest) { console.log(`Saving icon ${iconId} to DB for user ${currentUser.id}`); const { error } = await supabase.from('profiles').update({ equipped_icon_id: iconId }).eq('id', currentUser.id); if (error) { console.error("Failed to save icon:", error); showToast("Icon konnte nicht gespeichert werden.", true); } else { console.log("Icon saved successfully."); } } } else { console.warn(`Icon ID ${iconId} not found.`); } renderIcons(); }
+    async function equipIcon(iconId, saveToDb = true) { const icon = iconsList.find(i => i.id === iconId); if(icon){ console.log(`Equipping icon: ${icon.iconClass} (ID: ${iconId}), Save: ${saveToDb}`); elements.home.profileIcon.className = `fa-solid ${icon.iconClass}`; userProfile.equipped_icon_id = iconId; if (saveToDb && !currentUser.isGuest && supabase) { console.log(`Saving icon ${iconId} to DB for user ${currentUser.id}`); const { error } = await supabase.from('profiles').update({ equipped_icon_id: iconId }).eq('id', currentUser.id); if (error) { console.error("Failed to save icon:", error); showToast("Icon konnte nicht gespeichert werden.", true); } else { console.log("Icon saved successfully."); } } } else { console.warn(`Icon ID ${iconId} not found.`); } if(elements.icons.list) renderIcons(); }
     function renderIcons() { if (!elements.icons.list) return; const currentLevel = getLevelForXp(userProfile.xp || 0); const equippedIconId = userProfile.equipped_icon_id || 1; const unlockedIconCount = iconsList.filter(i => isItemUnlocked(i, currentLevel)).length; elements.icons.list.innerHTML = iconsList.map(icon => { const isUnlocked = isItemUnlocked(icon, currentLevel); const isEquipped = icon.id === equippedIconId; if (unlockedIconCount >= 5 && !userUnlockedAchievementIds.includes(16)) { awardClientSideAchievement(16); } return `<div class="icon-card ${!isUnlocked ? 'locked' : ''} ${isEquipped ? 'equipped' : ''}" data-icon-id="${icon.id}" ${!isUnlocked ? 'disabled' : ''}><div class="icon-preview"><i class="fa-solid ${icon.iconClass}"></i></div><span class="stat-label">${isUnlocked ? 'Verfügbar' : icon.description}</span></div>`; }).join(''); }
     function renderLevelProgress() { if (!elements.levelProgress.list) return; const MAX_LEVEL = 50; const currentLevel = getLevelForXp(userProfile.xp || 0); let html = ''; for (let level = 1; level <= MAX_LEVEL; level++) { const xpNeeded = getXpForLevel(level); const isUnlocked = currentLevel >= level; const titles = titlesList.filter(t => t.unlockType === 'level' && t.unlockValue === level); const icons = iconsList.filter(i => i.unlockType === 'level' && i.unlockValue === level); if (titles.length === 0 && icons.length === 0 && level > 1) continue; html += `<div class="level-progress-item ${isUnlocked ? 'unlocked' : ''}"><div class="level-progress-header"><h3>Level ${level}</h3><span>${xpNeeded} XP</span></div><div class="level-progress-rewards">${titles.map(t => `<div class="reward-item"><i class="fa-solid fa-star"></i><span>Titel: ${t.name}</span></div>`).join('')}${icons.map(i => `<div class="reward-item"><i class="fa-solid ${i.iconClass}"></i><span>Icon: ${i.description}</span></div>`).join('')}</div></div>`; } elements.levelProgress.list.innerHTML = html; }
-    function updatePlayerProgressDisplay() { if (!currentUser || !userProfile || currentUser.isGuest) return; const currentXp = userProfile.xp || 0; const currentLevel = getLevelForXp(currentXp); const xpForCurrentLevel = getXpForLevel(currentLevel); const xpForNextLevel = getXpForLevel(currentLevel + 1); const xpInCurrentLevel = currentXp - xpForCurrentLevel; const xpNeededForNextLevel = xpForNextLevel - xpForCurrentLevel; const xpPercentage = (xpNeededForNextLevel > 0) ? Math.max(0, Math.min(100, (xpInCurrentLevel / xpNeededForNextLevel) * 100)) : 100; elements.home.profileLevel.textContent = currentLevel; elements.home.profileXpFill.style.width = `${xpPercentage}%`; if (elements.home.profileXpText) { elements.home.profileXpText.textContent = `${currentXp} XP`; } console.log(`Updated progress display: Level ${currentLevel}, XP ${currentXp}, Bar ${xpPercentage.toFixed(1)}%`); }
-    async function updatePlayerProgress(xpGained, showNotification = true) { if (!currentUser || currentUser.isGuest) return; console.log(`Updating player progress post-game. XP Gained: ${xpGained}, Show Notification: ${showNotification}`); const oldLevel = getLevelForXp(userProfile.xp || 0); console.log("Fetching latest profile data for progress update..."); const { data, error } = await supabase.from('profiles').select('xp, games_played, wins, correct_answers, highscore').eq('id', currentUser.id).single(); if (error) { console.error("Error fetching profile data after game:", error); updatePlayerProgressDisplay(); return; } console.log("Latest profile data fetched:", data); userProfile = { ...userProfile, ...data }; console.log("Fetching updated achievements..."); const { data: achievements, error: achError } = await supabase.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id); if (achError) { console.error("Error fetching updated achievements:", achError); } else { userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id)); console.log("Updated achievements:", userUnlockedAchievementIds); } updatePlayerProgressDisplay(); updateStatsDisplay(); const newLevel = getLevelForXp(userProfile.xp || 0); console.log(`Old Level: ${oldLevel}, New Level: ${newLevel}`); if (showNotification && newLevel > oldLevel) { console.info(`Level Up! ${oldLevel} -> ${newLevel}`); showToast(`Level Up! Du hast Level ${newLevel} erreicht!`); renderIcons(); renderTitles(); renderLevelProgress(); } renderAchievements(); console.log("Player progress update complete."); }
-    function updateStatsDisplay() { if (!currentUser || currentUser.isGuest || !userProfile) return; const { games_played, wins, highscore, correct_answers } = userProfile; const gp = games_played || 0; const w = wins || 0; const hs = highscore || 0; const ca = correct_answers || 0; const xp = userProfile.xp || 0; elements.stats.gamesPlayed.textContent = gp; elements.stats.wins.textContent = w; elements.stats.winrate.textContent = gp > 0 ? `${Math.round((w / gp) * 100)}%` : '0%'; elements.stats.highscore.textContent = hs; elements.stats.correctAnswers.textContent = ca; elements.stats.avgScore.textContent = gp > 0 ? Math.round(xp / gp) : 0; elements.stats.gamesPlayedPreview.textContent = gp; elements.stats.winsPreview.textContent = w; elements.stats.correctAnswersPreview.textContent = ca; }
+    function updatePlayerProgressDisplay() { if (!currentUser || !userProfile || !elements.home.profileLevel) return; const currentXp = userProfile.xp || 0; const currentLevel = getLevelForXp(currentXp); const xpForCurrentLevel = getXpForLevel(currentLevel); const xpForNextLevel = getXpForLevel(currentLevel + 1); const xpInCurrentLevel = currentXp - xpForCurrentLevel; const xpNeededForNextLevel = xpForNextLevel - xpForCurrentLevel; const xpPercentage = (xpNeededForNextLevel > 0) ? Math.max(0, Math.min(100, (xpInCurrentLevel / xpNeededForNextLevel) * 100)) : 100; elements.home.profileLevel.textContent = currentLevel; elements.home.profileXpFill.style.width = `${xpPercentage}%`; if (elements.home.profileXpText) { elements.home.profileXpText.textContent = `${currentXp} XP`; } console.log(`Updated progress display: Level ${currentLevel}, XP ${currentXp}, Bar ${xpPercentage.toFixed(1)}%`); }
+    async function updatePlayerProgress(xpGained, showNotification = true) { if (!currentUser || currentUser.isGuest || !supabase) return; console.log(`Updating player progress post-game. XP Gained: ${xpGained}, Show Notification: ${showNotification}`); const oldLevel = getLevelForXp(userProfile.xp || 0); console.log("Fetching latest profile data for progress update..."); const { data, error } = await supabase.from('profiles').select('xp, games_played, wins, correct_answers, highscore').eq('id', currentUser.id).single(); if (error) { console.error("Error fetching profile data after game:", error); updatePlayerProgressDisplay(); return; } console.log("Latest profile data fetched:", data); userProfile = { ...userProfile, ...data }; console.log("Fetching updated achievements..."); const { data: achievements, error: achError } = await supabase.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id); if (achError) { console.error("Error fetching updated achievements:", achError); } else { userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id)); console.log("Updated achievements:", userUnlockedAchievementIds); } updatePlayerProgressDisplay(); updateStatsDisplay(); const newLevel = getLevelForXp(userProfile.xp || 0); console.log(`Old Level: ${oldLevel}, New Level: ${newLevel}`); if (showNotification && newLevel > oldLevel) { console.info(`Level Up! ${oldLevel} -> ${newLevel}`); showToast(`Level Up! Du hast Level ${newLevel} erreicht!`); renderIcons(); renderTitles(); renderLevelProgress(); } renderAchievements(); console.log("Player progress update complete."); }
+    function updateStatsDisplay() { if (!currentUser || !userProfile || !elements.stats.gamesPlayed) return; const { games_played, wins, highscore, correct_answers } = userProfile; const gp = games_played || 0; const w = wins || 0; const hs = highscore || 0; const ca = correct_answers || 0; const xp = userProfile.xp || 0; elements.stats.gamesPlayed.textContent = gp; elements.stats.wins.textContent = w; elements.stats.winrate.textContent = gp > 0 ? `${Math.round((w / gp) * 100)}%` : '0%'; elements.stats.highscore.textContent = hs; elements.stats.correctAnswers.textContent = ca; elements.stats.avgScore.textContent = gp > 0 ? Math.round(xp / gp) : 0; if(elements.stats.gamesPlayedPreview) elements.stats.gamesPlayedPreview.textContent = gp; if(elements.stats.winsPreview) elements.stats.winsPreview.textContent = w; if(elements.stats.correctAnswersPreview) elements.stats.correctAnswersPreview.textContent = ca; }
 
     // --- Game Logic Functions (gekürzt) ---
-    function showCountdown(round, total) { /* ... Implementiere Logik basierend auf den Server-Daten ... */ }
-    function setupPreRound(data) { /* ... Implementiere Logik basierend auf den Server-Daten ... */ }
-    function setupNewRound(data) { /* ... Implementiere Logik basierend auf den Server-Daten ... */ }
-    function showRoundResult(data) { /* ... Implementiere Logik basierend auf den Server-Daten ... */ }
+    function showCountdown(round, total) { /* ... Implementiere Logik ... */ }
+    function setupPreRound(data) { /* ... Implementiere Logik ... */ }
+    function setupNewRound(data) { /* ... Implementiere Logik ... */ }
+    function showRoundResult(data) { /* ... Implementiere Logik ... */ }
     // --- Friends Modal Logic (gekürzt) ---
-    async function loadFriendsData() { /* ... Implementiere Logik zum Laden und Anzeigen von Freunden/Anfragen ... */ }
+    async function loadFriendsData() { /* ... Implementiere Logik ... */ }
     function renderRequestsList(requests) { /* ... Implementiere Logik ... */ }
     function renderFriendsList(friends) { /* ... Implementiere Logik ... */ }
     // --- Utility & Modal Functions (gekürzt) ---
-    async function fetchHostData(isRefresh = false) { /* ... Implementiere Logik zum Holen von Spotify-Daten ... */ }
+    async function fetchHostData(isRefresh = false) { /* ... Implementiere Logik ... */ }
     function renderPaginatedPlaylists(playlistsToRender, page = 1) { /* ... Implementiere Logik ... */ }
     function openCustomValueModal(type, title) { /* ... Implementiere Logik ... */ }
     function showInvitePopup(from, pin) { /* ... Implementiere Logik ... */ }
+    function handlePresetClick(e, type) { /* ... Implementiere Logik ... */ }
 
     // #################################################################
-    // ### DER EVENT LISTENER BLOCK ###
+    // ### DER EVENT LISTENER BLOCK (Unverändert) ###
     // #################################################################
     function addEventListeners() {
         console.log("Adding all application event listeners...");
@@ -422,41 +450,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
                           window.initializeAppRunning = true;
                           console.log(`Session available/updated for user ${session.user.id}. Initializing app...`);
-                          setLoading(true);
-                          try { await initializeApp(session.user, false); }
-                          finally { window.initializeAppRunning = false; }
+                          setLoading(true); // Loading hier setzen
+                          try {
+                              // initializeApp ist jetzt synchron, setLoading(false) kommt dort am Ende
+                              initializeApp(session.user, false);
+                          } catch(initError) {
+                               console.error("Error directly calling initializeApp:", initError);
+                               setLoading(false); // Sicherstellen, dass Loading ausgeht bei Fehler
+                               showScreen('auth-screen');
+                          } finally {
+                              window.initializeAppRunning = false;
+                          }
                      } else if (event === 'TOKEN_REFRESHED') {
-                          console.log("Token refreshed, checking Spotify status again.");
-                          await checkSpotifyStatus();
+                          console.log("Token refreshed, checking Spotify status again (async)...");
+                          // checkSpotifyStatus ist async, läuft im Hintergrund
+                          checkSpotifyStatus();
                      } else if (!window.initializeAppRunning) {
                           console.log("App already initialized for this user session or init running.");
-                          // WICHTIG: setLoading(false) hier entfernen, falls initializeApp noch läuft
-                          // setLoading(false);
+                          // Hier kein setLoading(false), da initializeApp es steuert
                      }
                 } else if (!session && !['USER_UPDATED', 'PASSWORD_RECOVERY', 'MFA_CHALLENGE_VERIFIED'].includes(event)) {
                      console.log(`No active session or session invalid (Event: ${event}). Showing auth screen.`);
                      if (currentUser) {
                           currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null;
                           if (ws.socket && ws.socket.readyState === WebSocket.OPEN) ws.socket.close(); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null;
-localStorage.removeItem('fakesterGame');
+                          localStorage.removeItem('fakesterGame');
                      }
                      screenHistory = ['auth-screen']; showScreen('auth-screen'); document.body.classList.add('is-guest'); setLoading(false);
                 }
             });
 
-            const { data: { session: initialSession } } = await supabase.auth.getSession();
-             if (!initialSession && !document.getElementById('auth-screen')?.classList.contains('active')) {
-                  console.log("Initial check: No session, showing auth screen.");
-                  showScreen('auth-screen');
-                  setLoading(false);
-             } else if (!initialSession) {
-                 // Wenn keine Session da ist, aber der Auth-Screen schon angezeigt wird,
-                 // muss der Lade-Overlay trotzdem weg.
+            // Initialen Session Check machen
+            console.log("Getting initial session...");
+            const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
+            if(sessionError){
+                 console.error("Error getting initial session:", sessionError);
+                 showScreen('auth-screen');
                  setLoading(false);
+            } else if (!initialSession) {
+                  // Wenn KEINE Session da ist UND der Auth-Screen noch NICHT aktiv ist
+                  if (!document.getElementById('auth-screen')?.classList.contains('active')) {
+                       console.log("Initial check: No session, showing auth screen.");
+                       showScreen('auth-screen');
+                  } else {
+                       console.log("Initial check: No session, auth screen already active.");
+                  }
+                  setLoading(false); // In beiden Fällen Loading aus
              }
-             // Wenn eine Session da ist, wird onAuthStateChange das setLoading(false) übernehmen
+             // Wenn eine Session da ist, wird onAuthStateChange ausgelöst und kümmert sich um alles
 
-            addEventListeners(); // Stelle sicher, dass dies NACH der Supabase-Initialisierung aufgerufen wird
+            // Event Listeners erst hinzufügen, NACHDEM Supabase initialisiert ist
+            addEventListeners();
 
         } catch (error) {
             console.error("FATAL ERROR during Supabase initialization:", error);
