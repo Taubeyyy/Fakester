@@ -103,10 +103,42 @@
     </main>
 
     <main id="mode-selection-screen" class="screen">
-        </main>
+        <div class="container">
+            <h2>Modus wählen</h2>
+            <p>Wähle einen Spielmodus aus.</p>
+            <div class="mode-selection-container" style="display: flex; flex-direction: column; gap: 15px; width: 100%;">
+                <button class="mode-box" data-mode="quiz" style="padding: 20px; background: var(--surface-color); border-radius: var(--border-radius); border: none; color: white; font-size: 1.2rem; font-weight: 700;">
+                    🎵 Klassisches Quiz
+                </button>
+                <button class="mode-box" data-mode="timeline" style="padding: 20px; background: var(--surface-color); border-radius: var(--border-radius); border: none; color: white; font-size: 1.2rem; font-weight: 700;">
+                    ⌛ Timeline
+                </button>
+                <button class="mode-box" data-mode="popularity" disabled style="padding: 20px; background: var(--dark-grey); border-radius: var(--border-radius); border: none; color: var(--medium-grey); font-size: 1.2rem; font-weight: 700; cursor: not-allowed;">
+                    🔥 Beliebtheit (Bald)
+                </button>
+            </div>
+        </div>
+    </main>
 
     <main id="game-type-selection-screen" class="screen">
-        </main>
+        <div class="container">
+            <h2>Spieltyp wählen</h2>
+            <div class="preset-group" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                 <button class="preset-button" id="game-type-points" style="padding: 20px; font-size: 1rem;">Punktejagd</button>
+                 <button class="preset-button" id="game-type-lives" style="padding: 20px; font-size: 1rem;">Leben</button>
+            </div>
+            <div id="lives-settings-container" class="hidden" style="width: 100%; display: flex; flex-direction: column; gap: 10px; text-align: left;">
+                <label>Anzahl Leben:</label>
+                <div class="preset-group" id="lives-count-presets">
+                    <button class="preset-button" data-value="1">1 ❤️</button>
+                    <button class="preset-button active" data-value="3">3 ❤️</button>
+                    <button class="preset-button" data-value="5">5 ❤️</button>
+                    <button class="preset-button" data-value="custom" data-type="lives">Custom</button>
+                </div>
+            </div>
+            <button id="create-lobby-button" class="button-primary" disabled style="margin-top: 20px;">Lobby erstellen</button>
+        </div>
+    </main>
 
     <main id="lobby-screen" class="screen">
         <div class="lobby-container">
@@ -131,26 +163,26 @@
             <div id="host-settings" class="hidden">
                  <h3>Einstellungen</h3>
                  <div class="settings-grid"> <div class="setting">
-                        <label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
+                        <label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" title="Wähle ein aktives Spotify-Gerät für die Musikwiedergabe."></i></label>
                         <button class="button-select" id="device-select-button">Gerät auswählen</button>
                     </div>
                     <div class="setting">
-                        <label>Playlist <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
+                        <label>Playlist <i class="fa-solid fa-circle-question help-icon" title="Wähle eine deiner Spotify-Playlists."></i></label>
                         <button class="button-select" id="playlist-select-button">Playlist auswählen</button>
                     </div>
                      <div class="setting">
-                        <label>Lobby Hintergrund <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
+                        <label>Lobby Hintergrund <i class="fa-solid fa-circle-question help-icon" title="Wähle einen Hintergrund für die Lobby."></i></label>
                         <button class="button-select" id="select-background-button">Standard</button>
                     </div>
                     <div class="setting hidden" id="answer-type-container">
-                        <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
+                        <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="Freitext: Du musst tippen. Multiple Choice: Wähle aus 4 Optionen."></i></label>
                         <div class="preset-group" id="answer-type-presets">
                             <button class="preset-button" data-value="freestyle">Freitext</button>
                             <button class="preset-button" data-value="multiple">Multiple Choice</button>
                         </div>
                     </div>
                     <div class="setting">
-                        <label>Anzahl Songs <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
+                        <label>Anzahl Songs <i class="fa-solid fa-circle-question help-icon" title="Wie viele Runden sollen gespielt werden?"></i></label>
                         <div class="preset-group" id="song-count-presets">
                             <button class="preset-button" data-value="10">10</button>
                             <button class="preset-button" data-value="20">20</button>
@@ -159,7 +191,7 @@
                         </div>
                     </div>
                      <div class="setting">
-                        <label>Ratezeit <i class="fa-solid fa-circle-question help-icon" title="..."></i></label>
+                        <label>Ratezeit <i class="fa-solid fa-circle-question help-icon" title="Wie viel Zeit hast du pro Runde?"></i></label>
                         <div class="preset-group" id="guess-time-presets">
                             <button class="preset-button" data-value="20">20s</button>
                             <button class="preset-button" data-value="30">30s</button>
@@ -175,13 +207,26 @@
     </main>
 
     <main id="game-screen" class="screen">
-        </main>
+        <div class="game-container">
+            <div class="game-header">
+                <span id="current-round">0</span> / <span id="total-rounds">0</span>
+            </div>
+            <div class="timer-bar-container">
+                <div class="timer-bar" id="timer-bar"></div>
+            </div>
+            <div id="game-content-area" style="width: 100%; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                <h2>Warte auf nächsten Song...</h2>
+            </div>
+        </div>
+    </main>
 
     <main id="achievements-screen" class="screen">
         <div class="container text-left">
             <h2>Erfolge</h2>
             <p>Sammle Erfolge, schalte Titel frei und verdiene Spots!</p>
-            <div id="achievement-grid" class="stats-full-grid"></div>
+            <div id="achievement-grid" class="stats-full-grid">
+                <p>Lade Erfolge...</p>
+            </div>
         </div>
     </main>
 
@@ -196,10 +241,24 @@
     </main>
 
     <main id="title-selection-screen" class="screen">
-        </main>
+        <div class="container text-left">
+            <h2>Titel auswählen</h2>
+            <p>Wähle einen Titel, den du freigeschaltet hast.</p>
+            <div id="title-list" class="selection-grid">
+                <p>Lade Titel...</p>
+            </div>
+        </div>
+    </main>
 
     <main id="icon-selection-screen" class="screen">
-        </main>
+        <div class="container text-left">
+            <h2>Icon auswählen</h2>
+            <p>Wähle ein Icon, das du freigeschaltet hast.</p>
+            <div id="icon-list" class="icon-grid">
+                <p>Lade Icons...</p>
+            </div>
+        </div>
+    </main>
 
     <main id="shop-screen" class="screen">
         <div class="container text-left">
@@ -210,65 +269,199 @@
                  </div>
             </div>
             <p>Gib deine Spots für exklusive Belohnungen aus!</p>
+            
             <div class="shop-section">
                 <h3>Titel</h3>
-                <div id="shop-titles-list" class="shop-items-grid"> <p>Lade Titel...</p> </div>
+                <div class="shop-items-container">
+                    <div id="shop-titles-list" class="shop-items-grid horizontal-scroll"> <p>Lade Titel...</p> </div>
+                </div>
             </div>
             <div class="shop-section">
                 <h3>Icons</h3>
-                <div id="shop-icons-list" class="shop-items-grid icon-grid"> <p>Lade Icons...</p> </div>
+                <div class="shop-items-container">
+                    <div id="shop-icons-list" class="shop-items-grid horizontal-scroll icon-grid"> <p>Lade Icons...</p> </div>
+                </div>
             </div>
              <div class="shop-section">
                 <h3>Lobby Hintergründe</h3>
-                <div id="shop-backgrounds-list" class="shop-items-grid"> <p>Lade Hintergründe...</p> </div>
+                <div class="shop-items-container">
+                    <div id="shop-backgrounds-list" class="shop-items-grid horizontal-scroll"> <p>Lade Hintergründe...</p> </div>
+                </div>
             </div>
             <div class="shop-section">
                 <h3>Namensfarben</h3>
-                 <div id="shop-colors-list" class="shop-items-grid"> <p>Lade Farben...</p> </div>
+                <div class="shop-items-container">
+                     <div id="shop-colors-list" class="shop-items-grid horizontal-scroll"> <p>Lade Farben...</p> </div>
+                </div>
             </div>
-            </div>
+        </div>
     </main>
 
 
     <div id="countdown-overlay" class="countdown-overlay hidden">...</div>
-    <div id="guest-modal-overlay" class="modal-overlay hidden">...</div>
-    <div id="join-modal-overlay" class="modal-overlay hidden">...</div>
+    
+    <div id="guest-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button id="close-guest-modal-button" class="button-exit-modal">×</button>
+            <h2>Als Gast spielen</h2>
+            <p>Gib einen Nickname ein, um als Gast zu spielen.</p>
+            <input type="text" id="guest-nickname-input" placeholder="Nickname (3-15 Zeichen)" maxlength="15" autocomplete="off">
+            <button id="guest-nickname-submit" class="button-primary" style="margin-top: 20px;">Los geht's</button>
+        </div>
+    </div>
+    
+    <div id="join-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button id="close-join-modal-button" class="button-exit-modal">×</button>
+            <h2>Raum beitreten</h2>
+            <p>Gib die 4-stellige Lobby-PIN ein.</p>
+            <div class="pin-display" id="join-pin-display">
+                <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
+            </div>
+            <div class="numpad" id="numpad-join">
+                <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
+                <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
+                <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
+                <button data-action="clear"><i class="fa-solid fa-delete-left"></i></button>
+                <button data-key="0">0</button>
+                <button data-action="confirm" disabled><i class="fa-solid fa-check"></i></button>
+            </div>
+        </div>
+    </div>
+
     <div id="friends-modal-overlay" class="modal-overlay hidden">
         <div class="modal friends-modal">
             <button id="close-friends-modal-button" class="button-exit-modal">×</button>
             <h2>Freunde</h2>
-            <div class="add-friend-form">...</div>
-            <div class="tabs">...</div>
+            <div class="add-friend-form">
+                <input type="text" id="add-friend-input" placeholder="Benutzername eingeben..." autocomplete="off">
+                <button id="add-friend-button" class="button-primary button-small"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <div class="tabs">
+                <button class="tab-button active" data-tab="friends-list-tab">Freunde</button>
+                <button class="tab-button" data-tab="requests-list-tab">Anfragen <span id="requests-count" class="badge hidden">0</span></button>
+            </div>
             <div id="friends-list-tab" class="tab-content active"><ul id="friends-list" class="friends-list"></ul></div>
             <div id="requests-list-tab" class="tab-content"><ul id="requests-list" class="requests-list"></ul></div>
         </div>
     </div>
-    <div id="invite-friends-modal-overlay" class="modal-overlay hidden">...</div>
-    <div id="custom-value-modal-overlay" class="modal-overlay hidden">...</div>
-    <div id="change-name-modal-overlay" class="modal-overlay hidden">...</div>
-    <div id="device-select-modal-overlay" class="modal-overlay hidden">...</div>
-    <div id="playlist-select-modal-overlay" class="modal-overlay hidden">...</div>
-    <div id="leave-confirm-modal-overlay" class="modal-overlay hidden">...</div>
-    <div id="confirm-action-modal-overlay" class="modal-overlay hidden">...</div>
+    
+    <div id="invite-friends-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button id="close-invite-modal-button" class="button-exit-modal">×</button>
+            <h2>Freunde einladen</h2>
+            <p>Lade Freunde ein, die gerade online sind.</p>
+            <ul id="online-friends-list" class="friends-list" style="max-height: 40vh; overflow-y: auto;">
+                </ul>
+        </div>
+    </div>
+    
+    <div id="custom-value-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+             <button id="close-custom-value-modal-button" class="button-exit-modal">×</button>
+             <h2 id="custom-value-title">Eigener Wert</h2>
+             <div class="pin-display" id="custom-value-display">
+                <span class="pin-digit"></span><span class="pin-digit"></span><span class="pin-digit"></span>
+            </div>
+            <div class="numpad" id="numpad-custom-value">
+                <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
+                <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
+                <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
+                <button data-action="backspace"><i class="fa-solid fa-delete-left"></i></button>
+                <button data-key="0">0</button>
+                <button data-action="confirm" id="confirm-custom-value-button"><i class="fa-solid fa-check"></i></button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="change-name-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button id="close-change-name-modal-button" class="button-exit-modal">×</button>
+            <h2>Namen ändern</h2>
+            <p>Gib deinen neuen Benutzernamen ein.</p>
+            <input type="text" id="change-name-input" placeholder="Neuer Name (3-15 Zeichen)" maxlength="15" autocomplete="off">
+            <button id="change-name-submit" class="button-primary" style="margin-top: 20px;">Speichern</button>
+        </div>
+    </div>
+
+    <div id="device-select-modal-overlay" class="modal-overlay hidden">
+        <div class="modal selection-modal">
+            <button id="close-device-select-modal" class="button-exit-modal">×</button>
+            <h2>Gerät auswählen</h2>
+            <p>Wähle ein aktives Spotify-Gerät.</p>
+            <ul id="device-list" class="selection-list" style="max-height: 40vh; overflow-y: auto;">
+                </ul>
+            <button id="refresh-devices-button-modal" class="button-secondary" style="margin-top: 15px;"><i class="fa-solid fa-rotate-right"></i> Aktualisieren</button>
+        </div>
+    </div>
+    
+    <div id="playlist-select-modal-overlay" class="modal-overlay hidden">
+        <div class="modal selection-modal">
+            <button id="close-playlist-select-modal" class="button-exit-modal">×</button>
+            <h2>Playlist auswählen</h2>
+            <input type="text" id="playlist-search" placeholder="Playlist suchen..." style="margin-bottom: 15px;">
+            <ul id="playlist-list" class="selection-list" style="max-height: 40vh; overflow-y: auto;">
+                </ul>
+            <div id="playlist-pagination" style="display: flex; justify-content: space-between; margin-top: 15px;">
+                </div>
+        </div>
+    </div>
+
+    <div id="leave-confirm-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <h2>Verlassen?</h2>
+            <p>Möchtest du das Spiel wirklich verlassen?</p>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="cancel-leave-button" class="button-secondary">Abbrechen</button>
+                <button id="confirm-leave-button" class="button-danger">Verlassen</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="confirm-action-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <h2 id="confirm-action-title">Bestätigen</h2>
+            <p id="confirm-action-text">Möchtest du diese Aktion wirklich durchführen?</p>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button id="confirm-action-cancel-button" class="button-secondary">Abbrechen</button>
+                <button id="confirm-action-confirm-button" class="button-primary">Bestätigen</button>
+            </div>
+        </div>
+    </div>
+
     <div id="invite-popup-container"></div>
+    
     <div id="background-select-modal-overlay" class="modal-overlay hidden">
         <div class="modal selection-modal">
             <button id="close-background-select-modal" class="button-exit-modal">×</button>
             <h2>Lobby Hintergrund wählen</h2>
             <p>Wähle einen Hintergrund, den du besitzt.</p>
             <ul id="owned-backgrounds-list" class="selection-list" style="max-height: 40vh;">
-                <li><button class="button-select" data-bg-id="default">Standard</button></li>
+                <li data-bg-id="default"><button class="button-select">Standard</button></li>
             </ul>
         </div>
     </div>
-    <div id="loading-overlay" class="loading-overlay hidden">...</div>
+    
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/whatwg-fetch@3.6.2/dist/fetch.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <script src="script.js"></script>
 
-    <div id="on-page-console" class="on-page-console hidden">...</div>
+    <div id="on-page-console" class="on-page-console hidden">
+        <div class="console-header">
+            <span>Konsole</span>
+            <div>
+                <button id="copy-console-btn" title="Kopieren"><i class="fa-solid fa-copy"></i></button>
+                <button id="clear-console-btn" title="Leeren"><i class="fa-solid fa-trash-can"></i></button>
+                <button id="close-console-btn" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+        <div id="console-output" class="console-output"></div>
+    </div>
     <button id="toggle-console-btn" class="toggle-console-btn"><i class="fa-solid fa-terminal"></i></button>
 
 </body>

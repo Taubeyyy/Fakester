@@ -132,7 +132,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const elements = {
         screens: document.querySelectorAll('.screen'), leaveGameButton: document.getElementById('leave-game-button'), loadingOverlay: document.getElementById('loading-overlay'), countdownOverlay: document.getElementById('countdown-overlay'),
         auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form') },
-        home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), profilePictureBtn: document.getElementById('profile-picture-button'), profileIcon: document.getElementById('profile-icon'), profileLevel: document.getElementById('profile-level'), profileXpFill: document.getElementById('profile-xp-fill'), levelProgressBtn: document.getElementById('level-progress-button'), profileXpText: document.getElementById('profile-xp-text'), spotsBalance: document.getElementById('header-spots-balance'), shopButton: document.getElementById('shop-button') }, // Spots im Header
+        home: { 
+            logoutBtn: document.getElementById('corner-logout-button'), 
+            achievementsBtn: document.getElementById('achievements-button'), 
+            createRoomBtn: document.getElementById('show-create-button-action'), 
+            joinRoomBtn: document.getElementById('show-join-button'), 
+            usernameContainer: document.getElementById('username-container'), 
+            profileTitleBtn: document.querySelector('.profile-title-button'), 
+            friendsBtn: document.getElementById('friends-button'), 
+            statsBtn: document.getElementById('stats-button'), 
+            profilePictureBtn: document.getElementById('profile-picture-button'), 
+            profileIcon: document.getElementById('profile-icon'), 
+            profileLevel: document.getElementById('profile-level'), 
+            profileXpFill: document.getElementById('profile-xp-fill'), 
+            levelProgressBtn: document.getElementById('level-progress-button'), 
+            profileXpText: document.getElementById('profile-xp-text'), 
+            spotsBalance: document.getElementById('header-spots-balance'), 
+            shopButton: document.getElementById('shop-button'),
+            spotifyConnectBtn: document.getElementById('spotify-connect-button') // <-- KORREKTUR: Hinzugefügt
+        },
         modeSelection: { container: document.getElementById('mode-selection-screen')?.querySelector('.mode-selection-container') },
         lobby: { pinDisplay: document.getElementById('lobby-pin'), playerList: document.getElementById('player-list'), hostSettings: document.getElementById('host-settings'), guestWaitingMessage: document.getElementById('guest-waiting-message'), deviceSelectBtn: document.getElementById('device-select-button'), playlistSelectBtn: document.getElementById('playlist-select-button'), startGameBtn: document.getElementById('start-game-button'), inviteFriendsBtn: document.getElementById('invite-friends-button'), songCountPresets: document.getElementById('song-count-presets'), guessTimePresets: document.getElementById('guess-time-presets'), answerTypeContainer: document.getElementById('answer-type-container'), answerTypePresets: document.getElementById('answer-type-presets'), reactionButtons: document.getElementById('reaction-buttons'), backgroundSelectButton: document.getElementById('select-background-button') },
         game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), gameContentArea: document.getElementById('game-content-area') },
@@ -299,15 +317,134 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(error => { console.error("Error during background data loading chain:", error); showToast("Fehler beim Laden einiger Daten.", true); console.log("Connecting WebSocket despite background load error..."); connectWebSocket(); });
         } else { // Für Gäste
-             console.log("Connecting WebSocket for guest..."); connectWebSocket();
+             console.log("Connecting WebSocket for guest..."); 
+             // KORREKTUR: Spotify-Status auch für Gäste prüfen (damit Button verschwindet, falls Cookie da ist)
+             checkSpotifyStatus();
+             connectWebSocket();
         }
         console.log("initializeApp finished (non-blocking setup complete).");
     };
 
 
-    const checkSpotifyStatus = async () => { /* ... bleibt gleich ... */ };
-    const handleAuthAction = async (action, form, isRegister = false) => { /* ... bleibt gleich ... */ };
-    const handleLogout = async () => { /* ... bleibt gleich ... */ };
+    // ### START KORRIGIERTER BLOCK ###
+    const checkSpotifyStatus = async () => {
+        if (currentUser && currentUser.isGuest) {
+            console.log("Guest mode, hiding Spotify connect button.");
+            elements.home.spotifyConnectBtn?.classList.add('guest-hidden'); // Versteckt ihn via CSS-Regel
+            elements.home.createRoomBtn?.classList.add('hidden'); // Zeige "Raum erstellen" NICHT für Gäste
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/status');
+            const data = await response.json();
+            
+            if (data.loggedIn && data.token) {
+                console.log("Spotify is connected.");
+                spotifyToken = data.token;
+                // UI aktualisieren: Verstecke "Verbinden", zeige "Erstellen"
+                elements.home.spotifyConnectBtn?.classList.add('hidden');
+                elements.home.createRoomBtn?.classList.remove('hidden');
+                
+                // Erfolg clientseitig vergeben, falls noch nicht vorhanden
+                if (currentUser && !currentUser.isGuest && !userUnlockedAchievementIds.includes(9)) {
+                    awardClientSideAchievement(9);
+                }
+            } else {
+                console.log("Spotify is NOT connected.");
+                spotifyToken = null;
+                // UI aktualisieren: Zeige "Verbinden", verstecke "Erstellen"
+                elements.home.spotifyConnectBtn?.classList.remove('hidden');
+                elements.home.createRoomBtn?.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error("Error checking Spotify status:", error);
+            spotifyToken = null;
+            elements.home.spotifyConnectBtn?.classList.remove('hidden');
+            elements.home.createRoomBtn?.classList.add('hidden');
+        }
+    };
+
+    const handleAuthAction = async (action, form, isRegister = false) => {
+        if (!supabase) {
+            showToast("Verbindung wird aufgebaut, bitte warte...", true);
+            return;
+        }
+        setLoading(true);
+        const formData = new FormData(form);
+        const credentials = {};
+        let username;
+        
+        if (isRegister) {
+            username = formData.get('username'); // 'register-username'
+            credentials.email = `${username}@fakester.app`; // Dummy-E-Mail
+            credentials.password = formData.get('password'); // 'register-password'
+            credentials.options = {
+                data: {
+                    username: username,
+                    xp: 0,
+                    spots: 100, // Start-Spots
+                    equipped_title_id: 1,
+                    equipped_icon_id: 1
+                }
+            };
+        } else {
+            username = formData.get('username'); // 'login-username'
+            credentials.email = `${username}@fakester.app`; // Dummy-E-Mail
+            credentials.password = formData.get('password'); // 'login-password'
+        }
+
+        const { data, error } = isRegister ? 
+            await action(credentials) : 
+            await action(credentials);
+
+        setLoading(false);
+        if (error) {
+            console.error(`Auth Error (${isRegister ? 'Register' : 'Login'}):`, error);
+            showToast(error.message, true);
+        } else if (data.user) {
+            console.log(`Auth Success (${isRegister ? 'Register' : 'Login'}):`, data.user.id);
+            // onAuthStateChange wird dies automatisch handhaben und initializeApp aufrufen
+        } else {
+            console.warn("Auth: Kein Fehler, aber auch keine User-Daten.");
+        }
+    };
+
+    const handleLogout = async () => {
+        if (!supabase) return;
+        
+        showConfirmModal("Abmelden", "Möchtest du dich wirklich abmelden?", async () => {
+            setLoading(true);
+            console.log("Logging out...");
+            
+            // 1. Supabase-Sitzung beenden
+            const { error: signOutError } = await supabase.auth.signOut();
+            
+            // 2. Spotify-Cookie (via Server) löschen
+            try {
+                await fetch('/logout', { method: 'POST' });
+                console.log("Spotify cookie cleared.");
+            } catch (fetchError) {
+                console.error("Error clearing Spotify cookie:", fetchError);
+            }
+            
+            setLoading(false);
+            if (signOutError) {
+                console.error("SignOut Error:", signOutError);
+                showToast(signOutError.message, true);
+            } else {
+                console.log("Logout successful.");
+                // onAuthStateChange fängt 'SIGNED_OUT' auf und kümmert sich um den Rest:
+                // - currentUser = null
+                // - spotifyToken = null
+                // - UI zurücksetzen
+                // - showScreen('auth-screen')
+            }
+        });
+    };
+    // ### ENDE KORRIGIERTER BLOCK ###
+
+
     const awardClientSideAchievement = (achievementId) => { // 'async' entfernt, mit doppelter Prüfung
         if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) { if(userUnlockedAchievementIds.includes(achievementId)) { console.log(`Achievement ${achievementId} already in list, not awarding again.`); } return; }
         console.log(`Awarding client-side achievement: ${achievementId}`);
@@ -542,12 +679,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupNewRound(data) { console.log("STUB: setupNewRound"); }
     function showRoundResult(data) { console.log("STUB: showRoundResult"); }
     // --- Friends Modal Logic (Stubs) ---
-    async function loadFriendsData() { console.log("STUB: loadFriendsData"); elements.friendsModal.friendsList.innerHTML = '<li>Lade Freunde... (STUB)</li>'; elements.friendsModal.requestsList.innerHTML = '<li>Lade Anfragen... (STUB)</li>'; /* TODO: Implement fetch logic */ }
+    async function loadFriendsData() { console.log("STUB: loadFriendsData"); if (elements.friendsModal.friendsList) elements.friendsModal.friendsList.innerHTML = '<li>Lade Freunde... (STUB)</li>'; if(elements.friendsModal.requestsList) elements.friendsModal.requestsList.innerHTML = '<li>Lade Anfragen... (STUB)</li>'; /* TODO: Implement fetch logic */ }
     function renderRequestsList(requests) { console.log("STUB: renderRequestsList"); /* TODO: Implement */ }
     // renderFriendsList ist oben implementiert mit Gift Button
     // --- Utility & Modal Functions (Stubs) ---
     async function fetchHostData(isRefresh = false) { console.log("STUB: fetchHostData"); /* TODO: Implement Spotify API calls */ showToast("Geräte/Playlists laden (STUB)", false); return Promise.resolve(); } // return Promise
-    function renderPaginatedPlaylists(playlistsToRender, page = 1) { console.log("STUB: renderPaginatedPlaylists"); elements.playlistSelectModal.list.innerHTML = '<li>Playlist 1 (STUB)</li><li>Playlist 2 (STUB)</li>'; /* TODO: Implement */ }
+    function renderPaginatedPlaylists(playlistsToRender, page = 1) { console.log("STUB: renderPaginatedPlaylists"); if(elements.playlistSelectModal.list) elements.playlistSelectModal.list.innerHTML = '<li>Playlist 1 (STUB)</li><li>Playlist 2 (STUB)</li>'; /* TODO: Implement */ }
     function openCustomValueModal(type, title) { console.log("STUB: openCustomValueModal"); /* TODO: Implement */ }
     function showInvitePopup(from, pin) { console.log("STUB: showInvitePopup"); /* TODO: Implement */ }
     function handlePresetClick(e, groupId) { console.log(`STUB: handlePresetClick for group ${groupId}`); /* TODO: Implement update-settings call */ }
@@ -562,8 +699,8 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.leaveConfirmModal.cancelBtn?.addEventListener('click', () => elements.leaveConfirmModal.overlay.classList.add('hidden'));
         elements.leaveConfirmModal.confirmBtn?.addEventListener('click', () => { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type: 'leave-game', payload: { pin: currentGame.pin, playerId: currentGame.playerId } })); } localStorage.removeItem('fakesterGame'); currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] }; screenHistory = ['auth-screen', 'home-screen']; showScreen('home-screen'); elements.leaveConfirmModal.overlay.classList.add('hidden'); });
         // Auth Screen
-        elements.auth.loginForm?.addEventListener('submit', (e) => { e.preventDefault(); if (!supabase) return; handleAuthAction(supabase.auth.signInWithPassword, e.target, false); });
-        elements.auth.registerForm?.addEventListener('submit', (e) => { e.preventDefault(); if (!supabase) return; handleAuthAction(supabase.auth.signUp, e.target, true); });
+        elements.auth.loginForm?.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.target, false); });
+        elements.auth.registerForm?.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.target, true); });
         elements.auth.showRegister?.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.add('hidden'); elements.auth.registerForm.classList.remove('hidden'); });
         elements.auth.showLogin?.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm.classList.remove('hidden'); elements.auth.registerForm.classList.add('hidden'); });
         // Gast Modal
@@ -572,19 +709,28 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.guestModal.submitBtn?.addEventListener('click', () => { const nickname = elements.guestModal.input.value; if (nickname.trim().length < 3 || nickname.trim().length > 15) { showToast("Nickname muss 3-15 Zeichen lang sein.", true); return; } elements.guestModal.overlay.classList.add('hidden'); initializeApp({ username: nickname }, true); });
         // Home Screen
         elements.home.logoutBtn?.addEventListener('click', handleLogout);
-        document.getElementById('spotify-connect-button')?.addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/login'; });
+        elements.home.spotifyConnectBtn?.addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/login'; });
         elements.home.createRoomBtn?.addEventListener('click', () => showScreen('mode-selection-screen'));
-        elements.home.joinRoomBtn?.addEventListener('click', () => { pinInput = ""; elements.joinModal.pinDisplay.forEach(d => d.textContent = ""); elements.joinModal.overlay.classList.remove('hidden'); });
+        elements.home.joinRoomBtn?.addEventListener('click', () => { 
+            // KORREKTUR: Prüfen, ob WS verbunden ist
+            if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) {
+                showToast("Verbindung zum Server wird aufgebaut...", true);
+                return;
+            }
+            pinInput = ""; 
+            elements.joinModal.pinDisplay.forEach(d => d.textContent = ""); 
+            elements.joinModal.overlay.classList.remove('hidden'); 
+        });
         elements.home.statsBtn?.addEventListener('click', () => showScreen('stats-screen'));
         elements.home.achievementsBtn?.addEventListener('click', () => showScreen('achievements-screen'));
         elements.home.levelProgressBtn?.addEventListener('click', () => showScreen('level-progress-screen'));
         elements.home.profileTitleBtn?.addEventListener('click', () => showScreen('title-selection-screen'));
         elements.home.profilePictureBtn?.addEventListener('click', () => showScreen('icon-selection-screen'));
-        elements.home.friendsBtn?.addEventListener('click', () => { if(!currentUser.isGuest) { loadFriendsData(); elements.friendsModal.overlay.classList.remove('hidden'); } });
+        elements.home.friendsBtn?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { loadFriendsData(); elements.friendsModal.overlay.classList.remove('hidden'); } });
         elements.home.usernameContainer?.addEventListener('click', () => { if (!currentUser || currentUser.isGuest) return; elements.changeNameModal.input.value = currentUser.username; elements.changeNameModal.overlay.classList.remove('hidden'); elements.changeNameModal.input.focus(); });
-        elements.home.shopButton?.addEventListener('click', () => { if(!currentUser.isGuest) { loadShopItems(); showScreen('shop-screen'); } });
+        elements.home.shopButton?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { loadShopItems(); showScreen('shop-screen'); } });
         // Modus & Spieltyp Auswahl
-        elements.modeSelection.container?.addEventListener('click', (e) => { const mb=e.target.closest('.mode-box'); if(mb && !mb.disabled){ selectedGameMode=mb.dataset.mode; console.log(`Mode: ${selectedGameMode}`); elements.gameTypeScreen.createLobbyBtn.disabled=true; elements.gameTypeScreen.pointsBtn.classList.remove('active'); elements.gameTypeScreen.livesBtn.classList.remove('active'); elements.gameTypeScreen.livesSettings.classList.add('hidden'); showScreen('game-type-selection-screen'); } });
+        elements.modeSelection.container?.addEventListener('click', (e) => { const mb=e.target.closest('.mode-box'); if(mb && !mb.disabled){ selectedGameMode=mb.dataset.mode; console.log(`Mode: ${selectedGameMode}`); if (elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=true; if (elements.gameTypeScreen.pointsBtn) elements.gameTypeScreen.pointsBtn.classList.remove('active'); if (elements.gameTypeScreen.livesBtn) elements.gameTypeScreen.livesBtn.classList.remove('active'); if (elements.gameTypeScreen.livesSettings) elements.gameTypeScreen.livesSettings.classList.add('hidden'); showScreen('game-type-selection-screen'); } });
         elements.gameTypeScreen.pointsBtn?.addEventListener('click', () => { gameCreationSettings.gameType='points'; elements.gameTypeScreen.pointsBtn.classList.add('active'); elements.gameTypeScreen.livesBtn.classList.remove('active'); elements.gameTypeScreen.livesSettings.classList.add('hidden'); elements.gameTypeScreen.createLobbyBtn.disabled=false; });
         elements.gameTypeScreen.livesBtn?.addEventListener('click', () => { gameCreationSettings.gameType='lives'; elements.gameTypeScreen.pointsBtn.classList.remove('active'); elements.gameTypeScreen.livesBtn.classList.add('active'); elements.gameTypeScreen.livesSettings.classList.remove('hidden'); elements.gameTypeScreen.createLobbyBtn.disabled=false; });
         elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const btn=e.target.closest('.preset-button'); if(btn){ elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const v=btn.dataset.value; if(v==='custom'){ openCustomValueModal('lives', 'Leben (1-10)'); } else { gameCreationSettings.lives=parseInt(v); console.log(`Lives: ${gameCreationSettings.lives}`); } } });
@@ -643,14 +789,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
             supabase.auth.onAuthStateChange(async (event, session) => {
                 console.log(`Supabase Auth Event: ${event}`, session ? `User: ${session.user.id}` : 'No session');
-                if (event === 'SIGNED_OUT') { currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); document.body.classList.add('is-guest'); setLoading(false); return; }
+                if (event === 'SIGNED_OUT') { 
+                    currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
+                    ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; 
+                    if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
+                    if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
+                    localStorage.removeItem('fakesterGame'); 
+                    screenHistory = ['auth-screen']; showScreen('auth-screen'); 
+                    document.body.classList.add('is-guest'); 
+                    setLoading(false); 
+                    // KORREKTUR: UI-Buttons für Spotify zurücksetzen
+                    elements.home.spotifyConnectBtn?.classList.remove('hidden');
+                    elements.home.createRoomBtn?.classList.add('hidden');
+                    return; 
+                }
                 if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
                      if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id)) {
                           window.initializeAppRunning = true; console.log(`Session available/updated for ${session.user.id}. Initializing app...`); setLoading(true); // Set loading HERE before non-blocking init
                           try { initializeApp(session.user, false); } // Non-blocking now
                           catch(initError) { console.error("Error calling initializeApp:", initError); setLoading(false); showScreen('auth-screen'); }
                           finally { window.initializeAppRunning = false; /* setLoading(false) is now inside initializeApp */ }
-                     } else if (event === 'TOKEN_REFRESHED') { console.log("Token refreshed, checking Spotify status (async)..."); checkSpotifyStatus(); }
+                     } else if (event === 'TOKEN_REFRESHED') { 
+                         console.log("Token refreshed, checking Spotify status (async)..."); 
+                         checkSpotifyStatus(); // Spotify-Status erneut prüfen
+                    }
                      else if (!window.initializeAppRunning) { console.log("App already initialized for this session or init running."); }
                 } else if (!session && !['USER_UPDATED', 'PASSWORD_RECOVERY', 'MFA_CHALLENGE_VERIFIED'].includes(event)) {
                      console.log(`No active session or invalid (Event: ${event}). Showing auth.`);
@@ -662,17 +824,18 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Getting initial session...");
             const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
             if(sessionError){ console.error("Error getting initial session:", sessionError); showScreen('auth-screen'); setLoading(false); }
-            else if (!initialSession) { if (!document.getElementById('auth-screen')?.classList.contains('active')) { console.log("Initial: No session, show auth."); showScreen('auth-screen'); } else { console.log("Initial: No session, auth active."); } setLoading(false); }
+            else if (!initialSession) { 
+                if (!document.getElementById('auth-screen')?.classList.contains('active')) { console.log("Initial: No session, show auth."); showScreen('auth-screen'); } 
+                else { console.log("Initial: No session, auth active."); } 
+                setLoading(false); 
+                checkSpotifyStatus(); // Prüfen, falls ein Gast-Cookie vorhanden ist
+            }
             // If session exists, onAuthStateChange handles init
             
-            // HIER WAR DER FEHLER: 'addEventListeners()' wurde hier aufgerufen, was zu spät war.
-            // addEventListeners(); // <-- Dieser Aufruf wurde entfernt
-
         } catch (error) { console.error("FATAL Supabase init error:", error); document.body.innerHTML = `<div class="fatal-error"><h1>Init Fehler</h1><p>App konnte nicht laden. (${error.message})</p></div>`; setLoading(false); }
     }
 
     // --- Main Execution ---
-    // KORREKTUR: 'addEventListeners' wird jetzt hier, SOFORT aufgerufen.
     addEventListeners();
     initializeSupabase();
 });

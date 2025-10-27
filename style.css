@@ -32,38 +32,38 @@ body:not(.is-guest) .is-guest { display: none !important; }
 .app-header {
     width: 100%; padding: 15px 20px; z-index: 10;
     display: flex; align-items: center; justify-content: space-between; position: relative;
-    border-bottom: 1px solid var(--dark-grey); /* Optional: Kleine Trennlinie */
+    border-bottom: 1px solid var(--dark-grey);
 }
 .logo-container { position: absolute; left: 50%; transform: translateX(-50%); }
 .logo-container h1 { font-size: 1.5rem; color: var(--primary-color); font-weight: 800; letter-spacing: 2px; }
 body:has(#auth-screen.active) .app-header { display: none; }
-.button-leave { background: none; border: none; font-size: 1.5rem; color: var(--text-muted-color); cursor: pointer; z-index: 1; padding: 5px; /* Klickbereich vergrößern */ }
-.app-header .header-icons { display: flex; align-items: center; gap: 15px; } /* Container für rechte Icons/Infos */
+.button-leave { background: none; border: none; font-size: 1.5rem; color: var(--text-muted-color); cursor: pointer; z-index: 1; padding: 5px; }
+.app-header .header-icons { display: flex; align-items: center; gap: 15px; }
 .header-spots { font-size: 0.9rem; font-weight: 700; color: var(--primary-color); }
 
 .screen {
     display: none; flex-grow: 1; flex-direction: column; align-items: center;
     justify-content: flex-start; padding: 20px; width: 100%; overflow-y: auto;
     opacity: 0; visibility: hidden; transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
-    -webkit-overflow-scrolling: touch; /* Flüssigeres Scrollen auf iOS */
+    -webkit-overflow-scrolling: touch;
 }
 #auth-screen { justify-content: center; }
 .screen.active { display: flex; opacity: 1; visibility: visible; }
 
 .container, .auth-container, .home-container, .lobby-container, .game-container {
     width: 100%; max-width: 450px; text-align: center;
-    display: flex; flex-direction: column; gap: 20px; /* Einheitlicher Abstand */
+    display: flex; flex-direction: column; gap: 20px;
 }
 .text-left { text-align: left; }
 h2 { font-size: 1.8rem; margin-bottom: 10px; font-weight: 800; }
-p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 15px; } /* Etwas weniger Abstand */
+p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 15px; }
 
 .button-primary, .button-secondary, .button-danger {
     display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 24px; border: none; border-radius: 50px;
-    font-size: 1rem; /* Leicht größer */ font-weight: 700; cursor: pointer; text-decoration: none; width: 100%; transition: transform 0.1s ease, background-color 0.2s ease;
+    font-size: 1rem; font-weight: 700; cursor: pointer; text-decoration: none; width: 100%; transition: transform 0.1s ease, background-color 0.2s ease;
 }
 .button-primary:active, .button-secondary:active, .button-danger:active { transform: scale(0.97); }
-.button-primary { background-color: var(--primary-color); color: var(--background-color); } /* Besserer Kontrast */
+.button-primary { background-color: var(--primary-color); color: var(--background-color); }
 .button-primary:disabled { background-color: var(--medium-grey); color: var(--dark-grey); cursor: not-allowed; opacity: 0.7; }
 .button-secondary { background-color: var(--dark-grey); color: var(--text-color); }
 .button-danger { background-color: var(--danger-color); color: var(--text-color); }
@@ -71,7 +71,7 @@ p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 15px; } /* 
 .button-icon:hover { background-color: var(--medium-grey); }
 .button-small { padding: 8px 16px; font-size: 0.9rem; width: auto; }
 .button-select {
-    width: 100%; padding: 12px 15px; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); border-radius: 8px; /* Dünnerer Rand */
+    width: 100%; padding: 12px 15px; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); border-radius: 8px;
     color: var(--text-color); font-size: 1rem; text-align: left; font-family: 'Montserrat', sans-serif; cursor: pointer;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     transition: border-color 0.2s ease;
@@ -84,29 +84,28 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .hidden { display: none !important; }
 
 .home-logo-container h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: 2px; color: var(--text-muted-color); margin-bottom: 20px; }
-.auth-form { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; } /* Mehr Abstand */
+.auth-form { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
 .auth-toggle-text { font-size: 0.9rem; margin-top: 15px; }
 .auth-toggle-text a { color: var(--primary-color); text-decoration: none; font-weight: 700; }
-.guest-mode-separator { display: flex; align-items: center; text-align: center; color: var(--text-muted-color); margin: 25px 0; } /* Mehr Abstand */
+.guest-mode-separator { display: flex; align-items: center; text-align: center; color: var(--text-muted-color); margin: 25px 0; }
 .guest-mode-separator::before, .guest-mode-separator::after { content: ''; flex: 1; border-bottom: 1px solid var(--medium-grey); }
-.guest-mode-separator:not(:empty)::before { margin-right: .5em; } /* Mehr Abstand */
+.guest-mode-separator:not(:empty)::before { margin-right: .5em; }
 .guest-mode-separator:not(:empty)::after { margin-left: .5em; }
 
 .home-container { justify-content: flex-start; }
 .profile-section {
-    display: flex; align-items: center; gap: 15px; width: 100%; /* Kleinerer Gap */
-    padding: 15px; border-radius: var(--border-radius); /* Kleineres Padding */
-    background-color: var(--surface-color); /* Hintergrund für die Box */
-    /* border: 1px solid var(--dark-grey); */ /* Optionaler Rand */
+    display: flex; align-items: center; gap: 15px; width: 100%;
+    padding: 15px; border-radius: var(--border-radius);
+    background-color: var(--surface-color);
 }
 .profile-picture { width: 50px; height: 50px; border-radius: 50%; background-color: var(--dark-grey); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--text-muted-color); flex-shrink: 0; border: none; cursor: pointer; }
-.profile-info { text-align: left; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 4px; /* Kleinerer Gap */ }
+.profile-info { text-align: left; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 4px; }
 .username-container { position: relative; display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.username-container h2 { margin-bottom: 0; /* white-space: nowrap; <-- Entfernt */ overflow: visible; /* Erlaubt Umbruch */ text-overflow: clip; /* Kein Ellipsis mehr nötig */ font-size: 1.4rem; line-height: 1.3; min-width: 0; }
+.username-container h2 { margin-bottom: 0; overflow: visible; text-overflow: clip; font-size: 1.4rem; line-height: 1.3; min-width: 0; }
 .edit-icon { font-size: 0.8rem; color: var(--text-muted-color); flex-shrink: 0; }
 .profile-title-button { background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
 .profile-title { font-size: 0.8rem; font-weight: 700; color: var(--primary-color); background: #1db95420; padding: 3px 8px; border-radius: 20px; display: inline-block; }
-.profile-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; } /* Icons anpassen */
+.profile-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 
 .level-progress-container { background: none; border: none; padding: 0; width: 100%; cursor: pointer; text-align: left; margin-top: 5px; }
 .level-text { font-size: 0.8rem; color: var(--text-muted-color); font-weight: 700; margin-bottom: 2px; display: block; }
@@ -125,14 +124,94 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 
 .corner-button { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background-color: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; font-size: 1rem; z-index: 100; cursor: pointer; display: flex !important; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 
-/* ... (Stats Screen, Item/Icon/Title Selection Screens bleiben ähnlich) ... */
-.stats-full-grid, .icon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; }
-.stat-card, .title-card, .icon-card { /* ... */ }
-.title-card.locked, .icon-card.locked { /* ... */ }
-.title-card.locked::after, .icon-card.locked::after { /* ... */ }
-.title-card:not(.locked), .icon-card:not(.locked) { /* ... */ }
-.title-card.equipped, .icon-card.equipped { /* ... */ }
-.icon-card .icon-preview { /* ... */ }
+/* --- NEU: STATS, TITEL & ICON KARTEN --- */
+.stats-full-grid, .selection-grid, .icon-grid { 
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+    gap: 15px; 
+}
+.icon-grid {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+}
+.stat-card, .achievement-card {
+    background-color: var(--surface-color);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    text-align: left;
+}
+.stat-card .stat-value, .achievement-card .stat-value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--primary-color);
+    display: block;
+    margin-bottom: 5px;
+}
+.stat-card .stat-label, .achievement-card .stat-label {
+    font-size: 0.8rem;
+    color: var(--text-muted-color);
+    text-transform: uppercase;
+    font-weight: 700;
+}
+.achievement-card {
+    display: flex; flex-direction: column; gap: 10px;
+    border: 1px solid var(--dark-grey);
+    opacity: 0.5;
+}
+.achievement-card.unlocked {
+    opacity: 1;
+    border-color: var(--primary-color);
+    background-color: #1db9541a;
+}
+.achievement-card h3 { font-size: 1.1rem; margin: 0; }
+.achievement-card p { font-size: 0.9rem; margin: 0; color: var(--text-muted-color); }
+.achievement-card .reward { font-size: 0.9rem; font-weight: 700; color: var(--primary-color); }
+
+.title-card, .icon-card {
+    background-color: var(--surface-color);
+    border: 2px solid var(--surface-color);
+    border-radius: var(--border-radius);
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 120px;
+}
+.title-card.locked, .icon-card.locked {
+    background-color: var(--dark-grey);
+    opacity: 0.5;
+    cursor: not-allowed;
+    position: relative;
+}
+.title-card.locked::after, .icon-card.locked::after {
+    content: '\f023'; /* FontAwesome Lock Icon */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 0.8rem;
+    color: var(--text-muted-color);
+}
+.title-card:not(.locked):hover, .icon-card:not(.locked):hover {
+    border-color: var(--primary-color);
+}
+.title-card.equipped, .icon-card.equipped {
+    border-color: var(--primary-color);
+    background-color: #1db95420;
+    box-shadow: 0 0 10px #1db95480;
+}
+.title-card .title-name, .icon-card .title-name { font-weight: 700; }
+.title-card .title-desc, .icon-card .title-desc { font-size: 0.8rem; color: var(--text-muted-color); }
+.icon-card .icon-preview {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    line-height: 1;
+}
 
 /* Level Fortschritt */
 .level-progress-list { display: flex; flex-direction: column; gap: 15px; }
@@ -145,27 +224,23 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .reward-item { display: flex; align-items: center; gap: 10px; background-color: var(--dark-grey); padding: 8px 12px; border-radius: 8px; }
 .reward-item i { font-size: 1rem; color: var(--primary-color); width: 20px; text-align: center;}
 .reward-item span { font-size: 0.9rem; font-weight: 700; }
-.no-reward { font-size: 0.8rem; color: var(--text-muted-color); font-style: italic;}
+.no-reward { font-size: 0.8rem; color: var(--text-muted-color); font-style: italic; margin-left: 30px;}
 
-
-/* ... (Game Screen, Mode Selection, Game Type Selection bleiben ähnlich) ... */
 
 /* Lobby Screen */
-.lobby-container { /* ... */ }
-.lobby-header { /* ... */ }
 .lobby-players-container { width: 100%; text-align: left; }
 .lobby-players-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-.player-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; /* Kleinerer Gap */ }
+.player-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .player-card { background-color: var(--dark-grey); padding: 12px; border-radius: var(--border-radius); display: flex; align-items: center; gap: 10px; position: relative; overflow: hidden;}
 .player-card.new { animation: slideIn 0.5s ease-out forwards; }
-.player-card.disconnected::after { content: 'Offline'; /* ... */ }
+.player-card.disconnected::after { content: 'Offline'; position: absolute; top:0; left:0; right:0; bottom:0; background: #000000a0; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; }
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-.player-card .player-icon { font-size: 1.2rem; /* Kleiner */ }
+.player-card .player-icon { font-size: 1.2rem; }
 .player-card .player-icon.host { color: var(--primary-color); }
 .player-card .player-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.9rem; }
 #host-settings { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--dark-grey); width: 100%; display: flex; flex-direction: column; gap: 15px; }
 #host-settings h3 { text-align: left; margin-bottom: 5px; font-size: 1.1rem; color: var(--text-muted-color); }
-.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; } /* Grid für Einstellungen */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
 .setting { text-align: left; display: flex; flex-direction: column; gap: 8px; }
 .setting label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text-muted-color); }
 .help-icon { color: var(--medium-grey); cursor: help; }
@@ -175,15 +250,14 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .preset-button.active { background-color: var(--primary-color); border-color: var(--primary-color); color: var(--background-color); }
 .button-start { padding: 15px; font-size: 1.1rem; }
 
-/* ### START FEHLENDER BLOCK ### */
-/* KORREKTUR: Die gesamten Modal-Styles haben gefehlt */
+/* --- MODALS (REPARIERT) --- */
 .modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.7); /* Dunkler Overlay */
+    background-color: rgba(0, 0, 0, 0.7);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -193,7 +267,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     transition: opacity 0.3s ease, visibility 0.3s ease;
     padding: 20px;
 }
-/* :not(.hidden) statt .active, um mit deinem JS zu funktionieren */
 .modal-overlay:not(.hidden) {
     opacity: 1;
     visibility: visible;
@@ -203,20 +276,27 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     padding: 25px;
     border-radius: var(--border-radius);
     width: 100%;
-    max-width: 450px; /* Passt zum restlichen Layout */
+    max-width: 450px;
     text-align: left;
     position: relative;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     transform: scale(0.95);
     transition: transform 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Einheitlicher Abstand im Modal */
 }
 .modal-overlay:not(.hidden) .modal {
     transform: scale(1);
 }
 .modal h2 {
     margin-top: 0;
-    margin-bottom: 20px;
-    text-align: center; /* Zentriert im Modal-Header */
+    margin-bottom: 0; /* Weniger Abstand */
+    text-align: center;
+}
+.modal p {
+    margin-bottom: 0; /* Weniger Abstand */
+    text-align: center;
 }
 .button-exit-modal {
     position: absolute;
@@ -230,122 +310,178 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     line-height: 1;
     padding: 5px;
 }
-/* ### ENDE FEHLENDER BLOCK ### */
+.pin-display { display: flex; gap: 10px; justify-content: center; margin: 15px 0; }
+.pin-digit { width: 50px; height: 60px; background: var(--dark-grey); border: 1px solid var(--medium-grey); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 700; }
+.numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.numpad button { padding: 15px; font-size: 1.5rem; font-weight: 700; background: var(--dark-grey); border: none; border-radius: 8px; color: var(--text-color); cursor: pointer; }
+.numpad button:active { background-color: var(--medium-grey); }
+.numpad button[data-action="confirm"]:disabled { color: var(--medium-grey); }
 
-/* ... (Loading Overlay, Countdown bleiben gleich) ... */
+.selection-modal .selection-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+/* --- Lade-Animation (REPARIERT) --- */
+.loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.spinner { width: 50px; height: 50px; border: 5px solid var(--dark-grey); border-top-color: var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.countdown-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9998; font-size: 8rem; font-weight: 800; color: var(--primary-color); }
+
 
 /* Freunde Modal */
-.friends-modal .tabs { /* ... */ }
-.friends-modal .tab-button { /* ... */ }
-.friends-modal .tab-content { /* ... */ }
-.friends-modal .add-friend-form { /* ... */ }
+.friends-modal .tabs { display: flex; width: 100%; border-bottom: 1px solid var(--dark-grey); }
+.friends-modal .tab-button { flex: 1; background: none; border: none; color: var(--text-muted-color); padding: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; border-bottom: 2px solid transparent; }
+.friends-modal .tab-button.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+.friends-modal .tab-content { display: none; margin-top: 15px; }
+.friends-modal .tab-content.active { display: block; }
+.friends-modal .add-friend-form { display: flex; gap: 10px; }
+.friends-modal .add-friend-form input { flex-grow: 1; }
+.friends-modal .add-friend-form button { width: auto; padding: 0 15px; }
 .friends-modal ul { list-style: none; display: flex; flex-direction: column; gap: 10px; max-height: 40vh; overflow-y: auto; padding-right: 5px; }
 .friends-modal li { display: flex; align-items: center; justify-content: space-between; background-color: var(--dark-grey); padding: 10px 15px; border-radius: 8px; }
 .friends-modal .friend-info { text-align: left; }
 .friends-modal .friend-status { font-size: 0.8rem; color: var(--text-muted-color); }
 .friends-modal .friend-status.online { color: var(--primary-color); font-weight: 700;}
-.friends-modal .friend-actions { display: flex; gap: 8px; } /* Kleinerer Gap */
-.friends-modal .friend-actions button { width: 35px; height: 35px; font-size: 0.9rem; padding: 0; } /* Sicherstellen, dass Icons passen */
-.badge { /* ... */ }
+.friends-modal .friend-actions { display: flex; gap: 8px; }
+.friends-modal .friend-actions button { width: 35px; height: 35px; font-size: 0.9rem; padding: 0; }
+.badge { background-color: var(--danger-color); color: white; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-left: 5px; }
 
-/* ... (Invite Popup bleibt gleich) ... */
+/* Invite Popup */
+.invite-popup { position: fixed; bottom: 90px; left: 20px; right: 20px; background: var(--surface-color); border-left: 4px solid var(--primary-color); padding: 15px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 1001; display: flex; justify-content: space-between; align-items: center; gap: 10px; transform: translateY(150%); animation: slideInUp 0.5s ease-out forwards; }
+@keyframes slideInUp { to { transform: translateY(0); } }
+.invite-popup p { margin: 0; font-size: 0.9rem; }
+.invite-popup .invite-actions { display: flex; gap: 10px; }
 
-/* ... (On-Page Konsole bleibt gleich) ... */
 
-
-/* ==================
-   Spots & Shop Styles (NEU/Aktualisiert)
-   ================== */
-
-/* Spots Anzeige im Header */
-.header-spots {
-    font-size: 1rem; /* Größer im Header */
-    font-weight: 700;
-    color: var(--primary-color);
+/* --- ON-PAGE KONSOLE (REPARIERT) --- */
+.on-page-console {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 40dvh;
+    background-color: #0A0A0A;
+    border-top: 1px solid var(--dark-grey);
+    z-index: 9998;
+    display: flex;
+    flex-direction: column;
 }
-.header-spots span { font-weight: 800; }
-
-/* Shop Screen */
-#shop-screen .container { gap: 25px; }
-.shop-header {
+.console-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--dark-grey);
-    padding-bottom: 10px;
-    margin-bottom: 5px; /* Weniger Abstand nach Header */
+    padding: 8px 12px;
+    background-color: var(--dark-grey);
+    font-weight: 700;
+    font-size: 0.9rem;
 }
+.console-header span { color: var(--primary-color); }
+.console-header div { display: flex; gap: 5px; }
+.console-header button { background: none; border: none; color: var(--text-muted-color); font-size: 1rem; cursor: pointer; padding: 5px; width: 30px; height: 30px; }
+.console-output {
+    flex-grow: 1;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 0.8rem;
+    padding: 10px;
+    color: var(--text-muted-color);
+}
+.console-output div { padding: 2px 0; border-bottom: 1px solid #222; }
+.console-output .log-error pre { color: var(--danger-color); }
+.console-output .log-warn pre { color: #f0ad4e; }
+.console-output pre { white-space: pre-wrap; word-wrap: break-word; margin: 0; }
+
+.toggle-console-btn {
+    position: fixed;
+    bottom: 20px;
+    left: 20px; /* Position unten links */
+    width: 50px;
+    height: 50px;
+    background-color: var(--dark-grey);
+    color: var(--text-muted-color);
+    border: none;
+    border-radius: 50%;
+    font-size: 1rem;
+    z-index: 100;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+
+/* ==================
+   Spots & Shop Styles (REPARIERT & UMGEBAUT)
+   ================== */
+
+.header-spots { font-size: 1rem; font-weight: 700; color: var(--primary-color); }
+.header-spots span { font-weight: 800; }
+#shop-screen .container { gap: 25px; }
+.shop-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--dark-grey); padding-bottom: 10px; margin-bottom: 5px; }
 .shop-header h2 { margin-bottom: 0; }
-.shop-header .spots-display { font-size: 1.1rem; } /* Spots im Shop Header */
+.shop-header .spots-display { font-size: 1.1rem; }
 
 .shop-section { width: 100%; }
 .shop-section h3 { margin-bottom: 15px; padding-bottom: 8px; color: var(--text-muted-color); font-size: 1.1rem; text-align: left; }
 
-/* KORREKTUR: Die 'auto-fit' Regel ist jetzt die Standardregel */
-.shop-items-grid { 
-    display: grid; 
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
-    gap: 15px; 
+/* NEU: Container für horizontales Scrollen */
+.shop-items-container {
+    overflow-x: auto;
+    white-space: nowrap; /* Verhindert Zeilenumbruch der Grid-Items */
+    padding-bottom: 15px; /* Platz für Scrollbar */
+    margin-left: -20px; /* Nutzt vollen Bildschirmrand */
+    margin-right: -20px; /* Nutzt vollen Bildschirmrand */
+    padding-left: 20px;
+    padding-right: 20px;
 }
-/* KORREKTUR: 'icon-grid' nutzt 'auto-fit' mit 100px */
-.shop-items-grid.icon-grid { 
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); 
+/* Firefox Scrollbar */
+.shop-items-container { scrollbar-color: var(--medium-grey) var(--dark-grey); scrollbar-width: thin; }
+/* Webkit (Chrome, Safari) Scrollbar */
+.shop-items-container::-webkit-scrollbar { height: 8px; }
+.shop-items-container::-webkit-scrollbar-track { background: var(--dark-grey); border-radius: 4px; }
+.shop-items-container::-webkit-scrollbar-thumb { background-color: var(--medium-grey); border-radius: 4px; }
+
+/* NEU: Grid für horizontales Scrollen */
+.shop-items-grid.horizontal-scroll {
+    display: grid;
+    grid-auto-flow: column; /* Das ist der Trick! */
+    grid-auto-columns: minmax(150px, 1fr); /* Breite der Karten */
+    gap: 15px;
+    display: inline-grid; /* Wichtig für white-space: nowrap */
+}
+/* Kleinere Karten für Icons & Farben */
+.shop-items-grid.horizontal-scroll#shop-icons-list,
+.shop-items-grid.horizontal-scroll#shop-colors-list {
+    grid-auto-columns: minmax(110px, 1fr);
 }
 
 .shop-item {
     background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); text-align: center;
-    border: 1px solid var(--dark-grey); /* Dezenterer Rand */
+    border: 1px solid var(--dark-grey);
     display: flex; flex-direction: column; justify-content: space-between; gap: 8px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease; min-height: 190px; /* Mehr Höhe */
+    transition: transform 0.2s ease, box-shadow 0.2s ease; 
+    min-height: 190px;
+    width: 100%; /* Wichtig für Grid */
+    white-space: normal; /* Textumbruch in Karten erlauben */
 }
 .shop-item:hover { transform: translateY(-4px); box-shadow: 0 6px 15px rgba(0,0,0,0.3); }
 
 .shop-item.owned { opacity: 0.6; background-color: var(--dark-grey); pointer-events: none; }
 .shop-item.owned .buy-button { background-color: var(--medium-grey); }
-.shop-item.cannot-afford { border-left: 4px solid var(--danger-color); padding-left: 11px; } /* Markierung links */
+.shop-item.cannot-afford { border-left: 4px solid var(--danger-color); padding-left: 11px; }
 .shop-item.cannot-afford .buy-button { opacity: 0.7; }
 
 .shop-item .item-name { font-size: 1rem; font-weight: 700; color: var(--text-color); margin-bottom: 5px; }
 .shop-item .item-description { font-size: 0.75rem; color: var(--text-muted-color); flex-grow: 1; margin-bottom: 10px; line-height: 1.4; }
 .shop-item .item-cost { font-size: 1.1rem; font-weight: 800; color: var(--primary-color); margin-top: auto; }
 .shop-item .buy-button { width: 100%; margin-top: 10px; font-size: 0.9rem; padding: 10px 15px; }
-.shop-item .buy-button:disabled:not(.owned .buy-button) { background-color: var(--medium-grey); cursor: not-allowed; opacity: 0.7; } /* Styling für disabled (zu teuer) */
-
+.shop-item .buy-button:disabled:not(.owned .buy-button) { background-color: var(--medium-grey); cursor: not-allowed; opacity: 0.7; }
 
 /* Shop Item Previews */
 .shop-item .item-preview-icon { font-size: 2.5rem; margin: 5px 0 10px 0; color: var(--primary-color); line-height: 1; }
 .shop-item .item-preview-background { width: 100%; padding-bottom: 56.25%; background-size: cover; background-position: center; border-radius: 8px; margin-bottom: 10px; border: 1px solid var(--dark-grey); background-color: var(--dark-grey); }
-
-
-/* ==================
-   Reaktionen & Gifting (Unverändert)
-   ================== */
-.reaction-buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 20px auto 0 auto; max-width: 300px; }
-.reaction-btn { font-size: 1.4rem; width: 45px; height: 45px; background-color: var(--dark-grey); transition: transform 0.1s ease; }
-.reaction-btn:active { transform: scale(0.9); }
-.player-reaction-popup { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); font-size: 1.8rem; animation: floatUpAndFade 1.5s ease-out forwards; pointer-events: none; z-index: 10; text-shadow: 0 0 5px rgba(0,0,0,0.5); }
-@keyframes floatUpAndFade { 0% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -40px); } }
-.button-gift { color: var(--primary-color); width: 35px; height: 35px; font-size: 0.9rem; padding: 0; }
-
-/* ==================
-   Lobby Hintergrund (Unverändert)
-   ================== */
-#lobby-screen { background-image: none; background-size: cover; background-position: center; transition: background-image 0.5s ease-in-out; }
-#background-select-modal-overlay .selection-list button.button-select { width: 100%; text-align: left; margin-bottom: 5px; }
-
-/* Hilfsklasse für fehlende Belohnung im Level Fortschritt */
-.no-reward {
-     font-size: 0.8rem;
-     color: var(--text-muted-color);
-     font-style: italic;
-     margin-left: 30px; /* Einrücken wie andere Belohnungen */
-}
-
-/* ### START HINZUGEFÜGTER BLOCK ### */
-/* NEU: Styling für die Farbfelder im Shop */
 .shop-item .item-preview-color {
     width: 100%;
-    height: 80px; /* Höhe anpassen, wie du magst */
+    height: 80px;
     border-radius: 8px;
     margin-bottom: 10px;
     border: 1px solid var(--dark-grey);
@@ -353,14 +489,19 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     align-items: center;
     justify-content: center;
     font-size: 2.5rem;
-    color: rgba(255, 255, 255, 0.5); /* Icon-Farbe */
+    color: rgba(255, 255, 255, 0.5);
     text-shadow: 0 0 5px rgba(0,0,0,0.5);
-    background-clip: padding-box; /* Stellt sicher, dass der Rand nicht übermalt wird */
+    background-clip: padding-box;
 }
 
-/* KORREKTUR: Eigene (kleinere) Spalten für die Farbenliste, damit 3+ passen */
-#shop-colors-list {
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-}
+/* Reaktionen & Gifting */
+.reaction-buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 20px auto 0 auto; max-width: 300px; }
+.reaction-btn { font-size: 1.4rem; width: 45px; height: 45px; background-color: var(--dark-grey); transition: transform 0.1s ease; }
+.reaction-btn:active { transform: scale(0.9); }
+.player-reaction-popup { position: absolute; top: -15px; left: 50%; transform: translateX(-50%); font-size: 1.8rem; animation: floatUpAndFade 1.5s ease-out forwards; pointer-events: none; z-index: 10; text-shadow: 0 0 5px rgba(0,0,0,0.5); }
+@keyframes floatUpAndFade { 0% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -40px); } }
+.button-gift { color: var(--primary-color); width: 35px; height: 35px; font-size: 0.9rem; padding: 0; }
 
-/* KORREKTUR: Der falsche FIX am Ende der Datei wurde entfernt. */
+/* Lobby Hintergrund */
+#lobby-screen { background-image: none; background-size: cover; background-position: center; transition: background-image 0.5s ease-in-out; }
+#background-select-modal-overlay .selection-list button.button-select { width: 100%; text-align: left; margin-bottom: 5px; }

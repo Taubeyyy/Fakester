@@ -1,4 +1,4 @@
-// server.js - FINAL VERSION
+// server.js - FINAL VERSION (Mit echten Spotify URLs)
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -26,7 +26,6 @@ const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 process.on('uncaughtException', (err, origin) => {
     console.error(`SERVER Uncaught Exception: ${err?.stack || err}`);
     console.error(`Origin: ${origin}`);
-    // Potentially exit gracefully in production: process.exit(1);
 });
 process.on('unhandledRejection', (reason, promise) => {
     console.error('SERVER Unhandled Rejection at:', promise, 'reason:', reason);
@@ -42,25 +41,24 @@ app.use(express.static(__dirname));
 app.use(cookieParser());
 app.use(express.json());
 
-// --- Authentication Middleware (Improved Placeholder - NEEDS SECURE JWT VALIDATION!) ---
+// --- Authentication Middleware ---
 const authenticateUser = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     let userId = null;
-    console.log("Auth Middleware: Header =", authHeader); // Log header
+    console.log("Auth Middleware: Header =", authHeader); 
     if (authHeader && authHeader.startsWith('Bearer ')) {
-        const jwt = authHeader.substring(7); // Remove 'Bearer ' prefix
+        const jwt = authHeader.substring(7); 
         try {
-            console.log("Auth Middleware: Validating token..."); // Log validation attempt
-            // Use supabaseAnon (with Anon Key) to validate the user's JWT
+            console.log("Auth Middleware: Validating token..."); 
             const { data: { user }, error } = await supabaseAnon.auth.getUser(jwt);
             if (error) {
                 console.warn('Auth Middleware: Invalid JWT:', error.message);
             } else if (user) {
-                req.user = user; // Attach user object to request
+                req.user = user; 
                 userId = user.id;
                 console.log(`Auth Middleware: Authenticated user ${userId}`);
             } else {
-                 console.warn('Auth Middleware: Token valid but no user found?'); // Log if user is null despite valid token
+                 console.warn('Auth Middleware: Token valid but no user found?'); 
             }
         } catch (e) {
             console.error('Auth Middleware: Error validating JWT:', e);
@@ -68,50 +66,33 @@ const authenticateUser = async (req, res, next) => {
     } else {
         console.log("Auth Middleware: No Bearer token found.");
     }
-    // Attach userId (or null) directly for easier access in routes
     req.userId = userId;
     next();
 };
-// Apply middleware ONLY to routes that absolutely require authentication
-// Public routes like /api/config should NOT use this middleware if accessed before login
-// Apply specifically where needed, e.g., app.post('/api/shop/buy', authenticateUser, async (req, res) => {...});
-// Or apply to a group:
+
 const apiRouter = express.Router();
-apiRouter.use(authenticateUser); // Apply auth to all routes defined *on apiRouter*
-// Define protected routes on apiRouter:
-// apiRouter.get('/shop/items', async (req, res) => { ... }); // Shop items might need user ID for 'owned' status
+apiRouter.use(authenticateUser); 
 apiRouter.post('/shop/buy', async (req, res) => { /* ... buy logic ... */ });
 apiRouter.post('/friends/gift', async (req, res) => { /* ... gift logic ... */ });
-// Mount the authenticated router
 app.use('/api', apiRouter);
 
 
 let games = {};
-const onlineUsers = new Map(); // Maps userId to WebSocket object
+const onlineUsers = new Map(); 
 const HEARTBEAT_INTERVAL = 30000;
 
-// ### START GEÄNDERTER BLOCK ###
-// --- Shop Data (Could be loaded from DB) ---
+// --- Shop Data ---
 const shopItems = [
-    // Titel (Unverändert)
     { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Zeige allen dein Wissen!' },
     { id: 102, type: 'title', name: 'Playlist-Meister', cost: 150, unlockType: 'spots', description: 'Für echte Kenner.' },
-    
-    // Icons (FIX: 'name' hinzugefügt)
     { id: 201, type: 'icon', name: 'Diamant', iconClass: 'fa-diamond', cost: 250, unlockType: 'spots', description: 'Ein glänzendes Icon.' },
     { id: 202, type: 'icon', name: 'Zauberhut', iconClass: 'fa-hat-wizard', cost: 300, unlockType: 'spots', description: 'Magisch!' },
-    
-    // Hintergründe (Unverändert)
     { id: 301, type: 'background', name: 'Synthwave', imageUrl: '/assets/img/bg_synthwave.jpg', cost: 500, unlockType: 'spots', description: 'Retro-Vibes.', backgroundId: '301' },
     { id: 302, type: 'background', name: 'Konzertbühne', imageUrl: '/assets/img/bg_stage.jpg', cost: 600, unlockType: 'spots', description: 'Fühl dich wie ein Star.', backgroundId: '302' },
-    
-    // NEU: Namensfarben (Consumable ersetzt)
     { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' },
     { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' },
     { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }
 ];
-// ### ENDE GEÄNDERTER BLOCK ###
-
 
 // --- Helper Functions ---
 function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws?.playerId, nickname: p.nickname, score: p.score, lives: p.lives, isConnected: p.isConnected, lastPointsBreakdown: p.lastPointsBreakdown })).filter(p => p.id).sort((a, b) => b.score - a.score); }
@@ -305,7 +286,7 @@ async function handleWebSocketMessage(ws, data) {
         // Assign info on relevant messages
         if (type === 'register-online') { playerId = payload.userId; nickname = payload.username; ws.playerId = playerId; ws.nickname = nickname; onlineUsers.set(playerId, ws); console.log(`User ${playerId} (${nickname || 'N/A'}) registered.`); return; }
         if (type === 'create-game') { playerId = payload.user?.id; nickname = payload.user?.username; ws.playerId = playerId; ws.nickname = nickname; /* continue to switch */ }
-        if (type === 'join-game') { playerId = payload.user?.id; nickname = payload.user?.username; ws.playerId = playerId; ws.nickname = nickname; ws.pin = payload.pin; /* continue to switch */ }
+        if (type === 'join-game') { playerId = payload.user?.id; nickname = payload.user?.username; ws.playerId = playerId; ws.nickname = nickname; ws.pin = payload.pin; /* continue toswitch */ }
         if (type === 'reconnect') { /* ... handle reconnect ... */ return; }
 
         // Reactions
