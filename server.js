@@ -197,19 +197,54 @@ apiRouter.get('/shop/items', async (req, res) => { // Use apiRouter
     res.json({ items: itemsWithOwnership });
 });
 
-apiRouter.post('/shop/buy', async (req, res) => { // Use apiRouter
+// ### START ERSETZTER BLOCK ###
+apiRouter.post('/shop/buy', async (req, res) => { // Nutzt apiRouter und auth middleware
     const { itemId } = req.body;
-    const userId = req.userId;
-    if (!userId) { return res.status(401).json({ success: false, message: "Nicht eingeloggt (Server)" }); } // Should be caught by middleware ideally
-    const itemToBuy = shopItems.find(item => item.id === itemId);
-    if (!itemToBuy || itemToBuy.unlockType !== 'spots') { return res.status(400).json({ success: false, message: "Item nicht kaufbar." }); }
+    const userId = req.userId; // KORREKT! Du nutzt req.userId aus deiner Middleware
+
+    if (!userId) {
+        return res.status(401).json({ success: false, message: "Nicht eingeloggt (Server)" });
+    }
+
+    // KORREKT! Wir nutzen deine vorhandene 'shopItems' Liste
+    const itemToBuy = shopItems.find(item => item.id == itemId);
+
+    if (!itemToBuy || itemToBuy.unlockType !== 'spots') {
+        return res.status(400).json({ success: false, message: "Item nicht kaufbar." });
+    }
 
     try {
-        const { data, error } = await supabase.rpc('purchase_item', { /* ... RPC params ... */ });
-        if (error || (data && !data.success)) { /* ... Handle RPC errors ... */ }
-        else { res.json({ success: true, newSpots: data.newSpots, purchasedItem: itemToBuy }); }
-    } catch (error) { /* ... Handle server errors ... */ }
+        // WICHTIG: Wir rufen die RPC-Funktion 'purchase_item' auf
+        // (die du in Schritt 3 in Supabase erstellst)
+        const { data, error } = await supabase.rpc('purchase_item', {
+            p_user_id: userId,
+            p_item_id: itemToBuy.id.toString(), // ID als Text (z.B. '101', '301')
+            p_item_type: itemToBuy.type,
+            p_item_cost: itemToBuy.cost,
+            // 'itemId' (z.B. 'double_points_1r') für Consumables, sonst 'id'
+            p_storage_id: itemToBuy.itemId || itemToBuy.id.toString() 
+        });
+
+        if (error) {
+            // Fehler von der DB (z.B. "Nicht genug Spots.")
+            console.error(`Supabase RPC 'purchase_item' Error:`, error.message);
+            return res.status(400).json({ success: false, message: error.message });
+        }
+
+        // Erfolg! 'data' ist der Rückgabewert (neue Spots)
+        res.json({
+            success: true, // success-Flag für Konsistenz, obwohl der Client es nicht prüft
+            message: `"${itemToBuy.name}" erfolgreich gekauft!`, // Eigene Erfolgsnachricht
+            newSpots: data, // Die neuen Spots von der DB
+            itemType: itemToBuy.type // Wichtig für den Client
+        });
+
+    } catch (err) {
+        console.error('Server-Fehler in /api/shop/buy:', err);
+        res.status(500).json({ success: false, message: 'Interner Serverfehler.' });
+    }
 });
+// ### ENDE ERSETZTER BLOCK ###
 
 // --- GIFTING API Route (now using apiRouter with auth middleware) ---
 apiRouter.post('/friends/gift', async (req, res) => { // Use apiRouter

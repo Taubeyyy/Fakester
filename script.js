@@ -105,6 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: '401', name: 'Doppelte Punkte (1 Runde)', itemId: 'double_points_1r', cost: 50, unlockType: 'spots', unlockValue: 50, type: 'consumable', description: 'Verdoppelt deine Punkte.' },
     ];
     const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...consumablesList]; // Kombinierte Liste für einfachen Zugriff
+    
+    // Mache Listen global verfügbar, damit loadShopItems sie finden kann
+    window.titlesList = titlesList;
+    window.iconsList = iconsList;
+    window.backgroundsList = backgroundsList;
+    window.consumablesList = consumablesList;
+    window.allItems = allItems;
 
     const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
@@ -228,8 +235,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // === DATEN IM HINTERGRUND LADEN (nur für eingeloggte User) ===
         if (!isGuest && supabase) {
             console.log("Fetching profile, owned items, achievements, and Spotify status in background...");
+            // ### HINWEIS: Dieser Teil muss an deine 'user_owned_items' Tabelle angepasst werden! ###
+            // Dein aktueller Code holt 'user_owned_titles', 'user_owned_icons', etc.
+            // Wenn du auf 'user_owned_items' umstellst, muss dieser Lade-Vorgang angepasst werden.
             Promise.all([
                 supabase.from('profiles').select('*').eq('id', user.id).single(),
+                // LÄDT NOCH ALTE TABELLEN! MUSS ANGEPASST WERDEN, WENN DU UMSTELLST.
                 supabase.from('user_owned_titles').select('title_id').eq('user_id', user.id),
                 supabase.from('user_owned_icons').select('icon_id').eq('user_id', user.id),
                 supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', user.id),
@@ -298,10 +309,192 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updatePlayerProgress() { /* ... holt jetzt Profil komplett neu ... */ }
     function updateStatsDisplay() { /* ... bleibt gleich ... */ }
 
+    // ### START ERSETZTER BLOCK ###
     // --- NEU: Shop Funktionen ---
-    async function loadShopItems() { /* ... bleibt gleich, holt Token sicher ... */ }
-    function renderShopItem(item) { /* ... bleibt gleich, prüft Besitz/Kosten ... */ }
-    async function handleBuyItem(itemId) { /* ... bleibt gleich, nutzt Auth Token ... */ }
+
+    async function loadShopItems() {
+        console.log("Loading shop items...");
+        if (!userProfile) { 
+            console.error("Cannot load shop, userProfile is missing."); 
+            return; 
+        }
+
+        // Holt die Daten aus den globalen Listen (die schon in script.js existieren)
+        const { titlesList, iconsList, backgroundsList, consumablesList } = window;
+        const userSpots = userProfile.spots ?? 0;
+        
+        // Kontostand im Shop-Header aktualisieren
+        if(elements.shop.spotsBalance) elements.shop.spotsBalance.textContent = userSpots; 
+
+        // Helper-Funktion, um eine Item-Liste zu rendern
+        const renderList = (listElement, items, itemType) => {
+            if (!listElement) {
+                 console.warn(`Shop list element for type ${itemType} not found.`);
+                 return;
+            }
+            
+            let html = '';
+            // Nur Items anzeigen, die man mit Spots kaufen kann
+            const shopItems = items.filter(item => item.unlockType === 'spots');
+
+            if (shopItems.length === 0) {
+                listElement.innerHTML = '<p class="text-muted" style="text-align: center; grid-column: 1 / -1;">Keine Items in dieser Kategorie verfügbar.</p>';
+                return;
+            }
+
+            shopItems.forEach(item => {
+                let isOwned = false;
+                // Prüfen, ob der User das Item schon besitzt
+                if (itemType === 'title') isOwned = ownedTitleIds.has(item.id);
+                else if (itemType === 'icon') isOwned = ownedIconIds.has(item.id);
+                else if (itemType === 'background') isOwned = ownedBackgroundIds.has(item.backgroundId);
+                // Consumables (Verbrauchsgegenstände) sind nie "owned"
+                
+                html += renderShopItem(item, userSpots, isOwned);
+            });
+            listElement.innerHTML = html;
+        };
+
+        // Alle Shop-Sektionen rendern
+        renderList(elements.shop.titlesList, titlesList, 'title');
+        renderList(elements.shop.iconsList, iconsList, 'icon');
+        renderList(elements.shop.backgroundsList, backgroundsList, 'background');
+        renderList(elements.shop.consumablesList, consumablesList, 'consumable');
+    }
+
+    function renderShopItem(item, userSpots, isOwned) {
+        const canAfford = userSpots >= item.cost;
+        const classList = ['shop-item'];
+        
+        // Logik für "Besessen" oder "Nicht leistbar"
+        // Gilt nicht für Consumables, die kann man immer wieder kaufen
+        if (item.type !== 'consumable') {
+            if (isOwned) classList.push('owned');
+            else if (!canAfford) classList.push('cannot-afford');
+        }
+
+        let previewHtml = '';
+        // Vorschau basierend auf Item-Typ generieren
+        if (item.type === 'icon') {
+            previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass || 'fa-question'}"></i></div>`;
+        } else if (item.type === 'background') {
+            const bgStyle = item.imageUrl ? `style="background-image: url('${item.imageUrl}')"` : 'style="background-color: var(--dark-grey);"';
+            previewHtml = `<div class="item-preview-background" ${bgStyle}></div>`;
+        } else if (item.type === 'consumable') {
+            previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-box-open"></i></div>`; // Standard-Icon für Consumables
+        } else if (item.type === 'title') {
+            previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-tags"></i></div>`; // Standard-Icon für Titel
+        }
+
+        let buttonHtml = '';
+        const itemId = item.id; // Eindeutige ID (z.B. 101, 201, 301, 401)
+        
+        if (isOwned) {
+            buttonHtml = '<button class="buy-button" disabled>Im Besitz</button>';
+        } else {
+            // Button deaktivieren, wenn nicht leistbar
+            const isDisabled = !canAfford;
+            buttonHtml = `<button class="buy-button" data-item-id="${itemId}" ${isDisabled ? 'disabled' : ''}>Kaufen</button>`;
+        }
+
+        const description = item.description || (item.type === 'title' ? 'Ein neuer Titel für dein Profil.' : item.type === 'icon' ? 'Ein neues Icon für dein Profil.' : item.type === 'background' ? 'Ein neuer Lobby-Hintergrund.' : 'Ein nützliches Item.');
+
+        return `
+            <div class="${classList.join(' ')}">
+                ${previewHtml}
+                <div class="item-name">${item.name}</div>
+                <div class="item-description">${description}</div>
+                <div class="item-cost">${item.cost} 🎵</div>
+                ${buttonHtml}
+            </div>
+        `;
+    }
+
+    async function handleBuyItem(itemId) {
+        if (!itemId) return;
+        if (!supabase || !currentUser || currentUser.isGuest) {
+            showToast("Du musst angemeldet sein, um Items zu kaufen.", true);
+            return;
+        }
+
+        // Finde das Item in der globalen Liste (allItems)
+        const item = allItems.find(i => i.id == itemId); 
+        if (!item) {
+            showToast("Item nicht gefunden.", true);
+            console.error(`Item with ID ${itemId} not found in allItems list.`);
+            return;
+        }
+
+        // Bestätigungs-Modal anzeigen
+        showConfirmModal(
+            'Kauf bestätigen',
+            `Möchtest du "${item.name}" für ${item.cost} 🎵 Spots kaufen?`,
+            async () => {
+                // Diese Funktion wird ausgeführt, wenn der User "Bestätigen" klickt
+                console.log(`Attempting to buy item: ${itemId} (${item.name})`);
+                setLoading(true);
+                
+                try {
+                    // 1. Auth-Token für den Server holen
+                    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+                    if (sessionError || !sessionData.session) {
+                        throw new Error(sessionError?.message || "Du bist nicht authentifiziert.");
+                    }
+                    const token = sessionData.session.access_token;
+
+                    // 2. Anfrage an deinen Server-Endpunkt senden (angepasst an deine server.js)
+                    const response = await fetch('/api/shop/buy', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ itemId: item.id }) // Sende die eindeutige ID
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        // Nimmt die Fehlermeldung vom Server (z.B. "Nicht genug Spots")
+                        throw new Error(data.message || 'Ein unbekannter Fehler ist aufgetreten.');
+                    }
+
+                    // --- Erfolgsfall ---
+                    showToast(data.message || 'Kauf erfolgreich!', false);
+
+                    // 3. Client-Daten aktualisieren
+                    userProfile.spots = data.newSpots; // Neuen Kontostand speichern
+                    updateSpotsDisplay(); // Spots-Anzeige im Header aktualisieren
+
+                    // 4. Besitz-Listen im Client aktualisieren
+                    if (data.itemType === 'title') {
+                        ownedTitleIds.add(item.id);
+                    } else if (data.itemType === 'icon') {
+                        ownedIconIds.add(item.id);
+                    } else if (data.itemType === 'background') {
+                        ownedBackgroundIds.add(item.backgroundId);
+                    } else if (data.itemType === 'consumable') {
+                        inventory[item.itemId] = (inventory[item.itemId] || 0) + 1;
+                    }
+
+                    // 5. Shop UI neu laden, um "Im Besitz" / "Nicht leistbar" zu aktualisieren
+                    await loadShopItems(); 
+                    
+                    // 6. Andere Screens (Titel/Icon-Auswahl) auch aktualisieren
+                    if (elements.titles.list) renderTitles();
+                    if (elements.icons.list) renderIcons();
+
+                } catch (error) {
+                    console.error("Fehler beim Kaufen des Items:", error);
+                    showToast(error.message || 'Kauf fehlgeschlagen.', true);
+                } finally {
+                    setLoading(false);
+                }
+            }
+        );
+    }
+    // ### ENDE ERSETZTER BLOCK ###
+
     function showBackgroundSelectionModal() { /* ... bleibt gleich, prüft ownedBackgroundIds ... */ }
     function applyLobbyBackground(backgroundId) { /* ... bleibt gleich ... */ }
     function displayReaction(playerId, reaction) { /* ... bleibt gleich ... */ }
