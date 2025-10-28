@@ -35,15 +35,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleConsoleBtn = document.getElementById('toggle-console-btn');
     const closeConsoleBtn = document.getElementById('close-console-btn');
     const clearConsoleBtn = document.getElementById('clear-console-btn');
-    const copyConsoleBtn = document.createElement('button');
-    copyConsoleBtn.textContent = 'Kopieren';
-    copyConsoleBtn.id = 'copy-console-btn';
+    
+    // --- KORREKTUR START ---
+    // Wir holen uns den Button, der bereits im HTML existiert
+    const copyConsoleBtn = document.getElementById('copy-console-btn');
+    // --- KORREKTUR ENDE ---
+
     // Kleine Sicherheitsprüfung, falls .console-header nicht existiert
     const consoleHeader = document.querySelector('.console-header');
+    
+    // (Diese Zeilen sind jetzt nicht mehr nötig, da der Button schon im HTML ist,
+    //  aber wir lassen die Prüfung für clearConsoleBtn sicherheitshalber drin)
     if (consoleHeader && clearConsoleBtn) {
-        consoleHeader.insertBefore(copyConsoleBtn, clearConsoleBtn);
-    } else if (onPageConsole && clearConsoleBtn) { // Fallback: Füge es am Ende der Konsole ein
-         onPageConsole.appendChild(copyConsoleBtn);
+         // consoleHeader.insertBefore(copyConsoleBtn, clearConsoleBtn); // Nicht mehr nötig
+    } else if (onPageConsole && clearConsoleBtn) { // Fallback
+         // onPageConsole.appendChild(copyConsoleBtn); // Nicht mehr nötig
     }
 
     const originalConsole = { ...console };
