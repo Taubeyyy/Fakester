@@ -1,4 +1,4 @@
-// server.js - FINAL VERSION (Mit echten Spotify URLs)
+// server.js - FINAL VERSION (Mit echten Spotify URLs - KORRIGIERT)
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -45,40 +45,39 @@ app.use(express.json());
 const authenticateUser = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     let userId = null;
-    console.log("Auth Middleware: Header =", authHeader); 
+    // console.log("Auth Middleware: Header =", authHeader); // (Zu viel Spam, auskommentiert)
     if (authHeader && authHeader.startsWith('Bearer ')) {
-        const jwt = authHeader.substring(7); 
+        const jwt = authHeader.substring(7);
         try {
-            console.log("Auth Middleware: Validating token..."); 
+            // console.log("Auth Middleware: Validating token...");
             const { data: { user }, error } = await supabaseAnon.auth.getUser(jwt);
             if (error) {
                 console.warn('Auth Middleware: Invalid JWT:', error.message);
             } else if (user) {
-                req.user = user; 
+                req.user = user;
                 userId = user.id;
-                console.log(`Auth Middleware: Authenticated user ${userId}`);
+                // console.log(`Auth Middleware: Authenticated user ${userId}`); // (Zu viel Spam)
             } else {
-                 console.warn('Auth Middleware: Token valid but no user found?'); 
+                 console.warn('Auth Middleware: Token valid but no user found?');
             }
         } catch (e) {
             console.error('Auth Middleware: Error validating JWT:', e);
         }
     } else {
-        console.log("Auth Middleware: No Bearer token found.");
+        // console.log("Auth Middleware: No Bearer token found."); // (Zu viel Spam)
     }
     req.userId = userId;
     next();
 };
 
 const apiRouter = express.Router();
-apiRouter.use(authenticateUser); 
-// apiRouter.post('/shop/buy' ... ist weiter unten)
+apiRouter.use(authenticateUser);
 apiRouter.post('/friends/gift', async (req, res) => { /* ... gift logic ... */ });
 app.use('/api', apiRouter);
 
 
 let games = {};
-const onlineUsers = new Map(); 
+const onlineUsers = new Map();
 const HEARTBEAT_INTERVAL = 30000;
 
 // --- Shop Data ---
@@ -97,9 +96,9 @@ const shopItems = [
 // --- Helper Functions ---
 function getScores(pin) { const game = games[pin]; if (!game) return []; return Object.values(game.players).map(p => ({ id: p.ws?.playerId, nickname: p.nickname, score: p.score, lives: p.lives, isConnected: p.isConnected, lastPointsBreakdown: p.lastPointsBreakdown })).filter(p => p.id).sort((a, b) => b.score - a.score); }
 function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readyState === WebSocket.OPEN) { try { ws.send(JSON.stringify({ type: 'toast', payload: { message, isError } })); } catch (e) { console.error(`Failed to send toast to player ${ws.playerId}:`, e); } } }
-async function getPlaylistTracks(playlistId, token) { try { 
+async function getPlaylistTracks(playlistId, token) { try {
     // KORREKTUR: Echte Spotify-URL
-    const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,artists(name),album(release_date,images),popularity))`, { headers: { 'Authorization': `Bearer ${token}` } }); 
+    const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,artists(name),album(release_date,images),popularity))`, { headers: { 'Authorization': `Bearer ${token}` } });
     return response.data.items.map(item => item.track).filter(track => track && track.id && track.album?.release_date).map(track => ({ spotifyId: track.id, title: track.name, artist: track.artists[0]?.name || 'Unbekannt', year: parseInt(track.album.release_date.substring(0, 4)), popularity: track.popularity || 0, albumArtUrl: track.album.images[0]?.url })); } catch (error) { console.error("Fehler beim Abrufen der Playlist-Tracks:", error.response?.data || error.message); return null; } }
 async function spotifyApiCall(method, url, token, data = {}) { try { await axios({ method, url, data, headers: { 'Authorization': `Bearer ${token}` } }); return true; } catch (e) { console.error(`Spotify API Fehler bei ${method.toUpperCase()} ${url}:`, e.response?.data || e.message); return false; } }
 async function hasAchievement(userId, achievementId) { try { const { count, error } = await supabase.from('user_achievements').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('achievement_id', achievementId); if (error) throw error; return count > 0; } catch (e) { console.error("Error checking achievement:", e); return false; } }
@@ -184,18 +183,16 @@ app.get('/callback', async (req, res) => {
 
 app.post('/logout', (req, res) => { res.clearCookie('spotify_access_token', { path: '/' }); res.status(200).json({ message: 'Erfolgreich ausgeloggt' }); });
 app.get('/api/status', (req, res) => { const token = req.cookies.spotify_access_token; res.json({ loggedIn: !!token, token: token || null }); });
-app.get('/api/playlists', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try { 
+app.get('/api/playlists', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
     // KORREKTUR: Echte Spotify-URL
-    const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } }); 
+    const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
     res.json(d.data); } catch (e) { console.error("Playlist API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Playlists" }); } });
-app.get('/api/devices', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try { 
+app.get('/api/devices', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
     // KORREKTUR: Echte Spotify-URL
-    const d = await axios.get('https://api.spotify.com/v1/me/player/devices', { headers: { 'Authorization': `Bearer ${token}` } }); 
+    const d = await axios.get('https://api.spotify.com/v1/me/player/devices', { headers: { 'Authorization': `Bearer ${token}` } });
     res.json(d.data); } catch (e) { console.error("Device API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Geräte" }); } });
 
 // --- SHOP API Routes (now using apiRouter with auth middleware) ---
-
-// --- NEU: Implementierte /api/shop/items Route ---
 apiRouter.get('/shop/items', async (req, res) => { // Nutzt apiRouter
     const userId = req.userId; // Aus dem Middleware
     let ownedItems = { titles: new Set(), icons: new Set(), backgrounds: new Set(), colors: new Set() };
@@ -209,7 +206,7 @@ apiRouter.get('/shop/items', async (req, res) => { // Nutzt apiRouter
                 supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', userId),
                 supabase.from('user_owned_colors').select('color_id').eq('user_id', userId) // Annahme: Du hast eine user_owned_colors Tabelle
             ]);
-            
+
             // Füge die IDs zu den Sets hinzu
             titles.data?.forEach(t => ownedItems.titles.add(t.title_id));
             icons.data?.forEach(i => ownedItems.icons.add(i.icon_id));
@@ -220,7 +217,7 @@ apiRouter.get('/shop/items', async (req, res) => { // Nutzt apiRouter
             console.error("Error fetching owned items for shop:", e);
         }
     }
-    
+
     // Benutze die 'shopItems' Liste von oben
     const itemsWithOwnership = shopItems.map(item => {
         let isOwned = false;
@@ -228,16 +225,14 @@ apiRouter.get('/shop/items', async (req, res) => { // Nutzt apiRouter
         else if (item.type === 'icon') isOwned = ownedItems.icons.has(item.id);
         else if (item.type === 'background') isOwned = ownedItems.backgrounds.has(item.backgroundId);
         else if (item.type === 'color') isOwned = ownedItems.colors.has(item.id);
-        
+
         return { ...item, isOwned };
     });
 
     res.json({ items: itemsWithOwnership });
 });
-// --- ENDE: Implementierte /api/shop/items Route ---
 
 
-// ### Dein /api/shop/buy Block (war schon korrekt) ###
 apiRouter.post('/shop/buy', async (req, res) => { // Nutzt apiRouter und auth middleware
     const { itemId } = req.body;
     const userId = req.userId; // KORREKT! Du nutzt req.userId aus deiner Middleware
@@ -261,7 +256,7 @@ apiRouter.post('/shop/buy', async (req, res) => { // Nutzt apiRouter und auth mi
             p_item_type: itemToBuy.type,
             p_item_cost: itemToBuy.cost,
             // 'itemId' (z.B. 'double_points_1r') für Consumables, sonst 'id'
-            p_storage_id: itemToBuy.itemId || itemToBuy.id.toString() 
+            p_storage_id: itemToBuy.itemId || itemToBuy.id.toString()
         });
 
         if (error) {
@@ -272,7 +267,7 @@ apiRouter.post('/shop/buy', async (req, res) => { // Nutzt apiRouter und auth mi
 
         // Erfolg! 'data' ist der Rückgabewert (neue Spots)
         res.json({
-            success: true, 
+            success: true,
             message: `"${itemToBuy.name}" erfolgreich gekauft!`, // Eigene Erfolgsnachricht
             newSpots: data, // Die neuen Spots von der DB
             itemType: itemToBuy.type // Wichtig für den Client
@@ -305,11 +300,56 @@ apiRouter.post('/friends/gift', async (req, res) => { // Use apiRouter
 });
 
 
-// --- WebSocket Server ---
+// --- KORRIGIERTER WEBSOCKET SERVER BLOCK ---
 const wss = new WebSocket.Server({ server });
-wss.on('connection', ws => { /* ... setup ws listeners ... */ });
-const interval = setInterval(function ping() { /* ... heartbeat ... */ });
+
+wss.on('connection', ws => {
+    console.log('WS: Client connected.');
+
+    ws.on('message', async (message) => {
+        let data;
+        try {
+            const messageString = message.toString();
+
+            // Handle client-side ping
+            if (messageString === '{"type":"ping"}') {
+                ws.send(JSON.stringify({ type: 'pong' }));
+                return;
+            }
+
+            data = JSON.parse(messageString);
+        } catch (e) {
+            console.error("WS: Failed to parse message:", e);
+            return;
+        }
+
+        // Rufe deinen Haupt-Handler auf
+        await handleWebSocketMessage(ws, data);
+    });
+
+    ws.on('close', () => {
+        console.log('WS: Client disconnected.');
+        handlePlayerDisconnect(ws); // Rufe deine Disconnect-Logik auf
+    });
+
+    ws.on('error', (error) => {
+        console.error('WS: WebSocket error:', error);
+    });
+});
+
+// Der Client (script.js) sendet Pings. Dieser Server-Ping ist
+// redundant, aber wir lassen ihn als Backup drin.
+const interval = setInterval(function ping() {
+    wss.clients.forEach(function each(ws) {
+        if (ws.readyState === WebSocket.OPEN) {
+             ws.ping(); // Sendet einen nativen WS-Ping
+        }
+    });
+}, HEARTBEAT_INTERVAL);
+
 wss.on('close', function close() { clearInterval(interval); });
+// --- ENDE KORRIGIERTER WEBSOCKET BLOCK ---
+
 
 // --- WebSocket Message Handler ---
 async function handleWebSocketMessage(ws, data) {
@@ -328,13 +368,12 @@ async function handleWebSocketMessage(ws, data) {
         if (type === 'send-reaction') { if (!game || !game.players[playerId]) return; const reactionCost = 1; const reactionType = payload.reaction; const senderNickname = game.players[playerId].nickname; if (reactionCost > 0 && !playerId.startsWith('guest-')) { supabase.rpc('deduct_spots', { p_user_id: playerId, p_amount: reactionCost }).then(({ data: success, error }) => { if (error || !success) { console.error(`Failed to deduct spots for reaction from ${playerId}:`, error || 'RPC failed'); showToastToPlayer(ws, "Reaktion fehlgeschlagen (Spots?).", true); } else { broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); showToastToPlayer(ws, `-${reactionCost} Spot für Reaktion.`); } }); } else { broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); } return; }
         // Consumables
         if (type === 'use-consumable') { if (!game || !game.players[playerId] || game.gameState !== 'PLAYING') return; const itemId = payload.itemId; supabase.rpc('upsert_inventory_item', { p_user_id: playerId, p_item_id: itemId, p_quantity_change: -1 }).then(({ error }) => { if (error) { console.error(`Failed to use consumable ${itemId} for ${playerId}:`, error); showToastToPlayer(ws, "Item konnte nicht verwendet werden (Menge?).", true); } else { game.players[playerId].activeEffects = game.players[playerId].activeEffects || {}; game.players[playerId].activeEffects[itemId] = true; showToastToPlayer(ws, `"${itemId}" aktiviert!`); console.log(`Player ${playerId} used ${itemId}`); } }); return; }
-        
-        // --- NEU: Friends-System Calls ---
+
+        // Friends-System Calls
         if (type === 'add-friend') { handleAddFriend(ws, playerId, payload); return; }
         if (type === 'accept-friend-request') { handleAcceptFriendRequest(ws, playerId, payload); return; }
         if (type === 'decline-friend-request') { handleDeclineFriendRequest(ws, playerId, payload); return; }
         if (type === 'remove-friend') { handleRemoveFriend(ws, playerId, payload); return; }
-        // --- ENDE: Friends-System Calls ---
 
 
         // --- Game Context Actions ---
@@ -388,4 +427,4 @@ function levenshteinDistance(s1, s2) { if (!s1 || !s2) return 99; s1 = s1.toLowe
 function normalizeString(str) { if (!str) return ''; return str.toLowerCase().replace(/\(.*\)|\[.*\]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9\s]/g, '').trim(); }
 function shuffleArray(array) { for (let i = array.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [array[i], array[j]] = [array[j], array[i]]; } return array; }
 
-// DIE ÜBERFLÜSSIGE KLAMMER WURDE HIER ENTFERNT
+// KORREKTUR: Die überflüssige Klammer '}' wurde von hier entfernt.
