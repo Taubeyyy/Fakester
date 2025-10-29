@@ -36,10 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeConsoleBtn = document.getElementById('close-console-btn');
     const clearConsoleBtn = document.getElementById('clear-console-btn');
     
-    // --- KORREKTUR START ---
+    // --- KORREKTUR 1 (copyConsoleBtn) START ---
     // Wir holen uns den Button, der bereits im HTML existiert
     const copyConsoleBtn = document.getElementById('copy-console-btn');
-    // --- KORREKTUR ENDE ---
+    // --- KORREKTUR 1 ENDE ---
 
     // Kleine Sicherheitsprüfung, falls .console-header nicht existiert
     const consoleHeader = document.querySelector('.console-header');
@@ -100,7 +100,81 @@ document.addEventListener('DOMContentLoaded', () => {
     const handleAuthAction = async (action, form, isRegister = false) => { if (!supabase) { showToast("Verbindung wird aufgebaut, bitte warte...", true); return; } setLoading(true); const formData = new FormData(form); const credentials = {}; let username; if (isRegister) { username = formData.get('username'); credentials.email = `${username}@fakester.app`; credentials.password = formData.get('password'); credentials.options = { data: { username: username, xp: 0, spots: 100, equipped_title_id: 1, equipped_icon_id: 1 } }; } else { username = formData.get('username'); credentials.email = `${username}@fakester.app`; credentials.password = formData.get('password'); } const { data, error } = await action(credentials); setLoading(false); if (error) { console.error(`Auth Error (${isRegister ? 'Register' : 'Login'}):`, error); showToast(error.message, true); } else if (data.user) { console.log(`Auth Success (${isRegister ? 'Register' : 'Login'}):`, data.user.id); } else { console.warn("Auth: Kein Fehler, aber auch keine User-Daten."); } };
     const handleLogout = async () => { if (!supabase) return; showConfirmModal("Abmelden", "Möchtest du dich wirklich abmelden?", async () => { setLoading(true); console.log("Logging out..."); const { error: signOutError } = await supabase.auth.signOut(); try { await fetch('/logout', { method: 'POST' }); console.log("Spotify cookie cleared."); } catch (fetchError) { console.error("Error clearing Spotify cookie:", fetchError); } setLoading(false); if (signOutError) { console.error("SignOut Error:", signOutError); showToast(signOutError.message, true); } else { console.log("Logout successful."); } }); };
     const awardClientSideAchievement = (achievementId) => { if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) { if(userUnlockedAchievementIds.includes(achievementId)) { console.log(`Achievement ${achievementId} already in list, not awarding again.`); } return; } console.log(`Awarding client-side achievement: ${achievementId}`); userUnlockedAchievementIds.push(achievementId); const achievement = achievementsList.find(a => a.id === achievementId); showToast(`Erfolg freigeschaltet: ${achievement?.name || `ID ${achievementId}`}!`); if(elements.achievements.grid) renderAchievements(); if(elements.titles.list) renderTitles(); if(elements.icons.list) renderIcons(); supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: achievementId }).then(({ error }) => { if (error) { console.error(`Fehler beim Speichern von Client-Achievement ${achievementId} im Hintergrund:`, error); } else { console.log(`Client-Achievement ${achievementId} erfolgreich im Hintergrund gespeichert.`); } }); };
-    const connectWebSocket = () => { /* ... bleibt gleich ... */ };
+
+    // --- KORREKTUR 2 (connectWebSocket) START ---
+    const connectWebSocket = () => {
+        // 1. Ermittle das richtige Protokoll (ws: oder wss:)
+        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        const wsUrl = `${proto}//${host}`;
+
+        console.log(`Connecting WebSocket to ${wsUrl}...`);
+
+        // 2. Verhindere doppelte Verbindungen
+        if (ws.socket && (ws.socket.readyState === WebSocket.OPEN || ws.socket.readyState === WebSocket.CONNECTING)) {
+            console.log("WebSocket is already open or connecting.");
+            return;
+        }
+
+        // 3. Erstelle den neuen WebSocket
+        try {
+            ws.socket = new WebSocket(wsUrl);
+        } catch (e) {
+            console.error("Failed to create WebSocket:", e);
+            showToast("WebSocket-Erstellung fehlgeschlagen.", true);
+            return;
+        }
+
+        // 4. Event Handler
+        ws.socket.onopen = () => {
+            console.log("WebSocket connected successfully.");
+            // Zeige einen kurzen Erfolg an
+            Toastify({ text: "Server verbunden!", duration: 1500, gravity: "top", position: "center", style: { background: "var(--primary-color)", borderRadius: "8px" } }).showToast();
+
+            // 5. Registriere den User beim Server
+            if (currentUser && !currentUser.isGuest) {
+                ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id, username: currentUser.username } }));
+            }
+
+            // 6. Starte den Heartbeat
+            if (wsPingInterval) clearInterval(wsPingInterval);
+            wsPingInterval = setInterval(() => {
+                if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
+                    ws.socket.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 30000); // 30 Sekunden Heartbeat
+        };
+
+        ws.socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                // 7. Rufe deine Haupt-Message-Funktion auf
+                handleWebSocketMessage(data);
+            } catch (e) {
+                console.error("Error parsing WS message:", e);
+            }
+        };
+
+        ws.socket.onerror = (error) => {
+            // 8. Logge Fehler
+            console.error("WebSocket Error:", error);
+            // Kein Toast hier, sonst wird es schnell nervig
+        };
+
+        ws.socket.onclose = (event) => {
+            console.warn(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
+            if (wsPingInterval) clearInterval(wsPingInterval);
+            wsPingInterval = null;
+            ws.socket = null;
+            
+            // 9. Informiere den User, wenn die Verbindung abbricht
+            if (event.code !== 1000 && event.code !== 1005) { // 1000 = Normal close (z.B. Logout)
+                 showToast("Serververbindung verloren. Lade neu...", true);
+            }
+        };
+    }
+    // --- KORREKTUR 2 (connectWebSocket) ENDE ---
+
     const handleWebSocketMessage = ({ type, payload }) => { /* ... bleibt gleich ... */ };
 
     // --- UI Rendering Functions ---
