@@ -72,7 +72,7 @@ const authenticateUser = async (req, res, next) => {
 
 const apiRouter = express.Router();
 apiRouter.use(authenticateUser); 
-apiRouter.post('/shop/buy', async (req, res) => { /* ... buy logic ... */ });
+// apiRouter.post('/shop/buy' ... ist weiter unten)
 apiRouter.post('/friends/gift', async (req, res) => { /* ... gift logic ... */ });
 app.use('/api', apiRouter);
 
@@ -194,15 +194,50 @@ app.get('/api/devices', async (req, res) => { const token = req.headers.authoriz
     res.json(d.data); } catch (e) { console.error("Device API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Geräte" }); } });
 
 // --- SHOP API Routes (now using apiRouter with auth middleware) ---
-apiRouter.get('/shop/items', async (req, res) => { // Use apiRouter
-    const userId = req.userId; // From middleware
-    let ownedItems = { titles: new Set(), icons: new Set(), backgrounds: new Set(), consumables: {} };
-    if (userId) { /* ... fetch owned items ... */ }
-    const itemsWithOwnership = shopItems.map(item => { /* ... add isOwned flag ... */ });
+
+// --- NEU: Implementierte /api/shop/items Route ---
+apiRouter.get('/shop/items', async (req, res) => { // Nutzt apiRouter
+    const userId = req.userId; // Aus dem Middleware
+    let ownedItems = { titles: new Set(), icons: new Set(), backgrounds: new Set(), colors: new Set() };
+
+    if (userId) {
+        try {
+            // Hole alle besessenen Items parallel
+            const [titles, icons, backgrounds, colors] = await Promise.all([
+                supabase.from('user_owned_titles').select('title_id').eq('user_id', userId),
+                supabase.from('user_owned_icons').select('icon_id').eq('user_id', userId),
+                supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', userId),
+                supabase.from('user_owned_colors').select('color_id').eq('user_id', userId) // Annahme: Du hast eine user_owned_colors Tabelle
+            ]);
+            
+            // Füge die IDs zu den Sets hinzu
+            titles.data?.forEach(t => ownedItems.titles.add(t.title_id));
+            icons.data?.forEach(i => ownedItems.icons.add(i.icon_id));
+            backgrounds.data?.forEach(b => ownedItems.backgrounds.add(b.background_id));
+            colors.data?.forEach(c => ownedItems.colors.add(c.color_id));
+
+        } catch (e) {
+            console.error("Error fetching owned items for shop:", e);
+        }
+    }
+    
+    // Benutze die 'shopItems' Liste von oben
+    const itemsWithOwnership = shopItems.map(item => {
+        let isOwned = false;
+        if (item.type === 'title') isOwned = ownedItems.titles.has(item.id);
+        else if (item.type === 'icon') isOwned = ownedItems.icons.has(item.id);
+        else if (item.type === 'background') isOwned = ownedItems.backgrounds.has(item.backgroundId);
+        else if (item.type === 'color') isOwned = ownedItems.colors.has(item.id);
+        
+        return { ...item, isOwned };
+    });
+
     res.json({ items: itemsWithOwnership });
 });
+// --- ENDE: Implementierte /api/shop/items Route ---
 
-// ### START ERSETZTER BLOCK (aus vorheriger Antwort) ###
+
+// ### Dein /api/shop/buy Block (war schon korrekt) ###
 apiRouter.post('/shop/buy', async (req, res) => { // Nutzt apiRouter und auth middleware
     const { itemId } = req.body;
     const userId = req.userId; // KORREKT! Du nutzt req.userId aus deiner Middleware
@@ -248,7 +283,7 @@ apiRouter.post('/shop/buy', async (req, res) => { // Nutzt apiRouter und auth mi
         res.status(500).json({ success: false, message: 'Interner Serverfehler.' });
     }
 });
-// ### ENDE ERSETZTER BLOCK ###
+// ### ENDE /api/shop/buy ###
 
 // --- GIFTING API Route (now using apiRouter with auth middleware) ---
 apiRouter.post('/friends/gift', async (req, res) => { // Use apiRouter
@@ -293,8 +328,13 @@ async function handleWebSocketMessage(ws, data) {
         if (type === 'send-reaction') { if (!game || !game.players[playerId]) return; const reactionCost = 1; const reactionType = payload.reaction; const senderNickname = game.players[playerId].nickname; if (reactionCost > 0 && !playerId.startsWith('guest-')) { supabase.rpc('deduct_spots', { p_user_id: playerId, p_amount: reactionCost }).then(({ data: success, error }) => { if (error || !success) { console.error(`Failed to deduct spots for reaction from ${playerId}:`, error || 'RPC failed'); showToastToPlayer(ws, "Reaktion fehlgeschlagen (Spots?).", true); } else { broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); showToastToPlayer(ws, `-${reactionCost} Spot für Reaktion.`); } }); } else { broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); } return; }
         // Consumables
         if (type === 'use-consumable') { if (!game || !game.players[playerId] || game.gameState !== 'PLAYING') return; const itemId = payload.itemId; supabase.rpc('upsert_inventory_item', { p_user_id: playerId, p_item_id: itemId, p_quantity_change: -1 }).then(({ error }) => { if (error) { console.error(`Failed to use consumable ${itemId} for ${playerId}:`, error); showToastToPlayer(ws, "Item konnte nicht verwendet werden (Menge?).", true); } else { game.players[playerId].activeEffects = game.players[playerId].activeEffects || {}; game.players[playerId].activeEffects[itemId] = true; showToastToPlayer(ws, `"${itemId}" aktiviert!`); console.log(`Player ${playerId} used ${itemId}`); } }); return; }
-        // Friend requests
-        if (['add-friend', 'accept-friend-request', 'decline-friend-request', 'remove-friend-request', 'remove-friend'].includes(type)) { /* Call respective handlers */ return; }
+        
+        // --- NEU: Friends-System Calls ---
+        if (type === 'add-friend') { handleAddFriend(ws, playerId, payload); return; }
+        if (type === 'accept-friend-request') { handleAcceptFriendRequest(ws, playerId, payload); return; }
+        if (type === 'decline-friend-request') { handleDeclineFriendRequest(ws, playerId, payload); return; }
+        if (type === 'remove-friend') { handleRemoveFriend(ws, playerId, payload); return; }
+        // --- ENDE: Friends-System Calls ---
 
 
         // --- Game Context Actions ---

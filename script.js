@@ -36,20 +36,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeConsoleBtn = document.getElementById('close-console-btn');
     const clearConsoleBtn = document.getElementById('clear-console-btn');
     
-    // --- KORREKTUR 1 (copyConsoleBtn) START ---
     // Wir holen uns den Button, der bereits im HTML existiert
     const copyConsoleBtn = document.getElementById('copy-console-btn');
-    // --- KORREKTUR 1 ENDE ---
 
     // Kleine Sicherheitsprüfung, falls .console-header nicht existiert
     const consoleHeader = document.querySelector('.console-header');
     
-    // (Diese Zeilen sind jetzt nicht mehr nötig, da der Button schon im HTML ist,
-    //  aber wir lassen die Prüfung für clearConsoleBtn sicherheitshalber drin)
     if (consoleHeader && clearConsoleBtn) {
-         // consoleHeader.insertBefore(copyConsoleBtn, clearConsoleBtn); // Nicht mehr nötig
-    } else if (onPageConsole && clearConsoleBtn) { // Fallback
-         // onPageConsole.appendChild(copyConsoleBtn); // Nicht mehr nötig
+         // (Kein Code hier mehr nötig, da Button im HTML ist)
+    } else if (onPageConsole && clearConsoleBtn) { 
+         // (Kein Code hier mehr nötig, da Button im HTML ist)
     }
 
     const originalConsole = { ...console };
@@ -76,7 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
     // --- DOM Element References ---
-    // (Gekürzt für Lesbarkeit, Inhalt ist derselbe wie vorher)
     const elements = { screens: document.querySelectorAll('.screen'), leaveGameButton: document.getElementById('leave-game-button'), loadingOverlay: document.getElementById('loading-overlay'), countdownOverlay: document.getElementById('countdown-overlay'), auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form') }, home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), profilePictureBtn: document.getElementById('profile-picture-button'), profileIcon: document.getElementById('profile-icon'), profileLevel: document.getElementById('profile-level'), profileXpFill: document.getElementById('profile-xp-fill'), levelProgressBtn: document.getElementById('level-progress-button'), profileXpText: document.getElementById('profile-xp-text'), spotsBalance: document.getElementById('header-spots-balance'), shopButton: document.getElementById('shop-button'), spotifyConnectBtn: document.getElementById('spotify-connect-button') }, modeSelection: { container: document.getElementById('mode-selection-screen')?.querySelector('.mode-selection-container') }, lobby: { pinDisplay: document.getElementById('lobby-pin'), playerList: document.getElementById('player-list'), hostSettings: document.getElementById('host-settings'), guestWaitingMessage: document.getElementById('guest-waiting-message'), deviceSelectBtn: document.getElementById('device-select-button'), playlistSelectBtn: document.getElementById('playlist-select-button'), startGameBtn: document.getElementById('start-game-button'), inviteFriendsBtn: document.getElementById('invite-friends-button'), songCountPresets: document.getElementById('song-count-presets'), guessTimePresets: document.getElementById('guess-time-presets'), answerTypeContainer: document.getElementById('answer-type-container'), answerTypePresets: document.getElementById('answer-type-presets'), reactionButtons: document.getElementById('reaction-buttons'), backgroundSelectButton: document.getElementById('select-background-button') }, game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), gameContentArea: document.getElementById('game-content-area') }, guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), input: document.getElementById('guest-nickname-input') }, joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), }, friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), tabsContainer: document.querySelector('.friends-modal .tabs'), tabs: document.querySelectorAll('.friends-modal .tab-button'), tabContents: document.querySelectorAll('.friends-modal .tab-content') }, inviteFriendsModal: { overlay: document.getElementById('invite-friends-modal-overlay'), closeBtn: document.getElementById('close-invite-modal-button'), list: document.getElementById('online-friends-list') }, customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')}, achievements: { grid: document.getElementById('achievement-grid'), screen: document.getElementById('achievements-screen') }, levelProgress: { list: document.getElementById('level-progress-list'), screen: document.getElementById('level-progress-screen') }, titles: { list: document.getElementById('title-list'), screen: document.getElementById('title-selection-screen') }, icons: { list: document.getElementById('icon-list'), screen: document.getElementById('icon-selection-screen') }, gameTypeScreen: { screen: document.getElementById('game-type-selection-screen'), pointsBtn: document.getElementById('game-type-points'), livesBtn: document.getElementById('game-type-lives'), livesSettings: document.getElementById('lives-settings-container'), livesPresets: document.getElementById('lives-count-presets'), createLobbyBtn: document.getElementById('create-lobby-button'), }, changeNameModal: { overlay: document.getElementById('change-name-modal-overlay'), closeBtn: document.getElementById('close-change-name-modal-button'), submitBtn: document.getElementById('change-name-submit'), input: document.getElementById('change-name-input'), }, deviceSelectModal: { overlay: document.getElementById('device-select-modal-overlay'), closeBtn: document.getElementById('close-device-select-modal'), list: document.getElementById('device-list'), refreshBtn: document.getElementById('refresh-devices-button-modal'), }, playlistSelectModal: { overlay: document.getElementById('playlist-select-modal-overlay'), closeBtn: document.getElementById('close-playlist-select-modal'), list: document.getElementById('playlist-list'), search: document.getElementById('playlist-search'), pagination: document.getElementById('playlist-pagination'), }, leaveConfirmModal: { overlay: document.getElementById('leave-confirm-modal-overlay'), confirmBtn: document.getElementById('confirm-leave-button'), cancelBtn: document.getElementById('cancel-leave-button'), }, confirmActionModal: { overlay: document.getElementById('confirm-action-modal-overlay'), title: document.getElementById('confirm-action-title'), text: document.getElementById('confirm-action-text'), confirmBtn: document.getElementById('confirm-action-confirm-button'), cancelBtn: document.getElementById('confirm-action-cancel-button'), }, stats: { screen: document.getElementById('stats-screen'), gamesPlayed: document.getElementById('stat-games-played'), wins: document.getElementById('stat-wins'), winrate: document.getElementById('stat-winrate'), highscore: document.getElementById('stat-highscore'), correctAnswers: document.getElementById('stat-correct-answers'), avgScore: document.getElementById('stat-avg-score'), gamesPlayedPreview: document.getElementById('stat-games-played-preview'), winsPreview: document.getElementById('stat-wins-preview'), correctAnswersPreview: document.getElementById('stat-correct-answers-preview'), }, shop: { screen: document.getElementById('shop-screen'), titlesList: document.getElementById('shop-titles-list'), iconsList: document.getElementById('shop-icons-list'), backgroundsList: document.getElementById('shop-backgrounds-list'), colorsList: document.getElementById('shop-colors-list'), spotsBalance: document.getElementById('shop-spots-balance'), }, backgroundSelectModal: { overlay: document.getElementById('background-select-modal-overlay'), closeBtn: document.getElementById('close-background-select-modal'), list: document.getElementById('owned-backgrounds-list'), }, };
 
 
@@ -84,7 +79,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const showToast = (message, isError = false) => { console.log(`Toast: ${message} (Error: ${isError})`); Toastify({ text: message, duration: 3000, gravity: "top", position: "center", style: { background: isError ? "var(--danger-color)" : "var(--success-color)", borderRadius: "8px" } }).showToast(); }
     const showScreen = (screenId) => { console.log(`Navigating to screen: ${screenId}`); const targetScreen = document.getElementById(screenId); if (!targetScreen) { console.error(`Screen with ID "${screenId}" not found!`); return; } const currentScreenId = screenHistory[screenHistory.length - 1]; if (screenId !== currentScreenId) screenHistory.push(screenId); elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); };
     const goBack = () => { if (screenHistory.length > 1) { const currentScreenId = screenHistory.pop(); const previousScreenId = screenHistory[screenHistory.length - 1]; console.log(`Navigating back to screen: ${previousScreenId}`); if (['game-screen', 'lobby-screen'].includes(currentScreenId)) { elements.leaveConfirmModal.overlay.classList.remove('hidden'); screenHistory.push(currentScreenId); return; } const targetScreen = document.getElementById(previousScreenId); if (!targetScreen) { console.error(`Back navigation failed: Screen "${previousScreenId}" not found!`); screenHistory = ['auth-screen']; window.location.reload(); return; } elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(previousScreenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); } };
-    const setLoading = (isLoading) => { console.log(`Setting loading overlay: ${isLoading}`); elements.loadingOverlay.classList.toggle('hidden', !isLoading); }
+    
+    // --- NEUER LADE-BILDSCHIRM START ---
+    const setLoading = (isLoading, message = null) => {
+        console.log(`Setting loading overlay: ${isLoading}, Message: ${message}`);
+        
+        if (isLoading) {
+            if (message) {
+                // Benutze den coolen Countdown-Screen für Text
+                elements.countdownOverlay.textContent = message;
+                elements.countdownOverlay.classList.remove('hidden');
+                elements.loadingOverlay.classList.add('hidden'); // Verstecke den alten Spinner
+            } else {
+                // Benutze den Standard-Spinner (falls keine Nachricht da ist)
+                elements.loadingOverlay.classList.remove('hidden');
+                elements.countdownOverlay.classList.add('hidden'); // Verstecke den neuen
+            }
+        } else {
+            // Verstecke beide, wenn das Laden fertig ist
+            elements.loadingOverlay.classList.add('hidden');
+            elements.countdownOverlay.classList.add('hidden');
+        }
+    }
+    // --- NEUER LADE-BILDSCHIRM ENDE ---
+
     const showConfirmModal = (title, text, onConfirm) => { elements.confirmActionModal.title.textContent = title; elements.confirmActionModal.text.textContent = text; currentConfirmAction = onConfirm; elements.confirmActionModal.overlay.classList.remove('hidden'); };
 
     // --- Helper Functions ---
@@ -94,14 +112,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Initialization and Auth ---
-    // (Gekürzt für Lesbarkeit, Inhalt ist derselbe wie vorher)
     const initializeApp = (user, isGuest = false) => { console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`); localStorage.removeItem('fakesterGame'); const fallbackUsername = isGuest ? user.username : user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt'; const fallbackProfile = { id: user.id, username: fallbackUsername, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, spots: 0, equipped_title_id: 1, equipped_icon_id: 1 }; if (isGuest) { currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest }; userProfile = { ...fallbackProfile, id: currentUser.id, username: currentUser.username }; userUnlockedAchievementIds = []; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; } else { currentUser = { id: user.id, username: fallbackUsername, isGuest }; userProfile = { ...fallbackProfile, id: user.id, username: currentUser.username }; userUnlockedAchievementIds = []; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; } console.log("Setting up initial UI with fallback data..."); document.body.classList.toggle('is-guest', isGuest); if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; if(document.getElementById('profile-title')) equipTitle(userProfile.equipped_title_id || 1, false); if(elements.home.profileIcon) equipIcon(userProfile.equipped_icon_id || 1, false); if(elements.home.profileLevel) updatePlayerProgressDisplay(); if(elements.stats.gamesPlayed) updateStatsDisplay(); updateSpotsDisplay(); if(elements.achievements.grid) renderAchievements(); if(elements.titles.list) renderTitles(); if(elements.icons.list) renderIcons(); if(elements.levelProgress.list) renderLevelProgress(); console.log("Showing home screen (non-blocking)..."); showScreen('home-screen'); setLoading(false); if (!isGuest && supabase) { console.log("Fetching profile, owned items, achievements, and Spotify status in background..."); Promise.all([ supabase.from('profiles').select('*').eq('id', user.id).single(), supabase.from('user_owned_titles').select('title_id').eq('user_id', user.id), supabase.from('user_owned_icons').select('icon_id').eq('user_id', user.id), supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', user.id), supabase.from('user_inventory').select('item_id, quantity').eq('user_id', user.id) ]).then((results) => { const [profileResult, titlesResult, iconsResult, backgroundsResult, inventoryResult] = results; if (profileResult.error || !profileResult.data) { console.error("BG Profile Error:", profileResult.error || "No data"); if (!profileResult.error?.details?.includes("0 rows")) showToast("Fehler beim Laden des Profils.", true); document.getElementById('welcome-nickname').textContent = currentUser.username; updatePlayerProgressDisplay(); updateStatsDisplay(); updateSpotsDisplay(); } else { userProfile = profileResult.data; currentUser.username = profileResult.data.username; console.log("BG Profile fetched:", userProfile); document.getElementById('welcome-nickname').textContent = currentUser.username; equipTitle(userProfile.equipped_title_id || 1, false); equipIcon(userProfile.equipped_icon_id || 1, false); updatePlayerProgressDisplay(); updateStatsDisplay(); updateSpotsDisplay(); } ownedTitleIds = new Set(titlesResult.data?.map(t => t.title_id) || []); ownedIconIds = new Set(iconsResult.data?.map(i => i.icon_id) || []); ownedBackgroundIds = new Set(backgroundsResult.data?.map(b => b.background_id) || []); inventory = {}; inventoryResult.data?.forEach(item => inventory[item.item_id] = item.quantity); console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, B: ownedBackgroundIds.size, C: ownedColorIds.size, Inv: Object.keys(inventory).length }); if(elements.titles.list) renderTitles(); if(elements.icons.list) renderIcons(); if(elements.levelProgress.list) renderLevelProgress(); return supabase.from('user_achievements').select('achievement_id').eq('user_id', user.id); }).then(({ data: achievements, error: achError }) => { if (achError) { console.error("BG Achievement Error:", achError); userUnlockedAchievementIds = []; } else { userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id)); console.log("BG Achievements fetched:", userUnlockedAchievementIds); } if(elements.achievements.grid) renderAchievements(); if(elements.titles.list) renderTitles(); if(elements.icons.list) renderIcons(); console.log("Checking Spotify status after achievements (async)..."); return checkSpotifyStatus(); }).then(() => { console.log("Spotify status checked after achievements (async)."); if (spotifyToken && !userUnlockedAchievementIds.includes(9)) { awardClientSideAchievement(9); } console.log("Connecting WebSocket for logged-in user (after async loads)..."); connectWebSocket(); }).catch(error => { console.error("Error during background data loading chain:", error); showToast("Fehler beim Laden einiger Daten.", true); console.log("Connecting WebSocket despite background load error..."); connectWebSocket(); }); } else { console.log("Connecting WebSocket for guest..."); checkSpotifyStatus(); connectWebSocket(); } console.log("initializeApp finished (non-blocking setup complete)."); };
     const checkSpotifyStatus = async () => { if (currentUser && currentUser.isGuest) { console.log("Guest mode, hiding Spotify connect button."); elements.home.spotifyConnectBtn?.classList.add('guest-hidden'); elements.home.createRoomBtn?.classList.add('hidden'); return; } try { const response = await fetch('/api/status'); const data = await response.json(); if (data.loggedIn && data.token) { console.log("Spotify is connected."); spotifyToken = data.token; elements.home.spotifyConnectBtn?.classList.add('hidden'); elements.home.createRoomBtn?.classList.remove('hidden'); if (currentUser && !currentUser.isGuest && !userUnlockedAchievementIds.includes(9)) { awardClientSideAchievement(9); } } else { console.log("Spotify is NOT connected."); spotifyToken = null; elements.home.spotifyConnectBtn?.classList.remove('hidden'); elements.home.createRoomBtn?.classList.add('hidden'); } } catch (error) { console.error("Error checking Spotify status:", error); spotifyToken = null; elements.home.spotifyConnectBtn?.classList.remove('hidden'); elements.home.createRoomBtn?.classList.add('hidden'); } };
-    const handleAuthAction = async (action, form, isRegister = false) => { if (!supabase) { showToast("Verbindung wird aufgebaut, bitte warte...", true); return; } setLoading(true); const formData = new FormData(form); const credentials = {}; let username; if (isRegister) { username = formData.get('username'); credentials.email = `${username}@fakester.app`; credentials.password = formData.get('password'); credentials.options = { data: { username: username, xp: 0, spots: 100, equipped_title_id: 1, equipped_icon_id: 1 } }; } else { username = formData.get('username'); credentials.email = `${username}@fakester.app`; credentials.password = formData.get('password'); } const { data, error } = await action(credentials); setLoading(false); if (error) { console.error(`Auth Error (${isRegister ? 'Register' : 'Login'}):`, error); showToast(error.message, true); } else if (data.user) { console.log(`Auth Success (${isRegister ? 'Register' : 'Login'}):`, data.user.id); } else { console.warn("Auth: Kein Fehler, aber auch keine User-Daten."); } };
-    const handleLogout = async () => { if (!supabase) return; showConfirmModal("Abmelden", "Möchtest du dich wirklich abmelden?", async () => { setLoading(true); console.log("Logging out..."); const { error: signOutError } = await supabase.auth.signOut(); try { await fetch('/logout', { method: 'POST' }); console.log("Spotify cookie cleared."); } catch (fetchError) { console.error("Error clearing Spotify cookie:", fetchError); } setLoading(false); if (signOutError) { console.error("SignOut Error:", signOutError); showToast(signOutError.message, true); } else { console.log("Logout successful."); } }); };
+    const handleAuthAction = async (action, form, isRegister = false) => { if (!supabase) { showToast("Verbindung wird aufgebaut, bitte warte...", true); return; } setLoading(true, "Authentifiziere..."); const formData = new FormData(form); const credentials = {}; let username; if (isRegister) { username = formData.get('username'); credentials.email = `${username}@fakester.app`; credentials.password = formData.get('password'); credentials.options = { data: { username: username, xp: 0, spots: 100, equipped_title_id: 1, equipped_icon_id: 1 } }; } else { username = formData.get('username'); credentials.email = `${username}@fakester.app`; credentials.password = formData.get('password'); } const { data, error } = await action(credentials); setLoading(false); if (error) { console.error(`Auth Error (${isRegister ? 'Register' : 'Login'}):`, error); showToast(error.message, true); } else if (data.user) { console.log(`Auth Success (${isRegister ? 'Register' : 'Login'}):`, data.user.id); } else { console.warn("Auth: Kein Fehler, aber auch keine User-Daten."); } };
+    const handleLogout = async () => { if (!supabase) return; showConfirmModal("Abmelden", "Möchtest du dich wirklich abmelden?", async () => { setLoading(true, "Melde ab..."); console.log("Logging out..."); const { error: signOutError } = await supabase.auth.signOut(); try { await fetch('/logout', { method: 'POST' }); console.log("Spotify cookie cleared."); } catch (fetchError) { console.error("Error clearing Spotify cookie:", fetchError); } setLoading(false); if (signOutError) { console.error("SignOut Error:", signOutError); showToast(signOutError.message, true); } else { console.log("Logout successful."); } }); };
     const awardClientSideAchievement = (achievementId) => { if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) { if(userUnlockedAchievementIds.includes(achievementId)) { console.log(`Achievement ${achievementId} already in list, not awarding again.`); } return; } console.log(`Awarding client-side achievement: ${achievementId}`); userUnlockedAchievementIds.push(achievementId); const achievement = achievementsList.find(a => a.id === achievementId); showToast(`Erfolg freigeschaltet: ${achievement?.name || `ID ${achievementId}`}!`); if(elements.achievements.grid) renderAchievements(); if(elements.titles.list) renderTitles(); if(elements.icons.list) renderIcons(); supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: achievementId }).then(({ error }) => { if (error) { console.error(`Fehler beim Speichern von Client-Achievement ${achievementId} im Hintergrund:`, error); } else { console.log(`Client-Achievement ${achievementId} erfolgreich im Hintergrund gespeichert.`); } }); };
 
-    // --- KORREKTUR 2 (connectWebSocket) START ---
     const connectWebSocket = () => {
         // 1. Ermittle das richtige Protokoll (ws: oder wss:)
         const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -173,39 +189,458 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
     }
-    // --- KORREKTUR 2 (connectWebSocket) ENDE ---
 
+    // (WebSocket-Nachrichten-Handler bleibt gleich wie in deinem Original)
     const handleWebSocketMessage = ({ type, payload }) => { /* ... bleibt gleich ... */ };
 
     // --- UI Rendering Functions ---
-    // (Gekürzt für Lesbarkeit, Inhalt ist derselbe wie vorher)
+    // (Lobby-Funktionen bleiben gleich)
     function renderPlayerList(players, hostId) { /* ... bleibt gleich ... */ }
     function updateHostSettings(settings, isHost) { /* ... bleibt gleich ... */ }
-    function renderAchievements() { /* ... bleibt gleich ... */ }
-    async function equipTitle(titleId, saveToDb = true) { /* ... bleibt gleich ... */ }
-    function renderTitles() { /* ... bleibt gleich ... */ }
-    async function equipIcon(iconId, saveToDb = true) { /* ... bleibt gleich ... */ }
-    function renderIcons() { /* ... bleibt gleich ... */ }
-    function renderLevelProgress() { /* ... bleibt gleich ... */ }
-    function updatePlayerProgressDisplay() { /* ... bleibt gleich ... */ }
-    async function updatePlayerProgress() { /* ... bleibt gleich ... */ }
-    function updateStatsDisplay() { /* ... bleibt gleich ... */ }
-    async function loadShopItems() { /* ... bleibt gleich ... */ }
-    function renderShopItem(item, userSpots, isOwned) { /* ... bleibt gleich ... */ }
-    async function handleBuyItem(itemId) { /* ... bleibt gleich ... */ }
-    function showBackgroundSelectionModal() { /* ... bleibt gleich ... */ }
-    function applyLobbyBackground(backgroundId) { /* ... bleibt gleich ... */ }
-    function displayReaction(playerId, reaction) { /* ... bleibt gleich ... */ }
-    async function handleGiftSpots(friendId, friendName) { /* ... bleibt gleich ... */ }
+
+    // --- NEU: Implementierte UI-Funktionen ---
+    
+    function renderAchievements() {
+        if (!elements.achievements.grid || currentUser.isGuest) return;
+        elements.achievements.grid.innerHTML = '';
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        
+        achievementsList.forEach(ach => {
+            const isUnlocked = userUnlockedAchievementIds.includes(ach.id);
+            const card = document.createElement('div');
+            card.className = 'achievement-card';
+            card.classList.toggle('unlocked', isUnlocked);
+            
+            const reward = allItems.find(item => item.unlockType === 'achievement' && item.unlockValue === ach.id);
+            let rewardText = '<span class="reward">+50 🎵</span>'; // Standard-Belohnung
+            if (reward) {
+                rewardText += ` & ${reward.type === 'title' ? 'Titel' : 'Icon'}: ${reward.name || reward.iconClass}`;
+            }
+
+            card.innerHTML = `
+                <h3>${ach.name}</h3>
+                <p>${ach.description}</p>
+                ${isUnlocked ? `<span class="reward">Freigeschaltet!</span>` : rewardText}
+            `;
+            elements.achievements.grid.appendChild(card);
+        });
+    }
+
+    async function equipTitle(titleId, saveToDb = true) {
+        if (currentUser.isGuest) return;
+        const title = titlesList.find(t => t.id === titleId);
+        if (!title) return;
+        
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        if (!isItemUnlocked(title, currentLevel)) {
+            showToast("Du hast diesen Titel noch nicht freigeschaltet.", true);
+            return;
+        }
+
+        userProfile.equipped_title_id = titleId;
+        if (elements.home.profileTitleBtn) {
+            elements.home.profileTitleBtn.querySelector('span').textContent = title.name;
+        }
+        renderTitles(); // Zum Aktualisieren der "Ausgerüstet"-Markierung
+
+        if (saveToDb && supabase) {
+            const { error } = await supabase.from('profiles').update({ equipped_title_id: titleId }).eq('id', currentUser.id);
+            if (error) {
+                showToast("Fehler beim Speichern des Titels.", true);
+            } else {
+                showToast(`Titel "${title.name}" ausgerüstet!`, false);
+            }
+        }
+    }
+
+    function renderTitles() {
+        if (!elements.titles.list || currentUser.isGuest) return;
+        elements.titles.list.innerHTML = '';
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        
+        titlesList.forEach(title => {
+            const isUnlocked = isItemUnlocked(title, currentLevel);
+            const isEquipped = userProfile.equipped_title_id === title.id;
+
+            const card = document.createElement('div');
+            card.className = 'title-card';
+            card.classList.toggle('locked', !isUnlocked);
+            card.classList.toggle('equipped', isEquipped);
+            card.dataset.titleId = title.id;
+
+            card.innerHTML = `
+                <span class="title-name">${title.name}</span>
+                <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : getUnlockDescription(title)}</span>
+            `;
+            elements.titles.list.appendChild(card);
+        });
+    }
+
+    async function equipIcon(iconId, saveToDb = true) {
+        if (currentUser.isGuest) return;
+        const icon = iconsList.find(i => i.id === iconId);
+        if (!icon) return;
+
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        if (!isItemUnlocked(icon, currentLevel)) {
+            showToast("Du hast dieses Icon noch nicht freigeschaltet.", true);
+            return;
+        }
+
+        userProfile.equipped_icon_id = iconId;
+        if (elements.home.profileIcon) {
+            elements.home.profileIcon.className = `fa-solid ${icon.iconClass}`;
+        }
+        renderIcons(); // Zum Aktualisieren der "Ausgerüstet"-Markierung
+
+        if (saveToDb && supabase) {
+            const { error } = await supabase.from('profiles').update({ equipped_icon_id: iconId }).eq('id', currentUser.id);
+            if (error) {
+                showToast("Fehler beim Speichern des Icons.", true);
+            } else {
+                showToast(`Icon ausgerüstet!`, false);
+            }
+        }
+    }
+
+    function renderIcons() {
+        if (!elements.icons.list || currentUser.isGuest) return;
+        elements.icons.list.innerHTML = '';
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+
+        iconsList.forEach(icon => {
+            const isUnlocked = isItemUnlocked(icon, currentLevel);
+            const isEquipped = userProfile.equipped_icon_id === icon.id;
+
+            const card = document.createElement('div');
+            card.className = 'icon-card';
+            card.classList.toggle('locked', !isUnlocked);
+            card.classList.toggle('equipped', isEquipped);
+            card.dataset.iconId = icon.id;
+
+            card.innerHTML = `
+                <div class="icon-preview"><i class="fa-solid ${icon.iconClass}"></i></div>
+                <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : (icon.description || getUnlockDescription(icon))}</span>
+            `;
+            elements.icons.list.appendChild(card);
+        });
+    }
+
+    function renderLevelProgress() {
+        if (!elements.levelProgress.list || currentUser.isGuest) return;
+        elements.levelProgress.list.innerHTML = '';
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        const maxDisplayLevel = 50;
+
+        for (let level = 1; level <= maxDisplayLevel; level++) {
+            const isUnlocked = currentLevel >= level;
+            const item = document.createElement('div');
+            item.className = 'level-progress-item';
+            item.classList.toggle('unlocked', isUnlocked);
+            
+            const xpNeeded = getXpForLevel(level + 1);
+            
+            // Finde Belohnungen für dieses Level
+            const levelTitles = titlesList.filter(t => t.unlockType === 'level' && t.unlockValue === level);
+            const levelIcons = iconsList.filter(i => i.unlockType === 'level' && i.unlockValue === level);
+            const rewards = [...levelTitles, ...levelIcons];
+
+            let rewardsHtml = '';
+            if (rewards.length > 0) {
+                rewards.forEach(reward => {
+                    rewardsHtml += `
+                        <div class="reward-item">
+                            <i class="fa-solid ${reward.type === 'title' ? 'fa-ticket' : reward.iconClass}"></i>
+                            <span>${reward.name || reward.description}</span>
+                        </div>
+                    `;
+                });
+            } else {
+                rewardsHtml = '<div class="no-reward">Keine spezielle Belohnung</div>';
+            }
+
+            item.innerHTML = `
+                <div class="level-progress-header">
+                    <h3>Level ${level}</h3>
+                    <span>${isUnlocked ? 'Erreicht' : `Nächstes Level bei ${xpNeeded} XP`}</span>
+                </div>
+                <div class="level-progress-rewards">
+                    ${rewardsHtml}
+                </div>
+            `;
+            elements.levelProgress.list.appendChild(item);
+        }
+    }
+    
+    function updatePlayerProgressDisplay() {
+        if (currentUser.isGuest) return;
+        
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        const currentLevelXp = getXpForLevel(currentLevel);
+        const nextLevelXp = getXpForLevel(currentLevel + 1);
+        const xpForThisLevel = nextLevelXp - currentLevelXp;
+        const xpProgress = (userProfile.xp || 0) - currentLevelXp;
+        const progressPercent = xpForThisLevel > 0 ? (xpProgress / xpForThisLevel) * 100 : 0;
+        
+        if (elements.home.profileLevel) elements.home.profileLevel.textContent = currentLevel;
+        if (elements.home.profileXpFill) elements.home.profileXpFill.style.width = `${progressPercent}%`;
+        if (elements.home.profileXpText) elements.home.profileXpText.textContent = `${userProfile.xp || 0} / ${nextLevelXp} XP`;
+    }
+
+    async function updatePlayerProgress() {
+        // Diese Funktion wird vom Server aufgerufen, wenn ein Spiel endet.
+        // Sie holt die neuesten XP/Stats vom Server.
+        if (currentUser.isGuest || !supabase) return;
+        try {
+            const { data, error } = await supabase.from('profiles').select('xp, games_played, wins, correct_answers, highscore, spots').eq('id', currentUser.id).single();
+            if (error) throw error;
+            userProfile = { ...userProfile, ...data };
+            updatePlayerProgressDisplay();
+            updateStatsDisplay();
+            updateSpotsDisplay();
+        } catch(error) {
+            console.error("Fehler beim Aktualisieren der Spieler-Progression:", error);
+        }
+    }
+    
+    function updateStatsDisplay() {
+        if (currentUser.isGuest) return;
+        const stats = userProfile;
+        const winrate = (stats.games_played > 0 ? (stats.wins / stats.games_played) * 100 : 0).toFixed(0);
+        const avgScore = (stats.games_played > 0 ? (stats.correct_answers / stats.games_played) : 0).toFixed(1); // Annahme: correct_answers ist die Gesamtpunktzahl?
+        
+        // Preview
+        if(elements.stats.gamesPlayedPreview) elements.stats.gamesPlayedPreview.textContent = stats.games_played || 0;
+        if(elements.stats.winsPreview) elements.stats.winsPreview.textContent = stats.wins || 0;
+        if(elements.stats.correctAnswersPreview) elements.stats.correctAnswersPreview.textContent = stats.correct_answers || 0;
+        // Fullscreen
+        if(elements.stats.gamesPlayed) elements.stats.gamesPlayed.textContent = stats.games_played || 0;
+        if(elements.stats.wins) elements.stats.wins.textContent = stats.wins || 0;
+        if(elements.stats.winrate) elements.stats.winrate.textContent = `${winrate}%`;
+        if(elements.stats.highscore) elements.stats.highscore.textContent = stats.highscore || 0;
+        if(elements.stats.correctAnswers) elements.stats.correctAnswers.textContent = stats.correct_answers || 0;
+        if(elements.stats.avgScore) elements.stats.avgScore.textContent = avgScore;
+    }
+
+    // --- NEU: Implementiertes SHOP-System ---
+    
+    async function loadShopItems() {
+        if (currentUser.isGuest) return;
+        setLoading(true, "Lade Shop...");
+        try {
+            // 1. Hole aktuelle Spots
+            const { data: profileData, error: profileError } = await supabase.from('profiles').select('spots').eq('id', currentUser.id).single();
+            if (profileError) throw profileError;
+            userProfile.spots = profileData.spots;
+            updateSpotsDisplay();
+
+            // 2. Hole alle Shop-Items vom Server
+            // (Diese Route ist in deiner server.js definiert)
+            const response = await fetch('/api/shop/items', {
+                headers: { 'Authorization': `Bearer ${supabase.auth.getSession().session.access_token}` } 
+            });
+            if (!response.ok) throw new Error('Shop-Daten konnten nicht geladen werden.');
+            
+            const { items: shopItemsFromServer } = await response.json();
+            
+            const titlesListEl = elements.shop.titlesList;
+            const iconsListEl = elements.shop.iconsList;
+            const backgroundsListEl = elements.shop.backgroundsList;
+            const colorsListEl = elements.shop.colorsList;
+
+            titlesListEl.innerHTML = '';
+            iconsListEl.innerHTML = '';
+            backgroundsListEl.innerHTML = '';
+            colorsListEl.innerHTML = '';
+
+            // 3. Finde alle Shop-Items in unseren lokalen Listen
+            const allShopItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList]
+                .filter(item => item.unlockType === 'spots');
+
+            allShopItems.forEach(item => {
+                // Finde das passende Item vom Server, um den 'isOwned'-Status zu kriegen
+                const serverItem = shopItemsFromServer.find(si => si.id === item.id);
+                const isOwned = serverItem ? serverItem.isOwned : false;
+                
+                // Füge dem lokalen Set hinzu, falls es vom Server als 'owned' markiert wurde
+                if (isOwned) {
+                    if (item.type === 'title') ownedTitleIds.add(item.id);
+                    else if (item.type === 'icon') ownedIconIds.add(item.id);
+                    else if (item.type === 'background') ownedBackgroundIds.add(item.backgroundId);
+                    else if (item.type === 'color') ownedColorIds.add(item.id);
+                }
+
+                // 4. Rendere das Item
+                if (item.type === 'title') {
+                    titlesListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
+                } else if (item.type === 'icon') {
+                    iconsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
+                } else if (item.type === 'background') {
+                    backgroundsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
+                } else if (item.type === 'color') {
+                    colorsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
+                }
+            });
+
+        } catch (error) {
+            console.error("Error loading shop items:", error);
+            showToast("Fehler beim Laden des Shops.", true);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function renderShopItem(item, userSpots, isOwned) {
+        const el = document.createElement('div');
+        el.className = 'shop-item';
+        el.classList.toggle('owned', isOwned);
+        
+        let previewHtml = '';
+        if (item.type === 'icon') {
+            previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
+        } else if (item.type === 'background') {
+            previewHtml = `<div class="item-preview-background" style="background-image: url('${item.imageUrl}')"></div>`;
+        } else if (item.type === 'color') {
+            previewHtml = `<div class="item-preview-color" style="background-color: ${item.colorHex}"><i class="fa-solid fa-font"></i></div>`;
+        } else {
+            // Title
+            previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-ticket"></i></div>`;
+        }
+
+        const canAfford = userSpots >= item.cost;
+        el.classList.toggle('cannot-afford', !canAfford && !isOwned);
+
+        el.innerHTML = `
+            ${previewHtml}
+            <div class="item-name">${item.name}</div>
+            <div class="item-description">${item.description || getUnlockDescription(item)}</div>
+            <div class="item-cost">${item.cost} 🎵</div>
+            <button class="button-primary buy-button" data-item-id="${item.id}" ${isOwned || !canAfford ? 'disabled' : ''}>
+                ${isOwned ? 'Besitzt du' : 'Kaufen'}
+            </button>
+        `;
+        return el;
+    }
+
+    async function handleBuyItem(itemId) {
+        const item = allItems.find(i => i.id == itemId);
+        if (!item) return;
+
+        showConfirmModal(
+            `Kauf bestätigen`,
+            `Möchtest du "${item.name}" für ${item.cost} 🎵 kaufen?`,
+            async () => {
+                setLoading(true, "Kauf wird verarbeitet...");
+                try {
+                    // Diese Route ist in server.js definiert
+                    const response = await fetch('/api/shop/buy', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${supabase.auth.getSession().session.access_token}`
+                        },
+                        body: JSON.stringify({ itemId: item.id })
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || "Kauf fehlgeschlagen.");
+                    }
+
+                    setLoading(false);
+                    showToast(result.message, false);
+
+                    // Update UI
+                    userProfile.spots = result.newSpots;
+                    updateSpotsDisplay();
+
+                    // Add to local inventory
+                    if (result.itemType === 'title') ownedTitleIds.add(item.id);
+                    else if (result.itemType === 'icon') ownedIconIds.add(item.id);
+                    else if (result.itemType === 'background') ownedBackgroundIds.add(item.backgroundId);
+                    else if (result.itemType === 'color') ownedColorIds.add(item.id);
+
+                    // Reload shop to update buttons
+                    loadShopItems();
+
+                } catch (error) {
+                    setLoading(false);
+                    console.error("Fehler beim Kaufen:", error);
+                    showToast(error.message, true);
+                }
+            }
+        );
+    }
+
+    function showBackgroundSelectionModal() {
+        if (currentUser.isGuest || !elements.backgroundSelectModal.list) return;
+        
+        elements.backgroundSelectModal.list.innerHTML = '';
+        
+        // Füge Standard hinzu
+        const defaultLi = document.createElement('li');
+        defaultLi.dataset.bgId = 'default';
+        defaultLi.innerHTML = `<button class="button-select">Standard</button>`;
+        elements.backgroundSelectModal.list.appendChild(defaultLi);
+
+        // Finde alle besessenen Hintergründe
+        backgroundsList.forEach(bg => {
+            if (bg.id !== 'default' && ownedBackgroundIds.has(bg.backgroundId)) {
+                const li = document.createElement('li');
+                li.dataset.bgId = bg.backgroundId;
+                li.innerHTML = `<button class="button-select">${bg.name}</button>`;
+                elements.backgroundSelectModal.list.appendChild(li);
+            }
+        });
+
+        elements.backgroundSelectModal.overlay.classList.remove('hidden');
+    }
+
+    function applyLobbyBackground(backgroundId) {
+        const lobbyScreen = document.getElementById('lobby-screen');
+        if (!lobbyScreen) return;
+
+        const bg = backgroundsList.find(b => b.backgroundId === backgroundId);
+        if (bg && bg.imageUrl) {
+            lobbyScreen.style.backgroundImage = `url('${bg.imageUrl}')`;
+        } else {
+            lobbyScreen.style.backgroundImage = 'none';
+        }
+        
+        // Update den Text des Auswahl-Buttons
+        if (elements.lobby.backgroundSelectButton) {
+            elements.lobby.backgroundSelectButton.textContent = bg ? bg.name : 'Standard';
+        }
+    }
+    
+    function displayReaction(playerId, reaction) {
+        const playerCard = document.querySelector(`.player-card[data-player-id="${playerId}"]`);
+        if (playerCard) {
+            const popup = document.createElement('div');
+            popup.className = 'player-reaction-popup';
+            popup.textContent = reaction;
+            playerCard.appendChild(popup);
+            setTimeout(() => popup.remove(), 1500);
+        }
+    }
+    
+    async function handleGiftSpots(friendId, friendName) {
+        // (STUB - kommt mit Freunde-System)
+        showToast("Freunde-System (Gifting) kommt bald!", false);
+    }
+    // --- ENDE: Implementierte UI-Funktionen ---
 
     // --- Game Logic Functions (Stubs) ---
     function showCountdown(round, total) { console.log("STUB: showCountdown"); }
     function setupPreRound(data) { console.log("STUB: setupPreRound"); }
     function setupNewRound(data) { console.log("STUB: setupNewRound"); }
     function showRoundResult(data) { console.log("STUB: showRoundResult"); }
-    // --- Friends Modal Logic (Stubs) ---
+    
+    // --- Friends Modal Logic (Stubs - kommt als nächstes) ---
     async function loadFriendsData() { console.log("STUB: loadFriendsData"); if (elements.friendsModal.friendsList) elements.friendsModal.friendsList.innerHTML = '<li>Lade Freunde... (STUB)</li>'; if(elements.friendsModal.requestsList) elements.friendsModal.requestsList.innerHTML = '<li>Lade Anfragen... (STUB)</li>'; }
     function renderRequestsList(requests) { console.log("STUB: renderRequestsList"); }
+    
     // --- Utility & Modal Functions (Stubs) ---
     async function fetchHostData(isRefresh = false) { console.log("STUB: fetchHostData"); showToast("Geräte/Playlists laden (STUB)", false); return Promise.resolve(); }
     function renderPaginatedPlaylists(playlistsToRender, page = 1) { console.log("STUB: renderPaginatedPlaylists"); if(elements.playlistSelectModal.list) elements.playlistSelectModal.list.innerHTML = '<li>Playlist 1 (STUB)</li><li>Playlist 2 (STUB)</li>'; }
@@ -229,7 +664,6 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.auth.loginForm?.addEventListener('submit', (e) => {
                 console.log("Login form submit triggered");
                 e.preventDefault(); // Verhindert Neuladen
-                // Verwende .bind(), um sicherzustellen, dass 'this' in der Supabase-Funktion korrekt ist
                 handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.target, false);
             });
             elements.auth.registerForm?.addEventListener('submit', (e) => {
@@ -281,29 +715,45 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.home.usernameContainer?.addEventListener('click', () => { if (!currentUser || currentUser.isGuest) return; elements.changeNameModal.input.value = currentUser.username; elements.changeNameModal.overlay?.classList.remove('hidden'); elements.changeNameModal.input?.focus(); });
             elements.home.shopButton?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { loadShopItems(); showScreen('shop-screen'); } });
 
-            // ... (Rest der Listener für Modus, Lobby, Modals etc. bleiben gleich, aber mit ?. Sicherheitsprüfungen) ...
-             // Modus & Spieltyp Auswahl (mit ?. Checks)
+             // Modus & Spieltyp Auswahl
             elements.modeSelection.container?.addEventListener('click', (e) => { const mb=e.target.closest('.mode-box'); if(mb && !mb.disabled){ selectedGameMode=mb.dataset.mode; console.log(`Mode: ${selectedGameMode}`); if (elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=true; if (elements.gameTypeScreen.pointsBtn) elements.gameTypeScreen.pointsBtn.classList.remove('active'); if (elements.gameTypeScreen.livesBtn) elements.gameTypeScreen.livesBtn.classList.remove('active'); if (elements.gameTypeScreen.livesSettings) elements.gameTypeScreen.livesSettings.classList.add('hidden'); showScreen('game-type-selection-screen'); } });
             elements.gameTypeScreen.pointsBtn?.addEventListener('click', () => { gameCreationSettings.gameType='points'; elements.gameTypeScreen.pointsBtn.classList.add('active'); elements.gameTypeScreen.livesBtn?.classList.remove('active'); elements.gameTypeScreen.livesSettings?.classList.add('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
             elements.gameTypeScreen.livesBtn?.addEventListener('click', () => { gameCreationSettings.gameType='lives'; elements.gameTypeScreen.pointsBtn?.classList.remove('active'); elements.gameTypeScreen.livesBtn.classList.add('active'); elements.gameTypeScreen.livesSettings?.classList.remove('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
             elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const btn=e.target.closest('.preset-button'); if(btn){ elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const v=btn.dataset.value; if(v==='custom'){ openCustomValueModal('lives', 'Leben (1-10)'); } else { gameCreationSettings.lives=parseInt(v); console.log(`Lives: ${gameCreationSettings.lives}`); } } });
-            elements.gameTypeScreen.createLobbyBtn?.addEventListener('click', () => { if(!selectedGameMode || !gameCreationSettings.gameType){ showToast("Modus/Typ fehlt.", true); return; } if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } setLoading(true); ws.socket.send(JSON.stringify({ type: 'create-game', payload: { user: currentUser, token: spotifyToken, gameMode: selectedGameMode, gameType: gameCreationSettings.gameType, lives: gameCreationSettings.gameType === 'lives' ? gameCreationSettings.lives : 3 } })); });
-            // Lobby Screen (mit ?. Checks)
+            
+            // --- NEUER LADE-BILDSCHIRM (EVENT LISTENER) START ---
+            elements.gameTypeScreen.createLobbyBtn?.addEventListener('click', () => { 
+                if(!selectedGameMode || !gameCreationSettings.gameType){ showToast("Modus/Typ fehlt.", true); return; } 
+                if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } 
+                
+                setLoading(true, "Lobby wird erstellt..."); // <-- Neue Zeile mit Text
+                
+                ws.socket.send(JSON.stringify({ 
+                    type: 'create-game', 
+                    payload: { user: currentUser, token: spotifyToken, gameMode: selectedGameMode, gameType: gameCreationSettings.gameType, lives: gameCreationSettings.gameType === 'lives' ? gameCreationSettings.lives : 3 } 
+                })); 
+            });
+            // --- NEUER LADE-BILDSCHIRM (EVENT LISTENER) ENDE ---
+
+            // Lobby Screen
             elements.lobby.inviteFriendsBtn?.addEventListener('click', async () => { /* STUB */ console.log("Invite friends clicked"); showToast("Freunde einladen (STUB)", false); });
             elements.lobby.deviceSelectBtn?.addEventListener('click', async () => { setLoading(true); await fetchHostData(true); setLoading(false); elements.deviceSelectModal.overlay?.classList.remove('hidden'); });
             elements.lobby.playlistSelectBtn?.addEventListener('click', async () => { setLoading(true); await fetchHostData(); setLoading(false); if (allPlaylists.length > 0) { renderPaginatedPlaylists(allPlaylists, 1); elements.playlistSelectModal.overlay?.classList.remove('hidden'); } else { showToast("Keine Playlists gefunden.", true); } });
             elements.lobby.backgroundSelectButton?.addEventListener('click', showBackgroundSelectionModal);
             document.getElementById('host-settings')?.addEventListener('click', (e) => { const btn = e.target.closest('.preset-button'); if(btn && btn.closest('.preset-group')) { handlePresetClick(e, btn.closest('.preset-group').id); } });
-            elements.lobby.startGameBtn?.addEventListener('click', () => { if (elements.lobby.startGameBtn && !elements.lobby.startGameBtn.disabled && ws.socket?.readyState === WebSocket.OPEN) { setLoading(true); ws.socket.send(JSON.stringify({ type: 'start-game', payload: { pin: currentGame.pin } })); } else { showToast("Wähle Gerät & Playlist.", true); } });
+            elements.lobby.startGameBtn?.addEventListener('click', () => { if (elements.lobby.startGameBtn && !elements.lobby.startGameBtn.disabled && ws.socket?.readyState === WebSocket.OPEN) { setLoading(true, "Spiel startet..."); ws.socket.send(JSON.stringify({ type: 'start-game', payload: { pin: currentGame.pin } })); } else { showToast("Wähle Gerät & Playlist.", true); } });
             elements.lobby.reactionButtons?.addEventListener('click', (e) => { const btn = e.target.closest('.reaction-btn'); if (btn && ws.socket?.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type: 'send-reaction', payload: { reaction: btn.dataset.reaction } })); } });
-            // Item/Title/Icon Selection Screens (mit ?. Checks)
+            
+            // Item/Title/Icon Selection Screens
             elements.titles.list?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { equipTitle(parseInt(card.dataset.titleId), true); } });
             elements.icons.list?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipIcon(parseInt(card.dataset.iconId), true); } });
-            // Shop Screen (mit ?. Checks)
+            
+            // Shop Screen
             elements.shop.screen?.addEventListener('click', (e) => { const buyBtn = e.target.closest('.buy-button:not([disabled])'); if (buyBtn) { handleBuyItem(buyBtn.dataset.itemId); } });
-            // Modals (mit ?. Checks)
+            
+            // Modals
             document.querySelectorAll('.button-exit-modal').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal-overlay')?.classList.add('hidden')));
-            elements.joinModal.numpad?.addEventListener('click', (e) => { const btn=e.target.closest('button'); if(!btn) return; const key=btn.dataset.key, action=btn.dataset.action; let confirmBtn = elements.joinModal.numpad.querySelector('[data-action="confirm"]'); if(key >= '0' && key <= '9' && pinInput.length < 4) pinInput += key; else if(action==='clear'||action==='backspace') pinInput = pinInput.slice(0, -1); else if(action==='confirm' && pinInput.length===4){ if(!currentUser){ showToast("Anmelden/Gast zuerst.", true); return; } if(!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } setLoading(true); ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } })); } elements.joinModal.pinDisplay?.forEach((d,i)=>d.textContent=pinInput[i]||""); if(confirmBtn) confirmBtn.disabled = pinInput.length !== 4; });
+            elements.joinModal.numpad?.addEventListener('click', (e) => { const btn=e.target.closest('button'); if(!btn) return; const key=btn.dataset.key, action=btn.dataset.action; let confirmBtn = elements.joinModal.numpad.querySelector('[data-action="confirm"]'); if(key >= '0' && key <= '9' && pinInput.length < 4) pinInput += key; else if(action==='clear'||action==='backspace') pinInput = pinInput.slice(0, -1); else if(action==='confirm' && pinInput.length===4){ if(!currentUser){ showToast("Anmelden/Gast zuerst.", true); return; } if(!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } setLoading(true, "Trete Lobby bei..."); ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } })); } elements.joinModal.pinDisplay?.forEach((d,i)=>d.textContent=pinInput[i]||""); if(confirmBtn) confirmBtn.disabled = pinInput.length !== 4; });
             elements.friendsModal.tabsContainer?.addEventListener('click', (e) => { const tab = e.target.closest('.tab-button'); if (tab && !tab.classList.contains('active')) { elements.friendsModal.tabs?.forEach(t => t.classList.remove('active')); elements.friendsModal.tabContents?.forEach(c => c.classList.remove('active')); tab.classList.add('active'); document.getElementById(tab.dataset.tab)?.classList.add('active'); } });
             elements.friendsModal.addFriendBtn?.addEventListener('click', async () => { /* STUB */ const name = elements.friendsModal.addFriendInput.value; if(name) { console.log(`Adding friend: ${name}`); showToast(`Freund hinzufügen: ${name} (STUB)`, false); elements.friendsModal.addFriendInput.value = ''; }});
             elements.friendsModal.requestsList?.addEventListener('click', (e) => { /* STUB */ console.log("Request list clicked"); });
@@ -321,7 +771,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.confirmActionModal.cancelBtn?.addEventListener('click', () => { elements.confirmActionModal.overlay?.classList.add('hidden'); currentConfirmAction = null; });
             elements.confirmActionModal.confirmBtn?.addEventListener('click', () => { if (typeof currentConfirmAction === 'function') { currentConfirmAction(); } elements.confirmActionModal.overlay?.classList.add('hidden'); currentConfirmAction = null; });
 
-            // Console Buttons (mit ?. Checks)
+            // Console Buttons
             toggleConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.toggle('hidden'));
             closeConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.add('hidden'));
             clearConsoleBtn?.addEventListener('click', () => { if (consoleOutput) consoleOutput.innerHTML = ''; });
@@ -332,7 +782,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("FATAL ERROR adding event listeners:", error);
             logToPage('error', ["FATAL ERROR adding event listeners:", error]);
-            // Optional: Zeige dem Nutzer eine Fehlermeldung an
             document.body.innerHTML = `<div class="fatal-error"><h1>Fehler</h1><p>Ein unerwarteter Fehler ist beim Initialisieren aufgetreten. (${error.message}) Bitte lade die Seite neu.</p></div>`;
         }
     }
@@ -354,7 +803,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (event === 'SIGNED_OUT') { currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); document.body.classList.add('is-guest'); setLoading(false); elements.home.spotifyConnectBtn?.classList.remove('hidden'); elements.home.createRoomBtn?.classList.add('hidden'); return; }
                 if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
                      if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id)) {
-                          window.initializeAppRunning = true; console.log(`Session available/updated for ${session.user.id}. Initializing app...`); setLoading(true);
+                          window.initializeAppRunning = true; console.log(`Session available/updated for ${session.user.id}. Initializing app...`); setLoading(true, "Lade Profil..."); // Hier den neuen Ladescreen verwenden
                           try { initializeApp(session.user, false); }
                           catch(initError) { console.error("Error calling initializeApp:", initError); setLoading(false); showScreen('auth-screen'); }
                           finally { window.initializeAppRunning = false; }
@@ -363,7 +812,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (!session && !['USER_UPDATED', 'PASSWORD_RECOVERY', 'MFA_CHALLENGE_VERIFIED'].includes(event)) {
                      console.log(`No active session or invalid (Event: ${event}). Showing auth.`);
                      if (currentUser) { currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; localStorage.removeItem('fakesterGame'); }
-                     screenHistory = ['auth-screen']; showScreen('auth-screen'); document.body.classList.add('is-guest'); setLoading(false);
+                     screenHistory = ['auth-screen']; showScreen('auth-screen'); setLoading(false);
                 }
             });
 
