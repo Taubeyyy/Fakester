@@ -75,18 +75,25 @@ let games = {};
 const onlineUsers = new Map();
 const HEARTBEAT_INTERVAL = 30000;
 
-// --- Shop Data ---
+// --- Shop Data (AKTUALISIERT) ---
 const shopItems = [
     { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Zeige allen dein Wissen!' },
     { id: 102, type: 'title', name: 'Playlist-Meister', cost: 150, unlockType: 'spots', description: 'Für echte Kenner.' },
+    { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Für Rhythmus-Fanatiker.' }, // NEU
+    { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Synth-Pop-Liebhaber.' }, // NEU
     { id: 201, type: 'icon', name: 'Diamant', iconClass: 'fa-diamond', cost: 250, unlockType: 'spots', description: 'Ein glänzendes Icon.' },
     { id: 202, type: 'icon', name: 'Zauberhut', iconClass: 'fa-hat-wizard', cost: 300, unlockType: 'spots', description: 'Magisch!' },
+    { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Zum Mond!' }, // NEU
+    { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Explosiv.' }, // NEU
     { id: 301, type: 'background', name: 'Synthwave', imageUrl: '/assets/img/bg_synthwave.jpg', cost: 500, unlockType: 'spots', description: 'Retro-Vibes.', backgroundId: '301' },
     { id: 302, type: 'background', name: 'Konzertbühne', imageUrl: '/assets/img/bg_stage.jpg', cost: 600, unlockType: 'spots', description: 'Fühl dich wie ein Star.', backgroundId: '302' },
+    { id: 303, type: 'background', name: 'Plattenladen', imageUrl: '/assets/img/bg_vinyl.jpg', cost: 700, unlockType: 'spots', description: 'Klassisches Stöbern.', backgroundId: '303' }, // NEU
     { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' },
     { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' },
-    { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }
+    { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' },
+    { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' } // NEU
 ];
+
 
 // --- Helper Functions ---
 function getScores(pin) { 
@@ -101,7 +108,8 @@ function getScores(pin) {
             lives: p.lives, 
             isConnected: p.isConnected, 
             lastPointsBreakdown: p.lastPointsBreakdown,
-            iconId: p.iconId || 1 // Sende die Icon-ID
+            iconId: p.iconId || 1, // Sende die Icon-ID
+            colorId: p.colorId || null // Sende die Color-ID
         }))
         .filter(p => p.id)
         .sort((a, b) => b.score - a.score); 
@@ -130,6 +138,9 @@ function broadcastLobbyUpdate(pin) {
              chosenBackgroundId: game.settings.chosenBackgroundId,
              deviceName: game.settings.deviceName, 
              playlistName: game.settings.playlistName,
+             // NEU: Sende auch die IDs, nicht nur die Namen
+             deviceId: game.settings.deviceId,
+             playlistId: game.settings.playlistId
          }
      };
      broadcastToLobby(pin, { type: 'lobby-update', payload });
@@ -375,7 +386,8 @@ async function handleWebSocketMessage(ws, data) {
                             chosenBackgroundId: null,
                             deviceName: null,
                             playlistName: null,
-                            playlistId: null
+                            playlistId: null,
+                            deviceId: null // NEU
                         },
                         tracks: [],
                         currentRound: 0
@@ -432,7 +444,7 @@ async function handleWebSocketMessage(ws, data) {
                 if (!game || ws.playerId !== game.hostId) {
                     return showToastToPlayer(ws, "Nur der Host kann das Spiel starten.", true);
                 }
-                if (!game.settings.playlistId || !game.settings.deviceName) {
+                if (!game.settings.playlistId || !game.settings.deviceId) { // Geändert zu deviceId
                      return showToastToPlayer(ws, "Wähle zuerst Playlist und Wiedergabegerät.", true);
                 }
                 
@@ -512,19 +524,23 @@ async function joinGame(ws, user, pin) {
         // --- Neuer Spieler tritt bei ---
         console.log(`Player ${user.username} (${playerId}) joining ${pin}.`);
         
-        // Hole das ausgerüstete Icon des Spielers
+        // Hole das ausgerüstete Icon UND die Farbe des Spielers
         let iconId = 1; // Standard-Icon
+        let colorId = null; // Standard-Farbe
         if (!user.isGuest) {
             try {
                 const { data: profile, error } = await supabase
                     .from('profiles')
-                    .select('equipped_icon_id')
+                    .select('equipped_icon_id, equipped_color_id') // Beides holen
                     .eq('id', playerId)
                     .single();
                 if (error) throw error;
-                if (profile) iconId = profile.equipped_icon_id || 1;
+                if (profile) {
+                    iconId = profile.equipped_icon_id || 1;
+                    colorId = profile.equipped_color_id || null;
+                }
             } catch (e) {
-                console.error(`Could not fetch icon for player ${playerId}:`, e.message);
+                console.error(`Could not fetch icon/color for player ${playerId}:`, e.message);
             }
         }
         
@@ -538,7 +554,8 @@ async function joinGame(ws, user, pin) {
             lives: game.settings.lives,
             activeEffects: {},
             lastPointsBreakdown: null,
-            iconId: iconId // Speichere die Icon-ID
+            iconId: iconId, // Speichere die Icon-ID
+            colorId: colorId // Speichere die Color-ID
         };
         game.players[playerId] = player;
     }

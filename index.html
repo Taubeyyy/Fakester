@@ -84,7 +84,7 @@
                 <a href="/login" class="button-primary guest-hidden" id="spotify-connect-button"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
                 <button class="button-primary hidden" id="show-create-button-action"><i class="fa-solid fa-plus"></i> Raum erstellen</button>
                 <button class="button-secondary" id="show-join-button"><i class="fa-solid fa-right-to-bracket"></i> Raum beitreten</button>
-                <button id="shop-button" class="button-secondary guest-hidden"><i class="fa-solid fa-store"></i> Shop</button>
+                <button id="customization-button" class="button-secondary guest-hidden"><i class="fa-solid fa-palette"></i> Anpassen</button> <button id="shop-button" class="button-secondary guest-hidden"><i class="fa-solid fa-store"></i> Shop</button>
                 </div>
         </div>
         <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button>
@@ -154,14 +154,7 @@
                     <button id="invite-friends-button" class="button-secondary button-small guest-hidden"><i class="fa-solid fa-user-plus"></i> Freunde einladen</button>
                 </div>
                 <div id="player-list" class="player-grid"></div>
-                <div id="reaction-buttons" class="reaction-buttons">
-                    <button class="button-icon reaction-btn" data-reaction="👍">👍</button>
-                    <button class="button-icon reaction-btn" data-reaction="😂">😂</button>
-                    <button class="button-icon reaction-btn" data-reaction="🎵">🎵</button>
-                    <button class="button-icon reaction-btn" data-reaction="🔥">🔥</button>
-                    <button class="button-icon reaction-btn" data-reaction="🤔">🤔</button>
                 </div>
-            </div>
             <div id="host-settings" class="hidden">
                  <h3>Einstellungen</h3>
                  <div class="settings-grid">
@@ -239,8 +232,20 @@
             <div class="timer-bar-container">
                 <div class="timer-bar" id="timer-bar"></div>
             </div>
+            
+            <div id="game-player-list" class="game-player-grid">
+                </div>
+
             <div id="game-content-area" style="width: 100%; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
                 <h2>Warte auf nächsten Song...</h2>
+            </div>
+
+            <div id="reaction-buttons" class="reaction-buttons">
+                <button class="button-icon reaction-btn" data-reaction="👍">👍</button>
+                <button class="button-icon reaction-btn" data-reaction="😂">😂</button>
+                <button class="button-icon reaction-btn" data-reaction="🎵">🎵</button>
+                <button class="button-icon reaction-btn" data-reaction="🔥">🔥</button>
+                <button class="button-icon reaction-btn" data-reaction="🤔">🤔</button>
             </div>
         </div>
     </main>
@@ -325,6 +330,35 @@
                         </div>
                 </div>
             </div>
+        </div>
+    </main>
+    
+    <main id="customization-screen" class="screen">
+        <div class="container text-left">
+            <h2>Anpassen</h2>
+            <p>Wähle deine freigeschalteten Titel, Icons und Farben.</p>
+
+            <div class="shop-section">
+                <h3>Titel</h3>
+                <div id="customize-title-list" class="selection-grid">
+                    <p>Lade Titel...</p>
+                </div>
+            </div>
+
+            <div class="shop-section">
+                <h3>Icons</h3>
+                <div id="customize-icon-list" class="icon-grid">
+                    <p>Lade Icons...</p>
+                </div>
+            </div>
+
+            <div class="shop-section">
+                <h3>Namensfarben</h3>
+                <div id="customize-color-list" class="color-grid">
+                    <p>Lade Farben...</p>
+                </div>
+            </div>
+
         </div>
     </main>
 
