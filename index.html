@@ -177,14 +177,22 @@
                     <div class="setting hidden" id="answer-type-container">
                         <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="Freitext: Du musst tippen. Multiple Choice: Wähle aus 4 Optionen."></i></label>
                         <div class="preset-group" id="answer-type-presets">
-                            <button class="preset-button" data-value="freestyle">Freitext</button>
+                            <button class="preset-button active" data-value="freestyle">Freitext</button>
                             <button class="preset-button" data-value="multiple">Multiple Choice</button>
+                        </div>
+                    </div>
+                    <div class="setting hidden" id="guess-elements-container">
+                        <label>Was muss geraten werden?</label>
+                        <div class="checkbox-group" id="guess-elements-presets">
+                            <label><input type="checkbox" name="guess-element" value="title" checked> Titel</label>
+                            <label><input type="checkbox" name="guess-element" value="artist" checked> Künstler</label>
+                            <label><input type="checkbox" name="guess-element" value="year"> Jahr</label>
                         </div>
                     </div>
                     <div class="setting">
                         <label>Anzahl Songs <i class="fa-solid fa-circle-question help-icon" title="Wie viele Runden sollen gespielt werden?"></i></label>
                         <div class="preset-group" id="song-count-presets">
-                            <button class="preset-button" data-value="10">10</button>
+                            <button class="preset-button active" data-value="10">10</button>
                             <button class="preset-button" data-value="20">20</button>
                             <button class="preset-button" data-value="-1">Alle</button>
                             <button class="preset-button" data-value="custom" data-type="song-count">Custom</button>
@@ -194,7 +202,7 @@
                         <label>Ratezeit <i class="fa-solid fa-circle-question help-icon" title="Wie viel Zeit hast du pro Runde?"></i></label>
                         <div class="preset-group" id="guess-time-presets">
                             <button class="preset-button" data-value="20">20s</button>
-                            <button class="preset-button" data-value="30">30s</button>
+                            <button class="preset-button active" data-value="30">30s</button>
                             <button class="preset-button" data-value="45">45s</button>
                             <button class="preset-button" data-value="custom" data-type="guess-time">Custom</button>
                         </div>
@@ -303,8 +311,6 @@
         </div>
     </main>
 
-
-    Ob es jetzt klappt?
 
 
     <div id="loading-overlay" class="loading-overlay hidden">

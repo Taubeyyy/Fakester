@@ -248,6 +248,33 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .preset-button { flex: 1 1 auto; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); color: var(--text-muted-color); padding: 8px 10px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; min-width: 50px; font-size: 0.8rem; text-align: center; }
 .preset-button:hover { border-color: var(--primary-color); }
 .preset-button.active { background-color: var(--primary-color); border-color: var(--primary-color); color: var(--background-color); }
+
+/* NEU: STYLING FÜR CHECKBOXEN */
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background-color: var(--dark-grey);
+    border: 1px solid var(--medium-grey);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: left;
+}
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: var(--text-muted-color);
+    cursor: pointer;
+}
+.checkbox-group input[type="checkbox"] {
+    width: auto;
+    accent-color: var(--primary-color);
+    transform: scale(1.2);
+}
+/* ENDE NEU */
+
 .button-start { padding: 15px; font-size: 1.1rem; }
 
 /* --- MODALS (REPARIERT) --- */
