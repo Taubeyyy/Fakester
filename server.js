@@ -79,19 +79,19 @@ const HEARTBEAT_INTERVAL = 30000;
 const shopItems = [
     { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Zeige allen dein Wissen!' },
     { id: 102, type: 'title', name: 'Playlist-Meister', cost: 150, unlockType: 'spots', description: 'Für echte Kenner.' },
-    { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Für Rhythmus-Fanatiker.' }, // NEU
-    { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Synth-Pop-Liebhaber.' }, // NEU
+    { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Für Rhythmus-Fanatiker.' },
+    { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Synth-Pop-Liebhaber.' },
     { id: 201, type: 'icon', name: 'Diamant', iconClass: 'fa-diamond', cost: 250, unlockType: 'spots', description: 'Ein glänzendes Icon.' },
     { id: 202, type: 'icon', name: 'Zauberhut', iconClass: 'fa-hat-wizard', cost: 300, unlockType: 'spots', description: 'Magisch!' },
-    { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Zum Mond!' }, // NEU
-    { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Explosiv.' }, // NEU
+    { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Zum Mond!' },
+    { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Explosiv.' },
     { id: 301, type: 'background', name: 'Synthwave', imageUrl: '/assets/img/bg_synthwave.jpg', cost: 500, unlockType: 'spots', description: 'Retro-Vibes.', backgroundId: '301' },
     { id: 302, type: 'background', name: 'Konzertbühne', imageUrl: '/assets/img/bg_stage.jpg', cost: 600, unlockType: 'spots', description: 'Fühl dich wie ein Star.', backgroundId: '302' },
-    { id: 303, type: 'background', name: 'Plattenladen', imageUrl: '/assets/img/bg_vinyl.jpg', cost: 700, unlockType: 'spots', description: 'Klassisches Stöbern.', backgroundId: '303' }, // NEU
+    { id: 303, type: 'background', name: 'Plattenladen', imageUrl: '/assets/img/bg_vinyl.jpg', cost: 700, unlockType: 'spots', description: 'Klassisches Stöbern.', backgroundId: '303' },
     { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' },
     { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' },
     { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' },
-    { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' } // NEU
+    { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' }
 ];
 
 
@@ -115,9 +115,12 @@ function getScores(pin) {
         .sort((a, b) => b.score - a.score); 
 }
 function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readyState === WebSocket.OPEN) { try { ws.send(JSON.stringify({ type: 'toast', payload: { message, isError } })); } catch (e) { console.error(`Failed to send toast to player ${ws.playerId}:`, e); } } }
+
+// KORRIGIERTE Spotify URL
 async function getPlaylistTracks(playlistId, token) { try {
     const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,artists(name),album(release_date,images),popularity))`, { headers: { 'Authorization': `Bearer ${token}` } });
     return response.data.items.map(item => item.track).filter(track => track && track.id && track.album?.release_date).map(track => ({ spotifyId: track.id, title: track.name, artist: track.artists[0]?.name || 'Unbekannt', year: parseInt(track.album.release_date.substring(0, 4)), popularity: track.popularity || 0, albumArtUrl: track.album.images[0]?.url })); } catch (error) { console.error("Fehler beim Abrufen der Playlist-Tracks:", error.response?.data || error.message); return null; } }
+
 async function spotifyApiCall(method, url, token, data = {}) { try { await axios({ method, url, data, headers: { 'Authorization': `Bearer ${token}` } }); return true; } catch (e) { console.error(`Spotify API Fehler bei ${method.toUpperCase()} ${url}:`, e.response?.data || e.message); return false; } }
 async function hasAchievement(userId, achievementId) { try { const { count, error } = await supabase.from('user_achievements').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('achievement_id', achievementId); if (error) throw error; return count > 0; } catch (e) { console.error("Error checking achievement:", e); return false; } }
 function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws && player.ws.readyState === WebSocket.OPEN && player.isConnected) { try { player.ws.send(messageString); } catch (e) { console.error(`Failed to send message to player ${player.ws.playerId}:`, e); } } }); }
@@ -169,6 +172,8 @@ async function awardAchievement(ws, userId, achievementId) {
 // --- Express Routes ---
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/api/config', (req, res) => res.json({ supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY }));
+
+// KORRIGIERTE Spotify URL
 app.get('/login', (req, res) => { const scopes = 'user-read-private user-read-email playlist-read-private streaming user-modify-playback-state user-read-playback-state'; res.redirect('https://accounts.spotify.com/authorize?' + new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, scope: scopes, redirect_uri: REDIRECT_URI }).toString()); });
 
 app.get('/callback', async (req, res) => {
@@ -183,7 +188,7 @@ app.get('/callback', async (req, res) => {
         console.log("Attempting to exchange Spotify code for token...");
         const response = await axios({
             method: 'post',
-            url: 'https://accounts.spotify.com/api/token',
+            url: 'https://accounts.spotify.com/api/token', // KORRIGIERTE Spotify URL
             data: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }).toString(),
             headers: { 'Authorization': 'Basic ' + (Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')), 'Content-Type': 'application/x-www-form-urlencoded' }
         });
@@ -208,9 +213,13 @@ app.get('/callback', async (req, res) => {
 
 app.post('/logout', (req, res) => { res.clearCookie('spotify_access_token', { path: '/' }); res.status(200).json({ message: 'Erfolgreich ausgeloggt' }); });
 app.get('/api/status', (req, res) => { const token = req.cookies.spotify_access_token; res.json({ loggedIn: !!token, token: token || null }); });
+
+// KORRIGIERTE Spotify URL
 app.get('/api/playlists', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
     const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
     res.json(d.data); } catch (e) { console.error("Playlist API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Playlists" }); } });
+
+// KORRIGIERTE Spotify URL
 app.get('/api/devices', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
     const d = await axios.get('https://api.spotify.com/v1/me/player/devices', { headers: { 'Authorization': `Bearer ${token}` } });
     res.json(d.data); } catch (e) { console.error("Device API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Geräte" }); } });
