@@ -43,7 +43,7 @@ body:has(#auth-screen.active) .app-header { display: none; }
 
 .screen {
     display: none; flex-grow: 1; flex-direction: column; align-items: center;
-    justify-content: flex-start; padding: 20px; width: 100%; overflow-y: auto;
+Patcha   justify-content: flex-start; padding: 20px; width: 100%; overflow-y: auto;
     opacity: 0; visibility: hidden; transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
     -webkit-overflow-scrolling: touch;
 }
