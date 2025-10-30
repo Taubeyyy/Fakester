@@ -260,7 +260,241 @@
         </div>
     </main>
 
+    <main id="shop-screen" class="screen">
+        <div class="container text-left">
+            <div class="shop-header">
+                <h2>Shop</h2>
+                <div class="spots-display header-spots">
+                    <span id="shop-spots-balance">0</span> 🎵
+                </div>
+            </div>
+
+            <div class="shop-section">
+                <h3>Hintergründe</h3>
+                <div class="shop-items-container">
+                    <div id="shop-backgrounds-list" class="shop-items-grid horizontal-scroll">
+                        </div>
+                </div>
+            </div>
+
+            <div class="shop-section">
+                <h3>Titel</h3>
+                <div class="shop-items-container">
+                    <div id="shop-titles-list" class="shop-items-grid horizontal-scroll">
+                        </div>
+                </div>
+            </div>
+
+            <div class="shop-section">
+                <h3>Icons</h3>
+                <div class="shop-items-container">
+                    <div id="shop-icons-list" class="shop-items-grid horizontal-scroll">
+                        </div>
+                </div>
+            </div>
+
+            <div class="shop-section">
+                <h3>Namensfarben</h3>
+                <div class="shop-items-container">
+                    <div id="shop-colors-list" class="shop-items-grid horizontal-scroll">
+                        </div>
+                </div>
+            </div>
+        </div>
+    </main>
     Ob es jetzt klappt?
+
+
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+    </div>
+    <div id="countdown-overlay" class="countdown-overlay hidden"></div>
+
+    <button id="toggle-console-btn" class="toggle-console-btn"><i class="fa-solid fa-terminal"></i></button>
+    <div id="on-page-console" class="on-page-console hidden">
+        <div class="console-header">
+            <span>KONSOLE</span>
+            <div>
+                <button id="copy-console-btn" title="Kopieren"><i class="fa-solid fa-copy"></i></button>
+                <button id="clear-console-btn" title="Leeren"><i class="fa-solid fa-trash-can"></i></button>
+                <button id="close-console-btn" title="Schließen"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+        <div id="console-output" class="console-output"></div>
+    </div>
+
+    <div id="guest-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button class="button-exit-modal" id="close-guest-modal-button">&times;</button>
+            <h2>Als Gast spielen</h2>
+            <p>Wähle einen Nickname, um als Gast zu spielen.</p>
+            <input type="text" id="guest-nickname-input" placeholder="Nickname (3-15 Zeichen)" maxlength="15" autocomplete="off">
+            <button id="guest-nickname-submit" class="button-primary">Spielen</button>
+        </div>
+    </div>
+
+    <div id="join-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button class="button-exit-modal" id="close-join-modal-button">&times;</button>
+            <h2>Raum beitreten</h2>
+            <p>Gib die 4-stellige Lobby-PIN ein.</p>
+            <div id="join-pin-display" class="pin-display">
+                <div class="pin-digit"></div>
+                <div class="pin-digit"></div>
+                <div class="pin-digit"></div>
+                <div class="pin-digit"></div>
+            </div>
+            <div id="numpad-join" class="numpad">
+                <button data-key="1">1</button>
+                <button data-key="2">2</button>
+                <button data-key="3">3</button>
+                <button data-key="4">4</button>
+                <button data-key="5">5</button>
+                <button data-key="6">6</button>
+                <button data-key="7">7</button>
+                <button data-key="8">8</button>
+                <button data-key="9">9</button>
+                <button data-action="clear"><i class="fa-solid fa-delete-left"></i></button>
+                <button data-key="0">0</button>
+                <button data-action="confirm" disabled><i class="fa-solid fa-check"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="custom-value-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button class="button-exit-modal" id="close-custom-value-modal-button">&times;</button>
+            <h2 id="custom-value-title">Wert eingeben</h2>
+            <div id="custom-value-display" class="pin-display" style="gap: 5px;">
+                <div class="pin-digit"></div>
+                <div class="pin-digit"></div>
+                <div class="pin-digit"></div>
+            </div>
+            <div id="numpad-custom-value" class="numpad">
+                <button data-key="1">1</button>
+                <button data-key="2">2</button>
+                <button data-key="3">3</button>
+                <button data-key="4">4</button>
+                <button data-key="5">5</button>
+                <button data-key="6">6</button>
+                <button data-key="7">7</button>
+                <button data-key="8">8</button>
+                <button data-key="9">9</button>
+                <button data-action="clear"><i class="fa-solid fa-delete-left"></i></button>
+                <button data-key="0">0</button>
+                <button data-action="confirm" id="confirm-custom-value-button"><i class="fa-solid fa-check"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="change-name-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button class="button-exit-modal" id="close-change-name-modal-button">&times;</button>
+            <h2>Namen ändern</h2>
+            <p>Wähle einen neuen Benutzernamen.</p>
+            <input type="text" id="change-name-input" placeholder="Neuer Name (3-15 Zeichen)" maxlength="15">
+            <button id="change-name-submit" class="button-primary">Speichern</button>
+        </div>
+    </div>
+
+    <div id="device-select-modal-overlay" class="modal-overlay hidden selection-modal">
+        <div class="modal">
+            <button class="button-exit-modal" id="close-device-select-modal">&times;</button>
+            <h2>Gerät auswählen</h2>
+            <ul id="device-list" class="selection-list">
+                </ul>
+            <button id="refresh-devices-button-modal" class="button-secondary"><i class="fa-solid fa-rotate-right"></i> Aktualisieren</button>
+        </div>
+    </div>
+
+    <div id="playlist-select-modal-overlay" class="modal-overlay hidden selection-modal">
+        <div class="modal" style="max-height: 80dvh; overflow: hidden; display: flex; flex-direction: column;">
+            <button class="button-exit-modal" id="close-playlist-select-modal">&times;</button>
+            <h2>Playlist auswählen</h2>
+            <input type="text" id="playlist-search" placeholder="Playlist suchen..." style="margin-bottom: 10px;">
+            <ul id="playlist-list" class="selection-list" style="overflow-y: auto; flex-grow: 1;">
+                </ul>
+            <div id="playlist-pagination" style="display: flex; justify-content: space-between; margin-top: 10px;">
+                </div>
+        </div>
+    </div>
+
+    <div id="background-select-modal-overlay" class="modal-overlay hidden selection-modal">
+        <div class="modal">
+            <button class="button-exit-modal" id="close-background-select-modal">&times;</button>
+            <h2>Lobby-Hintergrund</h2>
+            <p>Wähle einen freigeschalteten Hintergrund.</p>
+            <ul id="owned-backgrounds-list" class="selection-list">
+                </ul>
+        </div>
+    </div>
+
+    <div id="leave-confirm-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <h2>Verlassen?</h2>
+            <p>Möchtest du das Spiel wirklich verlassen? Dein Fortschritt geht verloren.</p>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button id="cancel-leave-button" class="button-secondary">Abbrechen</button>
+                <button id="confirm-leave-button" class="button-danger">Verlassen</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-action-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <h2 id="confirm-action-title">Bestätigen</h2>
+            <p id="confirm-action-text">Bist du sicher?</p>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button id="confirm-action-cancel-button" class="button-secondary">Abbrechen</button>
+                <button id="confirm-action-confirm-button" class="button-primary">Bestätigen</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="friends-modal-overlay" class="modal-overlay hidden friends-modal">
+        <div class="modal" style="max-height: 80dvh; overflow: hidden; display: flex; flex-direction: column;">
+            <button class="button-exit-modal" id="close-friends-modal-button">&times;</button>
+            <div class="tabs">
+                <button class="tab-button active" data-tab="tab-friends">Freunde</button>
+                <button class="tab-button" data-tab="tab-requests">Anfragen <span id="requests-count" class="badge hidden">0</span></button>
+                <button class="tab-button" data-tab="tab-add">Hinzufügen</button>
+            </div>
+            
+            <div id="tab-friends" class="tab-content active">
+                <ul id="friends-list"><li>Lade Freunde...</li></ul>
+            </div>
+            
+            <div id="tab-requests" class="tab-content">
+                <ul id="requests-list"><li>Lade Anfragen...</li></ul>
+            </div>
+            
+            <div id="tab-add" class="tab-content">
+                <p>Suche nach Benutzernamen (Groß/Kleinschreibung beachten).</p>
+                <div class="add-friend-form">
+                    <input type="text" id="add-friend-input" placeholder="Benutzername">
+                    <button id="add-friend-button" class="button-primary"><i class="fa-solid fa-plus"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="invite-friends-modal-overlay" class="modal-overlay hidden selection-modal">
+        <div class="modal">
+            <button class="button-exit-modal" id="close-invite-modal-button">&times;</button>
+            <h2>Freunde einladen</h2>
+            <p>Lade Online-Freunde in deine Lobby ein.</p>
+            <ul id="online-friends-list" class="selection-list" style="max-height: 40vh; overflow-y: auto;">
+                </ul>
+        </div>
+    </div>
+    
+    <div id="invite-popup" class="invite-popup hidden">
+        <p><span id="invite-sender-name">Ein Freund</span> lädt dich ein!</p>
+        <div class="invite-actions">
+            <button id="accept-invite-button" class..."button-primary button-small">Annehmen</button>
+            <button id="decline-invite-button" class="button-secondary button-small">Ablehnen</button>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
