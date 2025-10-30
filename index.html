@@ -8,7 +8,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/css/iziToast.min.css">
+    
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -162,7 +164,8 @@
             </div>
             <div id="host-settings" class="hidden">
                  <h3>Einstellungen</h3>
-                 <div class="settings-grid"> <div class="setting">
+                 <div class="settings-grid">
+                     <div class="setting">
                         <label>Wiedergabegerät <i class="fa-solid fa-circle-question help-icon" title="Wähle ein aktives Spotify-Gerät für die Musikwiedergabe."></i></label>
                         <button class="button-select" id="device-select-button">Gerät auswählen</button>
                     </div>
@@ -174,19 +177,33 @@
                         <label>Lobby Hintergrund <i class="fa-solid fa-circle-question help-icon" title="Wähle einen Hintergrund für die Lobby."></i></label>
                         <button class="button-select" id="select-background-button">Standard</button>
                     </div>
+
+                    <div class="setting hidden" id="guess-types-setting" style="grid-column: 1 / -1;">
+                        <label>Was soll geraten werden? (Quiz-Modus)</label>
+                        <div class="guess-types-container">
+                            <label class="checkbox-label">
+                                <input type="checkbox" value="title" checked>
+                                <span class="checkbox-custom"></span> Titel
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" value="artist" checked>
+                                <span class="checkbox-custom"></span> Künstler
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" value="year">
+                                <span class="checkbox-custom"></span> Jahr
+                            </label>
+                        </div>
+                        <p id="guess-types-error" class="validation-error hidden">
+                            Mindestens eine Option muss ausgewählt sein.
+                        </p>
+                    </div>
+
                     <div class="setting hidden" id="answer-type-container">
                         <label>Antwort-Typ <i class="fa-solid fa-circle-question help-icon" title="Freitext: Du musst tippen. Multiple Choice: Wähle aus 4 Optionen."></i></label>
                         <div class="preset-group" id="answer-type-presets">
                             <button class="preset-button active" data-value="freestyle">Freitext</button>
                             <button class="preset-button" data-value="multiple">Multiple Choice</button>
-                        </div>
-                    </div>
-                    <div class="setting hidden" id="guess-elements-container">
-                        <label>Was muss geraten werden?</label>
-                        <div class="checkbox-group" id="guess-elements-presets">
-                            <label><input type="checkbox" name="guess-element" value="title" checked> Titel</label>
-                            <label><input type="checkbox" name="guess-element" value="artist" checked> Künstler</label>
-                            <label><input type="checkbox" name="guess-element" value="year"> Jahr</label>
                         </div>
                     </div>
                     <div class="setting">
@@ -507,6 +524,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/izitoast/1.4.0/js/iziToast.min.js"></script>
+
     <script src="script.js" defer></script>
 
 </body>
