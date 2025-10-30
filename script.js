@@ -113,17 +113,33 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Core Functions ---
 
     // ========================================================
-    // HIER IST DIE ÄNDERUNG!
-    // Wir benutzen 'alert' statt 'Toastify', um den Absturz zu verhindern.
+    // HIER IST DIE NEUE 'CLEANERE' POP-UP FUNKTION
     // ========================================================
     const showToast = (message, isError = false) => {
-        console.log(`Toast-Ersatz: ${message} (Error: ${isError})`);
-        
-        // Benutze ein einfaches 'alert' statt Toastify
-        // Das ist hässlich, aber es stürzt nicht ab.
-        setTimeout(() => {
+        // Überprüft, ob iziToast überhaupt geladen ist
+        if (typeof iziToast === 'undefined') {
+            console.error("iziToast ist nicht geladen!");
+            // Fallback auf das hässliche alert(), damit nichts abstürzt
             alert(`[${isError ? 'FEHLER' : 'INFO'}]\n${message}`);
-        }, 100); // Kleiner Timeout, damit es nicht alles blockiert
+            return;
+        }
+        
+        console.log(`Toast: ${message} (Error: ${isError})`);
+        
+        // Benutze iziToast.show() für volle Kontrolle
+        iziToast.show({
+            message: message,
+            position: 'topCenter', // Oben mittig
+            timeout: 3000,         // 3 Sekunden
+            progressBarColor: isError ? 'var(--danger-color)' : 'var(--primary-color)', // Verwendet deine CSS-Variablen
+            theme: 'dark',         // Passt zum Theme
+            layout: 1,             // Kleinere, kompakte Box
+            displayMode: 'replace',  // Ersetzt vorherigen Toast
+            backgroundColor: 'var(--dark-grey)', // Passt zum Theme
+            messageColor: 'var(--text-color)',
+            icon: isError ? 'fa-solid fa-circle-xmark' : 'fa-solid fa-circle-check', // FontAwesome icons
+            iconColor: isError ? 'var(--danger-color)' : 'var(--primary-color)',
+        });
     }
     // ========================================================
     // ENDE DER ÄNDERUNG
@@ -195,10 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ws.socket.onopen = () => {
             console.log("WebSocket connected successfully.");
             
-            // ========================================================
-            // DIESE ZEILE HAT DEN ABSTURZ VERURSACHT.
-            // Sie ruft jetzt die 'alert'-Funktion statt Toastify auf.
-            // ========================================================
+            // Ruft jetzt die neue iziToast-Funktion auf (kein Absturz mehr)
             showToast("Server verbunden!", false); 
 
             if (currentUser && !currentUser.isGuest) {

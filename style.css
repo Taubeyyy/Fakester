@@ -43,7 +43,7 @@ body:has(#auth-screen.active) .app-header { display: none; }
 
 .screen {
     display: none; flex-grow: 1; flex-direction: column; align-items: center;
-Patcha   justify-content: flex-start; padding: 20px; width: 100%; overflow-y: auto;
+    justify-content: flex-start; padding: 20px; width: 100%; overflow-y: auto;
     opacity: 0; visibility: hidden; transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
     -webkit-overflow-scrolling: touch;
 }
@@ -527,7 +527,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 #background-select-modal-overlay .selection-list button.button-select { width: 100%; text-align: left; margin-bottom: 5px; }
 
 /* ==================
-   NEU: Quiz-Checkbox-Stile (KORRIGIERT)
+   KORRIGIERTE CHECKBOX-STILE
    ================== */
 
 .guess-types-container {
@@ -599,4 +599,30 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     color: var(--danger-color);
     margin: 5px 0 0 0;
     text-align: left;
+}
+
+/* ==================
+   NEU: iziToast Custom Theme
+   ================== */
+
+/* Box-Design an das Theme anpassen */
+.iziToast.iziToast-layout1 {
+    background: var(--dark-grey) !important; /* Dein --dark-grey */
+    border-radius: var(--border-radius) !important;
+    border: 1px solid var(--medium-grey);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important;
+}
+
+/* Schriftart und Farbe anpassen */
+.iziToast > .iziToast-body .iziToast-message {
+    font-family: 'Montserrat', sans-serif !important;
+    font-size: 0.9rem !important;
+    font-weight: 700 !important;
+    color: var(--text-color) !important;
+}
+
+/* Icon-Farben (wird schon im JS gesetzt, aber sicher ist sicher) */
+.iziToast.iziToast-layout1 .iziToast-icon {
+    font-size: 1.2rem;
+    margin-top: 2px;
 }
