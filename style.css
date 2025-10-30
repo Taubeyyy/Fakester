@@ -249,32 +249,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .preset-button:hover { border-color: var(--primary-color); }
 .preset-button.active { background-color: var(--primary-color); border-color: var(--primary-color); color: var(--background-color); }
 
-/* NEU: STYLING FÜR CHECKBOXEN */
-.checkbox-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    background-color: var(--dark-grey);
-    border: 1px solid var(--medium-grey);
-    border-radius: 8px;
-    padding: 12px;
-    text-align: left;
-}
-.checkbox-group label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 0.9rem;
-    color: var(--text-muted-color);
-    cursor: pointer;
-}
-.checkbox-group input[type="checkbox"] {
-    width: auto;
-    accent-color: var(--primary-color);
-    transform: scale(1.2);
-}
-/* ENDE NEU */
-
 .button-start { padding: 15px; font-size: 1.1rem; }
 
 /* --- MODALS (REPARIERT) --- */
@@ -551,3 +525,78 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 /* Lobby Hintergrund */
 #lobby-screen { background-image: none; background-size: cover; background-position: center; transition: background-image 0.5s ease-in-out; }
 #background-select-modal-overlay .selection-list button.button-select { width: 100%; text-align: left; margin-bottom: 5px; }
+
+/* ==================
+   NEU: Quiz-Checkbox-Stile (KORRIGIERT)
+   ================== */
+
+.guess-types-container {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    background-color: var(--dark-grey);
+    padding: 12px;
+    border-radius: 8px;
+}
+
+.checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-muted-color);
+}
+
+/* Verstecke die Standard-Checkbox */
+.checkbox-label input[type="checkbox"] {
+    display: none;
+}
+
+/* Der benutzerdefinierte Kasten */
+.checkbox-custom {
+    width: 20px;
+    height: 20px;
+    background-color: var(--medium-grey);
+    border: 2px solid var(--text-muted-color);
+    border-radius: 4px;
+    margin-right: 10px;
+    display: inline-block;
+    position: relative;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Der Haken (mit FontAwesome) */
+.checkbox-custom::after {
+    content: '\f00c'; /* FontAwesome check icon */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-size: 0.8rem;
+    color: var(--background-color);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    transition: transform 0.1s ease-out;
+}
+
+/* Wenn die Checkbox angeklickt ist */
+.checkbox-label input[type="checkbox"]:checked + .checkbox-custom {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.checkbox-label input[type="checkbox"]:checked + .checkbox-custom::after {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.checkbox-label:hover .checkbox-custom {
+    border-color: var(--primary-color);
+}
+
+/* Fehler-Text */
+.validation-error {
+    font-size: 0.8rem;
+    color: var(--danger-color);
+    margin: 5px 0 0 0;
+    text-align: left;
+}
