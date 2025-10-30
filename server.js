@@ -1,4 +1,4 @@
-// server.js - FINAL VERSION (Mit echten Spotify URLs - KORRIGIERT)
+// server.js - FINAL VERSION (Mit ECHTEN Spotify URLs - KORRIGIERT)
 
 const WebSocket = require('ws');
 const http = require('http');
