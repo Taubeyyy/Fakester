@@ -1,5 +1,5 @@
 // script.js - FINAL VERSION (Checked for early errors)
-// HINWEIS: Diese Version ersetzt die "STUB"-Logik durch echtes Laden.
+// KORREKTUR: supabase.auth.getSession() wird jetzt asynchron mit 'await' aufgerufen.
 
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
@@ -528,7 +528,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const icon = iconsList.find(i => i.id === player.iconId) || iconsList[0];
             const iconClass = icon ? icon.iconClass : 'fa-user';
             
-            // TODO: Server muss 'colorId' senden, damit dies funktioniert
             const color = nameColorsList.find(c => c.id === player.colorId); 
             const colorStyle = color ? `style="color: ${color.colorHex}"` : '';
 
@@ -838,7 +837,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if(elements.home.usernameContainer) elements.home.usernameContainer.style.color = ''; // Zurücksetzen
             renderCustomColors();
             if (saveToDb && supabase) {
-                await supabase.from('profiles').update({ equipped_color_id: null }).eq('id', currentUser.id);
+                // KORREKTUR: "Fehler beim Speichern der Farbe" wird von hier ausgelöst.
+                const { error } = await supabase.from('profiles').update({ equipped_color_id: null }).eq('id', currentUser.id);
+                if (error) {
+                    console.error("Fehler beim Abwählen der Farbe:", error);
+                    showToast("Fehler beim Speichern der Farbe.", true);
+                }
             }
             return;
         }
@@ -859,8 +863,10 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCustomColors(); 
 
         if (saveToDb && supabase) {
+            // KORREKTUR: "Fehler beim Speichern der Farbe" wird von hier ausgelöst.
             const { error } = await supabase.from('profiles').update({ equipped_color_id: colorId }).eq('id', currentUser.id);
             if (error) {
+                console.error("Fehler beim Speichern der Farbe:", error);
                 showToast("Fehler beim Speichern der Farbe.", true);
             } else {
                 showToast(`Farbe "${color.name}" ausgerüstet!`, false);
@@ -1012,18 +1018,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if(elements.stats.avgScore) elements.stats.avgScore.textContent = avgScore;
     }
 
-    // --- SHOP-System ---
+    // --- SHOP-System (KORRIGIERT) ---
     async function loadShopItems() {
         if (currentUser.isGuest) return;
         setLoading(true, "Lade Shop...");
         try {
+            // --- KORREKTUR START ---
+            // 1. Session asynchron abrufen
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+            if (sessionError || !session) {
+                throw new Error(sessionError?.message || "Authentifizierung fehlgeschlagen. Bitte neu einloggen.");
+            }
+            const accessToken = session.access_token;
+            // --- KORREKTUR ENDE ---
+
             const { data: profileData, error: profileError } = await supabase.from('profiles').select('spots').eq('id', currentUser.id).single();
             if (profileError) throw profileError;
             userProfile.spots = profileData.spots;
             updateSpotsDisplay();
 
             const response = await fetch('/api/shop/items', {
-                headers: { 'Authorization': `Bearer ${supabase.auth.getSession().session.access_token}` } 
+                headers: { 'Authorization': `Bearer ${accessToken}` } // Benutze die abgerufene Variable
             });
             if (!response.ok) throw new Error('Shop-Daten konnten nicht geladen werden.');
             
@@ -1066,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error loading shop items:", error);
-            showToast("Fehler beim Laden des Shops.", true);
+            showToast(error.message || "Fehler beim Laden des Shops.", true);
         } finally {
             setLoading(false);
         }
@@ -1113,11 +1129,21 @@ document.addEventListener('DOMContentLoaded', () => {
             async () => {
                 setLoading(true, "Kauf wird verarbeitet...");
                 try {
+                    // --- KORREKTUR START ---
+                    // 1. Session asynchron abrufen
+                    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+                    if (sessionError || !session) {
+                        throw new Error(sessionError?.message || "Authentifizierung fehlgeschlagen. Bitte neu einloggen.");
+                    }
+                    const accessToken = session.access_token;
+                    // --- KORREKTUR ENDE ---
+
                     const response = await fetch('/api/shop/buy', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${supabase.auth.getSession().session.access_token}`
+                            'Authorization': `Bearer ${accessToken}` // Benutze die abgerufene Variable
                         },
                         body: JSON.stringify({ itemId: item.id })
                     });
