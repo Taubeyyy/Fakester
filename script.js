@@ -1,6 +1,5 @@
-// script.js - MODIFIZIERT - TEIL 1 VON 2
+// script.js - FINAL VERSION (Mit allen Features & Bugfixes)
 // KORREKTUR: supabase.auth.getSession() wird jetzt asynchron mit 'await' aufgerufen.
-// HÄLFTE 1 VON 2
 
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
@@ -10,24 +9,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // Globale Speicher für DB-Daten
     let userProfile = {};
     let userUnlockedAchievementIds = [];
-    let onlineFriends = [];
+    let onlineFriends = []; // Wird jetzt vom Server gefüllt
     let ownedTitleIds = new Set();
     let ownedIconIds = new Set();
+    let ownedBackgroundIds = new Set();
     let ownedColorIds = new Set();
-    let ownedBgColorIds = new Set(); // ERSETZT ownedBackgroundIds
-    let ownedBgSymbolIds = new Set(); // NEU
     let inventory = {};
 
-    let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [], players: [] }; // players hinzugefügt
+    let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [], players: [] };
     let screenHistory = ['auth-screen'];
 
     let selectedGameMode = null;
     let gameCreationSettings = {
         gameType: null,
-        lives: 3
+        lives: 3,
+        guessTypes: ['title', 'artist'], // NEU: Standardwerte
+        answerType: 'freestyle'          // NEU: Standardwerte
     };
 
-    let allPlaylists = [], availableDevices = [], currentPage = 1, itemsPerPage = 10; // availableDevices hinzugefügt
+    let allPlaylists = [], availableDevices = [], currentPage = 1, itemsPerPage = 10;
     let wsPingInterval = null;
 
     // --- On-Page Konsole Setup ---
@@ -48,33 +48,91 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onunhandledrejection = (event) => { const reason = event.reason instanceof Error ? event.reason : new Error(JSON.stringify(event.reason)); originalConsole.error('Unhandled Promise Rejection:', reason); logToPage('error', ['🚧 Unhandled Promise Rejection:', reason]); };
     // --- Ende On-Page Konsole ---
 
-    // --- ERWEITERTE DATENBANKEN (mit neuen Shop-Items) ---
-    const achievementsList = [ { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' }, { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' }, { id: 4, name: 'Historiker', description: 'Gewinne eine Timeline-Runde.' }, { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' }, { id: 6, name: 'Musik-Lexikon', description: 'Beantworte 500 Fragen richtig (gesamt).' }, { id: 7, name: 'Unbesiegbar', description: 'Gewinne 5 Spiele in Folge.' }, { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt (gesamt).' }, { id: 9, name: 'Spotify-Junkie', description: 'Verbinde dein Spotify-Konto.' }, { id: 10, name: 'Gastgeber', description: 'Hoste dein erstes Spiel.' }, { id: 11, name: 'Party-Löwe', description: 'Spiele mit 3+ Freunden (in einer Lobby).' }, { id: 12, name: 'Knapp Daneben', description: 'Antworte 5 Mal falsch in einem Spiel.' }, { id: 13, name: 'Präzisionsarbeit', description: 'Errate Titel, Künstler UND Jahr exakt in einer Runde (Quiz).'}, { id: 14, name: 'Sozial Vernetzt', description: 'Füge deinen ersten Freund hinzu.' }, { id: 15, name: 'Sammler', description: 'Schalte 5 Titel frei.' }, { id: 16, name: 'Icon-Liebhaber', description: 'Schalte 5 Icons frei.' }, { id: 17, name: 'Aufwärmrunde', description: 'Spiele 3 Spiele.' }, { id: 18, name: 'Highscorer', description: 'Erreiche über 1000 Punkte in einem Spiel.' }, { id: 19, name: 'Perfektionist', description: 'Beantworte alle Fragen in einem Spiel richtig (min. 5 Runden).'}, { id: 20, name: 'Dabei sein ist alles', description: 'Verliere 3 Spiele.'} ];
+    // --- ERWEITERTE DATENBANKEN (MEHR CONTENT) ---
+    const achievementsList = [ 
+        { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, 
+        { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' }, 
+        { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' }, 
+        { id: 4, name: 'Historiker', description: 'Gewinne eine Timeline-Runde.' }, 
+        { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' }, 
+        { id: 6, name: 'Musik-Lexikon', description: 'Beantworte 500 Fragen richtig (gesamt).' }, 
+        { id: 7, name: 'Unbesiegbar', description: 'Gewinne 5 Spiele in Folge.' }, 
+        { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt (gesamt).' }, 
+        { id: 9, name: 'Spotify-Junkie', description: 'Verbinde dein Spotify-Konto.' }, 
+        { id: 10, name: 'Gastgeber', description: 'Hoste dein erstes Spiel.' }, 
+        { id: 11, name: 'Party-Löwe', description: 'Spiele mit 3+ Freunden (in einer Lobby).' }, 
+        { id: 12, name: 'Knapp Daneben', description: 'Antworte 5 Mal falsch in einem Spiel.' }, 
+        { id: 13, name: 'Präzisionsarbeit', description: 'Errate Titel, Künstler UND Jahr exakt in einer Runde (Quiz).'}, 
+        { id: 14, name: 'Sozial Vernetzt', description: 'Füge deinen ersten Freund hinzu.' }, 
+        { id: 15, name: 'Sammler', description: 'Schalte 5 Titel frei.' }, 
+        { id: 16, name: 'Icon-Liebhaber', description: 'Schalte 5 Icons frei.' }, 
+        { id: 17, name: 'Aufwärmrunde', description: 'Spiele 3 Spiele.' }, 
+        { id: 18, name: 'Highscorer', description: 'Erreiche über 1000 Punkte in einem Spiel.' }, 
+        { id: 19, name: 'Perfektionist', description: 'Beantworte alle Fragen in einem Spiel richtig (min. 5 Runden).'}, 
+        { id: 20, name: 'Dabei sein ist alles', description: 'Verliere 3 Spiele.'},
+        { id: 21, name: 'Shopaholic', description: 'Kaufe deinen ersten Gegenstand im Shop.' },
+        { id: 22, name: 'Millionär', description: 'Besitze 1000 Spots auf einmal.' },
+        { id: 23, name: 'Level 10', description: 'Erreiche Level 10.' },
+        { id: 24, name: 'Anpassungs-Künstler', description: 'Ändere dein Icon, Titel und Farbe.' }
+    ];
     const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100));
     const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
-    const titlesList = [ { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1, type:'title' }, { id: 2, name: 'Musik-Kenner', unlockType: 'achievement', unlockValue: 2, type:'title' }, { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3, type:'title' }, { id: 4, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4, type:'title' }, { id: 5, name: 'Star-Experte', unlockType: 'achievement', unlockValue: 5, type:'title' }, { id: 6, name: 'Pechvogel', unlockType: 'achievement', unlockValue: 12, type:'title' }, { id: 7, name: 'Präzise', unlockType: 'achievement', unlockValue: 13, type:'title' }, { id: 8, name: 'Gesellig', unlockType: 'achievement', unlockValue: 14, type:'title' }, { id: 9, name: 'Sammler', unlockType: 'achievement', unlockValue: 15, type:'title' }, { id: 10, name: 'Kenner', unlockType: 'level', unlockValue: 5, type:'title' }, { id: 11, name: 'Experte', unlockType: 'level', unlockValue: 10, type:'title' }, { id: 12, name: 'Meister', unlockType: 'level', unlockValue: 15, type:'title' }, { id: 13, name: 'Virtuose', unlockType: 'level', unlockValue: 20, type:'title' }, { id: 14, name: 'Maestro', unlockType: 'level', unlockValue: 25, type:'title' }, { id: 15, name: 'Großmeister', unlockType: 'level', unlockValue: 30, type:'title' }, { id: 16, name: 'Orakel', unlockType: 'level', unlockValue: 40, type:'title' }, { id: 17, name: 'Musikgott', unlockType: 'level', unlockValue: 50, type:'title' }, { id: 18, name: 'Perfektionist', unlockType: 'achievement', unlockValue: 19, type:'title' }, { id: 19, name: 'Highscorer', unlockType: 'achievement', unlockValue: 18, type:'title' }, { id: 20, name: 'Dauerbrenner', unlockType: 'achievement', unlockValue: 17, type:'title' }, { id: 101, name: 'Musik-Guru', unlockType: 'spots', cost: 100, unlockValue: 100, description: 'Nur im Shop', type:'title' }, { id: 102, name: 'Playlist-Meister', unlockType: 'spots', cost: 150, unlockValue: 150, description: 'Nur im Shop', type:'title' }, { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 105, type: 'title', name: '90er-Kid', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 106, type: 'title', name: 'Rock-Legende', cost: 250, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 107, type: 'title', name: 'Pop-Prinz', cost: 250, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 108, type: 'title', name: 'Gold-Kehlchen', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 109, type: 'title', name: 'Connaisseur', cost: 500, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 110, type: 'title', name: 'Platin', cost: 1000, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 99, name: 'Entwickler', iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Titel', type:'title' } ];
-    const iconsList = [ { id: 1, iconClass: 'fa-user', unlockType: 'level', unlockValue: 1, description: 'Standard-Icon', type:'icon' }, { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5', type:'icon' }, { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10', type:'icon' }, { id: 4, iconClass: 'fa-trophy', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger', type:'icon' }, { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20', type:'icon' }, { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser', type:'icon' }, { id: 7, iconClass: 'fa-guitar', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15', type:'icon' }, { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 25, description: 'Erreiche Level 25', type:'icon' }, { id: 9, iconClass: 'fa-record-vinyl', unlockType: 'level', unlockValue: 30, description: 'Erreiche Level 30', type:'icon' }, { id: 10, name: 'Feuer', iconClass: 'fa-fire', unlockType: 'level', unlockValue: 40, description: 'Erreiche Level 40', type:'icon' }, { id: 11, name: 'Geist', iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45', type:'icon' }, { id: 12, name: 'Meteor', iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50', type:'icon' }, { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber', type:'icon'}, { id: 201, name: 'Diamant', iconClass: 'fa-diamond', unlockType: 'spots', cost: 250, unlockValue: 250, description: 'Nur im Shop', type:'icon' }, { id: 202, name: 'Zauberhut', iconClass: 'fa-hat-wizard', unlockType: 'spots', cost: 300, unlockValue: 300, description: 'Nur im Shop', type:'icon' }, { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 450, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 207, type: 'icon', name: 'Anker', iconClass: 'fa-anchor', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 208, type: 'icon', name: 'Feder', iconClass: 'fa-feather', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 209, type: 'icon', name: 'Auge', iconClass: 'fa-eye', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 210, type: 'icon', name: 'Schneeflocke', iconClass: 'fa-snowflake', cost: 600, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' } ];
-// NEU: Getrennte Listen
-const bgColorsList = [
-    { id: 'default_color', name: 'Standard', cssBackground: 'var(--dark-grey)', iconClass: 'fa-solid fa-ban', cost: 0, unlockType: 'free', type: 'bg_color', storageKey: 'default_color'},
-    { id: 301, name: 'Sonnenuntergang', cssBackground: 'linear-gradient(135deg, #FF8C00, #E94057, #8A2387)', iconClass: null, cost: 400, unlockType: 'spots', type: 'bg_color', storageKey: '301'},
-    { id: 302, name: 'Gift-Oase', cssBackground: 'linear-gradient(135deg, #00FF00, #008080)', iconClass: null, cost: 400, unlockType: 'spots', type: 'bg_color', storageKey: '302'},
-    { id: 303, name: 'Ozean', cssBackground: 'linear-gradient(135deg, #0072FF, #00C6FF)', iconClass: null, cost: 400, unlockType: 'spots', type: 'bg_color', storageKey: '303'},
-    { id: 304, name: 'Königlich', cssBackground: 'linear-gradient(135deg, #FFD700, #4B0082)', iconClass: null, cost: 500, unlockType: 'spots', type: 'bg_color', storageKey: '304'},
-    { id: 305, name: 'Flamme', cssBackground: 'linear-gradient(135deg, #FF4500, #FFD700)', iconClass: null, cost: 500, unlockType: 'spots', type: 'bg_color', storageKey: '305'},
-];
-const bgSymbolsList = [
-    { id: 'default_symbol', name: 'Standard', iconClass: 'fa-solid fa-ban', cost: 0, unlockType: 'free', type: 'bg_symbol', storageKey: 'default_symbol'},
-    { id: 401, name: 'Notenregen', iconClass: 'fa-solid fa-music', cost: 600, unlockType: 'spots', type: 'bg_symbol', storageKey: '401'},
-    { id: 402, name: 'Sternenhimmel', iconClass: 'fa-solid fa-star', cost: 600, unlockType: 'spots', type: 'bg_symbol', storageKey: '402'},
-    { id: 403, name: 'Retro-Welle', iconClass: 'fa-solid fa-wave-square', cost: 700, unlockType: 'spots', type: 'bg_symbol', storageKey: '403'},
-    { id: 404, name: 'Digital', iconClass: 'fa-solid fa-border-all', cost: 700, unlockType: 'spots', type: 'bg_symbol', storageKey: '404'},
-    { id: 405, name: 'Königsklasse', iconClass: 'fa-solid fa-crown', cost: 1000, unlockType: 'spots', type: 'bg_symbol', storageKey: '405'},
-];
+    const titlesList = [ 
+        { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1, type:'title' }, 
+        { id: 10, name: 'Kenner', unlockType: 'level', unlockValue: 5, type:'title' }, 
+        { id: 11, name: 'Experte', unlockType: 'level', unlockValue: 10, type:'title' }, 
+        { id: 12, name: 'Meister', unlockType: 'level', unlockValue: 15, type:'title' }, 
+        { id: 13, name: 'Virtuose', unlockType: 'level', unlockValue: 20, type:'title' }, 
+        { id: 14, name: 'Maestro', unlockType: 'level', unlockValue: 25, type:'title' }, 
+        { id: 15, name: 'Großmeister', unlockType: 'level', unlockValue: 30, type:'title' }, 
+        { id: 16, name: 'Orakel', unlockType: 'level', unlockValue: 40, type:'title' }, 
+        { id: 17, name: 'Musikgott', unlockType: 'level', unlockValue: 50, type:'title' },
+        { id: 2, name: 'Besserwisser', unlockType: 'achievement', unlockValue: 2, type:'title' }, 
+        { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3, type:'title' }, 
+        { id: 4, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4, type:'title' }, 
+        { id: 5, name: 'Star-Experte', unlockType: 'achievement', unlockValue: 5, type:'title' }, 
+        { id: 6, name: 'Pechvogel', unlockType: 'achievement', unlockValue: 12, type:'title' }, 
+        { id: 7, name: 'Präzise', unlockType: 'achievement', unlockValue: 13, type:'title' }, 
+        { id: 8, name: 'Gesellig', unlockType: 'achievement', unlockValue: 14, type:'title' }, 
+        { id: 9, name: 'Sammler', unlockType: 'achievement', unlockValue: 15, type:'title' }, 
+        { id: 18, name: 'Perfektionist', unlockType: 'achievement', unlockValue: 19, type:'title' }, 
+        { id: 19, name: 'Highscorer', unlockType: 'achievement', unlockValue: 18, type:'title' }, 
+        { id: 20, name: 'Dauerbrenner', unlockType: 'achievement', unlockValue: 17, type:'title' },
+        { id: 21, name: 'Shopper', unlockType: 'achievement', unlockValue: 21, type:'title' },
+        { id: 101, name: 'Musik-Guru', unlockType: 'spots', cost: 100, unlockValue: 100, description: 'Nur im Shop', type:'title' }, 
+        { id: 102, name: 'Playlist-Meister', unlockType: 'spots', cost: 150, unlockValue: 150, description: 'Nur im Shop', type:'title' }, 
+        { id: 103, name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
+        { id: 104, name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
+        { id: 105, name: 'Gold-Kehlchen', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
+        { id: 106, name: 'Platin', cost: 1000, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 99, name: 'Entwickler', iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Titel', type:'title' } 
+    ];
+    const iconsList = [ 
+        { id: 1, iconClass: 'fa-user', unlockType: 'level', unlockValue: 1, description: 'Standard-Icon', type:'icon' }, 
+        { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5', type:'icon' }, 
+        { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10', type:'icon' }, 
+        { id: 7, iconClass: 'fa-guitar', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15', type:'icon' }, 
+        { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20', type:'icon' }, 
+        { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 25, description: 'Erreiche Level 25', type:'icon' }, 
+        { id: 9, iconClass: 'fa-record-vinyl', unlockType: 'level', unlockValue: 30, description: 'Erreiche Level 30', type:'icon' }, 
+        { id: 10, name: 'Feuer', iconClass: 'fa-fire', unlockType: 'level', unlockValue: 40, description: 'Erreiche Level 40', type:'icon' }, 
+        { id: 11, name: 'Geist', iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45', type:'icon' }, 
+        { id: 12, name: 'Meteor', iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50', type:'icon' },
+        { id: 4, iconClass: 'fa-trophy', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger', type:'icon' }, 
+        { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser', type:'icon' }, 
+        { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber', type:'icon'},
+        { id: 201, name: 'Diamant', iconClass: 'fa-diamond', unlockType: 'spots', cost: 250, unlockValue: 250, description: 'Nur im Shop', type:'icon' }, 
+        { id: 202, name: 'Zauberhut', iconClass: 'fa-hat-wizard', unlockType: 'spots', cost: 300, unlockValue: 300, description: 'Nur im Shop', type:'icon' }, 
+        { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, 
+        { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, 
+        { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 500, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, 
+        { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' } 
+    ];
+    const backgroundsList = [ { id: 'default', name: 'Standard', imageUrl: '', cost: 0, unlockType: 'free', type: 'background', backgroundId: 'default'}, { id: '301', name: 'Synthwave', imageUrl: '/assets/img/bg_synthwave.jpg', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '301'}, { id: '302', name: 'Konzertbühne', imageUrl: '/assets/img/bg_stage.jpg', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '302'}, { id: '303', type: 'background', name: 'Plattenladen', imageUrl: '/assets/img/bg_vinyl.jpg', cost: 700, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '303'} ];
     const nameColorsList = [ { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' }, { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' }, { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }, { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' } ];
-// NEU
-const allItems = [...titlesList, ...iconsList, ...bgColorsList, ...bgSymbolsList, ...nameColorsList];
-window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsList = bgColorsList; window.bgSymbolsList = bgSymbolsList; window.nameColorsList = nameColorsList; window.allItems = allItems;
+    const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList];
+    window.titlesList = titlesList; window.iconsList = iconsList; window.backgroundsList = backgroundsList; window.nameColorsList = nameColorsList; window.allItems = allItems;
     const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
     // --- DOM Element References ---
@@ -85,7 +143,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         loadingOverlayMessage: document.getElementById('loading-overlay-message'),
         countdownOverlay: document.getElementById('countdown-overlay'), 
         auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form') }, 
-        home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), profilePictureBtn: document.getElementById('profile-picture-button'), profileIcon: document.getElementById('profile-icon'), profileLevel: document.getElementById('profile-level'), profileXpFill: document.getElementById('profile-xp-fill'), levelProgressBtn: document.getElementById('level-progress-button'), profileXpText: document.getElementById('profile-xp-text'), spotsBalance: document.getElementById('header-spots-balance'), shopButton: document.getElementById('shop-button'), spotifyConnectBtn: document.getElementById('spotify-connect-button'), customizationBtn: document.getElementById('customization-button') }, // customizationBtn hinzugefügt
+        home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), profilePictureBtn: document.getElementById('profile-picture-button'), profileIcon: document.getElementById('profile-icon'), profileLevel: document.getElementById('profile-level'), profileXpFill: document.getElementById('profile-xp-fill'), levelProgressBtn: document.getElementById('level-progress-button'), profileXpText: document.getElementById('profile-xp-text'), spotsBalance: document.getElementById('header-spots-balance'), shopButton: document.getElementById('shop-button'), spotifyConnectBtn: document.getElementById('spotify-connect-button'), customizationBtn: document.getElementById('customization-button') }, 
         modeSelection: { container: document.getElementById('mode-selection-screen')?.querySelector('.mode-selection-container') }, 
         lobby: { 
             pinDisplay: document.getElementById('lobby-pin'), 
@@ -98,16 +156,9 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             inviteFriendsBtn: document.getElementById('invite-friends-button'), 
             songCountPresets: document.getElementById('song-count-presets'), 
             guessTimePresets: document.getElementById('guess-time-presets'), 
-            answerTypeContainer: document.getElementById('answer-type-container'), 
-            answerTypePresets: document.getElementById('answer-type-presets'), 
-            // reactionButtons: document.getElementById('reaction-buttons'), // Entfernt, da global
-            bgColorSelectButton: document.getElementById('select-bg-color-button'),
-            bgSymbolSelectButton: document.getElementById('select-bg-symbol-button'),
-            guessTypesSetting: document.getElementById('guess-types-setting'),
-            guessTypesCheckboxes: document.querySelectorAll('#guess-types-setting input[type="checkbox"]'),
-            guessTypesError: document.getElementById('guess-types-error')
+            backgroundSelectButton: document.getElementById('select-background-button'),
         }, 
-        game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), gameContentArea: document.getElementById('game-content-area'), playerList: document.getElementById('game-player-list') }, // playerList hinzugefügt
+        game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), gameContentArea: document.getElementById('game-content-area'), playerList: document.getElementById('game-player-list') }, 
         guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), input: document.getElementById('guest-nickname-input') }, 
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), }, 
         friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), tabsContainer: document.querySelector('.friends-modal .tabs'), tabs: document.querySelectorAll('.friends-modal .tab-button'), tabContents: document.querySelectorAll('.friends-modal .tab-content') }, 
@@ -117,84 +168,69 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         levelProgress: { list: document.getElementById('level-progress-list'), screen: document.getElementById('level-progress-screen') }, 
         titles: { list: document.getElementById('title-list'), screen: document.getElementById('title-selection-screen') }, 
         icons: { list: document.getElementById('icon-list'), screen: document.getElementById('icon-selection-screen') }, 
-        gameTypeScreen: { screen: document.getElementById('game-type-selection-screen'), pointsBtn: document.getElementById('game-type-points'), livesBtn: document.getElementById('game-type-lives'), livesSettings: document.getElementById('lives-settings-container'), livesPresets: document.getElementById('lives-count-presets'), createLobbyBtn: document.getElementById('create-lobby-button'), }, 
+        gameTypeScreen: { 
+            screen: document.getElementById('game-type-selection-screen'), 
+            pointsBtn: document.getElementById('game-type-points'), 
+            livesBtn: document.getElementById('game-type-lives'), 
+            livesSettings: document.getElementById('lives-settings-container'), 
+            livesPresets: document.getElementById('lives-count-presets'), 
+            createLobbyBtn: document.getElementById('create-lobby-button'),
+            quizSettingsContainer: document.getElementById('quiz-settings-container'), // NEU
+            guessTypesCheckboxes: document.querySelectorAll('#guess-types-setting input[type="checkbox"]'), // NEU
+            guessTypesError: document.getElementById('guess-types-error'), // NEU
+            answerTypePresets: document.getElementById('answer-type-presets') // NEU
+        }, 
         changeNameModal: { overlay: document.getElementById('change-name-modal-overlay'), closeBtn: document.getElementById('close-change-name-modal-button'), submitBtn: document.getElementById('change-name-submit'), input: document.getElementById('change-name-input'), }, 
         deviceSelectModal: { overlay: document.getElementById('device-select-modal-overlay'), closeBtn: document.getElementById('close-device-select-modal'), list: document.getElementById('device-list'), refreshBtn: document.getElementById('refresh-devices-button-modal'), }, 
         playlistSelectModal: { overlay: document.getElementById('playlist-select-modal-overlay'), closeBtn: document.getElementById('close-playlist-select-modal'), list: document.getElementById('playlist-list'), search: document.getElementById('playlist-search'), pagination: document.getElementById('playlist-pagination'), }, 
         leaveConfirmModal: { overlay: document.getElementById('leave-confirm-modal-overlay'), confirmBtn: document.getElementById('confirm-leave-button'), cancelBtn: document.getElementById('cancel-leave-button'), }, 
         confirmActionModal: { overlay: document.getElementById('confirm-action-modal-overlay'), title: document.getElementById('confirm-action-title'), text: document.getElementById('confirm-action-text'), confirmBtn: document.getElementById('confirm-action-confirm-button'), cancelBtn: document.getElementById('confirm-action-cancel-button'), }, 
         stats: { screen: document.getElementById('stats-screen'), gamesPlayed: document.getElementById('stat-games-played'), wins: document.getElementById('stat-wins'), winrate: document.getElementById('stat-winrate'), highscore: document.getElementById('stat-highscore'), correctAnswers: document.getElementById('stat-correct-answers'), avgScore: document.getElementById('stat-avg-score'), gamesPlayedPreview: document.getElementById('stat-games-played-preview'), winsPreview: document.getElementById('stat-wins-preview'), correctAnswersPreview: document.getElementById('stat-correct-answers-preview'), }, 
-        shop: { 
-            screen: document.getElementById('shop-screen'), 
-            titlesList: document.getElementById('shop-titles-list'), 
-            iconsList: document.getElementById('shop-icons-list'), 
-            bgColorsList: document.getElementById('shop-bg-colors-list'), // NEU
-            bgSymbolsList: document.getElementById('shop-bg-symbols-list'), // NEU
-            colorsList: document.getElementById('shop-colors-list'), 
-            spotsBalance: document.getElementById('shop-spots-balance'), 
-        }, 
-        bgColorSelectModal: { // NEU
-            overlay: document.getElementById('bg-color-select-modal-overlay'), 
-            closeBtn: document.getElementById('close-bg-color-select-modal'), 
-            list: document.getElementById('owned-bg-colors-list'), 
-        }, 
-        bgSymbolSelectModal: { // NEU
-            overlay: document.getElementById('bg-symbol-select-modal-overlay'), 
-            closeBtn: document.getElementById('close-bg-symbol-select-modal'), 
-            list: document.getElementById('owned-bg-symbols-list'), 
-        }, 
+        shop: { screen: document.getElementById('shop-screen'), titlesList: document.getElementById('shop-titles-list'), iconsList: document.getElementById('shop-icons-list'), backgroundsList: document.getElementById('shop-backgrounds-list'), colorsList: document.getElementById('shop-colors-list'), spotsBalance: document.getElementById('shop-spots-balance'), }, 
         customize: { 
             screen: document.getElementById('customization-screen'), 
-            tabsContainer: document.querySelector('#customization-screen .tabs'), // NEU
+            tabsContainer: document.getElementById('customization-tabs'), // NEU
             tabContents: document.querySelectorAll('#customization-screen .tab-content'), // NEU
             titlesList: document.getElementById('customize-title-list'), 
             iconsList: document.getElementById('customize-icon-list'), 
             colorsList: document.getElementById('customize-color-list'),
-            bgColorsList: document.getElementById('customize-bg-color-list'), // NEU
-            bgSymbolsList: document.getElementById('customize-bg-symbol-list') // NEU
-        },
+            backgroundsList: document.getElementById('owned-backgrounds-list') // NEU
+        }, 
     };
 
 
     // --- Core Functions ---
 
     // ========================================================
-    // HIER IST DIE NEUE 'CLEANERE' POP-UP FUNKTION
+    // POP-UP FUNKTION
     // ========================================================
     const showToast = (message, isError = false) => {
-        // Überprüft, ob iziToast überhaupt geladen ist
         if (typeof iziToast === 'undefined') {
             console.error("iziToast ist nicht geladen!");
-            // Fallback auf das hässliche alert(), damit nichts abstürzt
             alert(`[${isError ? 'FEHLER' : 'INFO'}]\n${message}`);
             return;
         }
         
         console.log(`Toast: ${message} (Error: ${isError})`);
         
-        // Benutze iziToast.show() für volle Kontrolle
         iziToast.show({
             message: message,
-            position: 'topCenter', // Oben mittig
-            timeout: 3000,         // 3 Sekunden
-            progressBarColor: isError ? 'var(--danger-color)' : 'var(--primary-color)', // Verwendet deine CSS-Variablen
-            theme: 'dark',         // Passt zum Theme
-            layout: 1,             // Kleinere, kompakte Box
-            displayMode: 'replace',  // Ersetzt vorherigen Toast
-            backgroundColor: 'var(--dark-grey)', // Passt zum Theme
+            position: 'topCenter', 
+            timeout: 3000,
+            progressBarColor: isError ? 'var(--danger-color)' : 'var(--primary-color)',
+            theme: 'dark',
+            layout: 1,
+            displayMode: 'replace',
+            backgroundColor: 'var(--dark-grey)',
             messageColor: 'var(--text-color)',
-            icon: isError ? 'fa-solid fa-circle-xmark' : 'fa-solid fa-circle-check', // FontAwesome icons
+            icon: isError ? 'fa-solid fa-circle-xmark' : 'fa-solid fa-circle-check',
             iconColor: isError ? 'var(--danger-color)' : 'var(--primary-color)',
         });
     }
-    // ========================================================
-    // ENDE DER ÄNDERUNG
-    // ========================================================
 
     const showScreen = (screenId) => { console.log(`Navigating to screen: ${screenId}`); const targetScreen = document.getElementById(screenId); if (!targetScreen) { console.error(`Screen with ID "${screenId}" not found!`); return; } const currentScreenId = screenHistory[screenHistory.length - 1]; if (screenId !== currentScreenId) screenHistory.push(screenId); elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); };
     const goBack = () => { if (screenHistory.length > 1) { const currentScreenId = screenHistory.pop(); const previousScreenId = screenHistory[screenHistory.length - 1]; console.log(`Navigating back to screen: ${previousScreenId}`); if (['game-screen', 'lobby-screen'].includes(currentScreenId)) { elements.leaveConfirmModal.overlay.classList.remove('hidden'); screenHistory.push(currentScreenId); return; } const targetScreen = document.getElementById(previousScreenId); if (!targetScreen) { console.error(`Back navigation failed: Screen "${previousScreenId}" not found!`); screenHistory = ['auth-screen']; window.location.reload(); return; } elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(previousScreenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); } };
     
-    // --- LADE-BILDSCHIRM (KORRIGIERT) ---
     const setLoading = (isLoading, message = null) => {
         console.log(`Setting loading overlay: ${isLoading}, Message: ${message}`);
         const overlay = elements.loadingOverlay;
@@ -218,25 +254,20 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             }
         }
     }
-    // --- ENDE LADE-BILDSCHIRM ---
 
     const showConfirmModal = (title, text, onConfirm) => { elements.confirmActionModal.title.textContent = title; elements.confirmActionModal.text.textContent = text; currentConfirmAction = onConfirm; elements.confirmActionModal.overlay.classList.remove('hidden'); };
 
     // --- Helper Functions ---
-// NEU
     function isItemUnlocked(item, currentLevel) { 
         if (!item || !currentUser ) return false; 
         if (!currentUser.isGuest && currentUser.username.toLowerCase() === 'taubey') return true; 
         
-        // Prüfe Besitz für Shop-Items
         if (item.unlockType === 'spots') { 
             if (currentUser.isGuest) return false; 
-            // Wichtig: Wir prüfen jetzt auf item.storageKey
             if (item.type === 'title') return ownedTitleIds.has(item.id); 
             if (item.type === 'icon') return ownedIconIds.has(item.id); 
+            if (item.type === 'background') return ownedBackgroundIds.has(item.backgroundId); 
             if (item.type === 'color') return ownedColorIds.has(item.id);
-            if (item.type === 'bg_color') return ownedBgColorIds.has(item.storageKey);
-            if (item.type === 'bg_symbol') return ownedBgSymbolIds.has(item.storageKey);
         } 
         
         switch (item.unlockType) { 
@@ -252,28 +283,11 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
 
 
     // --- Initialization and Auth ---
-// NEU: initializeApp
     const initializeApp = (user, isGuest = false) => { 
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`); 
         localStorage.removeItem('fakesterGame'); 
-        
-        // NEU: Fallback-Profil enthält jetzt die getrennten BG-IDs
         const fallbackUsername = isGuest ? user.username : user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt'; 
-        const fallbackProfile = { 
-            id: user.id, 
-            username: fallbackUsername, 
-            xp: 0, 
-            games_played: 0, 
-            wins: 0, 
-            correct_answers: 0, 
-            highscore: 0, 
-            spots: 0, 
-            equipped_title_id: 1, 
-            equipped_icon_id: 1, 
-            equipped_color_id: null,
-            equipped_bg_color_id: 'default_color', // NEU
-            equipped_bg_symbol_id: 'default_symbol' // NEU
-        };
+        const fallbackProfile = { id: user.id, username: fallbackUsername, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, spots: 0, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null }; 
         
         if (isGuest) { 
             currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest }; 
@@ -281,9 +295,8 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             userUnlockedAchievementIds = []; 
             ownedTitleIds.clear(); 
             ownedIconIds.clear(); 
+            ownedBackgroundIds.clear(); 
             ownedColorIds.clear();
-            ownedBgColorIds.clear(); // NEU
-            ownedBgSymbolIds.clear(); // NEU
             inventory = {}; 
         } else { 
             currentUser = { id: user.id, username: fallbackUsername, isGuest }; 
@@ -291,9 +304,8 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             userUnlockedAchievementIds = []; 
             ownedTitleIds.clear(); 
             ownedIconIds.clear(); 
+            ownedBackgroundIds.clear(); 
             ownedColorIds.clear();
-            ownedBgColorIds.clear(); // NEU
-            ownedBgSymbolIds.clear(); // NEU
             inventory = {}; 
         } 
         
@@ -302,10 +314,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; 
         if(document.getElementById('profile-title')) equipTitle(userProfile.equipped_title_id || 1, false); 
         if(elements.home.profileIcon) equipIcon(userProfile.equipped_icon_id || 1, false);
-        equipColor(userProfile.equipped_color_id, false);
-        // NEU: Setze Standard-Hintergrund (wird später vom Server überschrieben)
-        applyLobbyBackground('default_color', 'default_symbol');
-
+        equipColor(userProfile.equipped_color_id, false); 
         if(elements.home.profileLevel) updatePlayerProgressDisplay(); 
         if(elements.stats.gamesPlayed) updateStatsDisplay(); 
         updateSpotsDisplay(); 
@@ -319,17 +328,15 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         
         if (!isGuest && supabase) { 
             console.log("Fetching profile, owned items, achievements, and Spotify status in background..."); 
-            // NEU: Promise.all fragt die 7 Tabellen ab
             Promise.all([ 
                 supabase.from('profiles').select('*').eq('id', user.id).single(), 
                 supabase.from('user_owned_titles').select('title_id').eq('user_id', user.id), 
                 supabase.from('user_owned_icons').select('icon_id').eq('user_id', user.id), 
-                supabase.from('user_owned_bg_colors').select('background_id').eq('user_id', user.id), // NEU
-                supabase.from('user_owned_bg_symbols').select('symbol_id').eq('user_id', user.id), // NEU
+                supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', user.id),
                 supabase.from('user_owned_colors').select('color_id').eq('user_id', user.id),
                 supabase.from('user_inventory').select('item_id, quantity').eq('user_id', user.id) 
             ]).then((results) => { 
-                const [profileResult, titlesResult, iconsResult, bgColorsResult, bgSymbolsResult, colorsResult, inventoryResult] = results; // NEU aufgeteilt
+                const [profileResult, titlesResult, iconsResult, backgroundsResult, colorsResult, inventoryResult] = results; 
                 if (profileResult.error || !profileResult.data) { 
                     console.error("BG Profile Error:", profileResult.error || "No data"); 
                     if (!profileResult.error?.details?.includes("0 rows")) showToast("Fehler beim Laden des Profils.", true); 
@@ -345,25 +352,17 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
                     equipTitle(userProfile.equipped_title_id || 1, false); 
                     equipIcon(userProfile.equipped_icon_id || 1, false); 
                     equipColor(userProfile.equipped_color_id, false);
-                    // NEU: Setze ausgerüsteten Hintergrund aus dem Profil
-                    applyLobbyBackground(userProfile.equipped_bg_color_id, userProfile.equipped_bg_symbol_id);
                     updatePlayerProgressDisplay(); 
                     updateStatsDisplay(); 
                     updateSpotsDisplay(); 
                 } 
                 ownedTitleIds = new Set(titlesResult.data?.map(t => t.title_id) || []); 
                 ownedIconIds = new Set(iconsResult.data?.map(i => i.icon_id) || []); 
+                ownedBackgroundIds = new Set(backgroundsResult.data?.map(b => b.background_id) || []);
                 ownedColorIds = new Set(colorsResult.data?.map(c => c.color_id) || []);
-                // NEU: Getrennte Sets befüllen
-                ownedBgColorIds = new Set(bgColorsResult.data?.map(b => b.background_id) || []);
-                ownedBgSymbolIds = new Set(bgSymbolsResult.data?.map(s => s.symbol_id) || []);
-                ownedBgColorIds.add('default_color'); // Standard ist immer freigeschaltet
-                ownedBgSymbolIds.add('default_symbol'); // Standard ist immer freigeschaltet
-
                 inventory = {}; 
                 inventoryResult.data?.forEach(item => inventory[item.item_id] = item.quantity); 
-                console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, C: ownedColorIds.size, BGC: ownedBgColorIds.size, BGS: ownedBgSymbolIds.size }); 
-                
+                console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, B: ownedBackgroundIds.size, C: ownedColorIds.size, Inv: Object.keys(inventory).length }); 
                 if(elements.titles.list) renderTitles(); 
                 if(elements.icons.list) renderIcons(); 
                 if(elements.levelProgress.list) renderLevelProgress(); 
@@ -405,7 +404,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             username = formData.get('username'); 
             credentials.email = `${username}@fakester.app`; 
             credentials.password = formData.get('password'); 
-            credentials.options = { data: { username: username, xp: 0, spots: 100, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null, equipped_bg_color_id: 'default_color', equipped_bg_symbol_id: 'default_symbol' } }; // equipped_bg... hinzugefügt
+            credentials.options = { data: { username: username, xp: 0, spots: 100, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null } }; 
         } else { 
             username = formData.get('username'); 
             credentials.email = `${username}@fakester.app`; 
@@ -442,7 +441,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         ws.socket.onopen = () => {
             console.log("WebSocket connected successfully.");
             
-            // Ruft jetzt die neue iziToast-Funktion auf (kein Absturz mehr)
             showToast("Server verbunden!", false); 
 
             if (currentUser && !currentUser.isGuest) {
@@ -482,30 +480,30 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         };
     }
 
-    // --- WebSocket-Handler implementiert ---
+    // --- WebSocket-Handler (mit Freunde-Update) ---
     const handleWebSocketMessage = ({ type, payload }) => {
         console.log(`WS Message Received: ${type}`, payload || '');
 
         switch (type) {
             case 'lobby-update':
                 handleLobbyUpdate(payload);
-                setLoading(false); // Ladebildschirm ausblenden
+                setLoading(false); 
+                elements.joinModal.overlay.classList.add('hidden'); // BUGFIX: Join-Modal schließen
                 showScreen('lobby-screen');
                 break;
-
             case 'toast':
                 showToast(payload.message, payload.isError);
-                setLoading(false); // Ladebildschirm ausblenden, falls einer aktiv war
+                setLoading(false); 
                 break;
-
+            case 'friends-update': // NEU: Freunde-System
+                renderFriendsList(payload.friends);
+                renderRequestsList(payload.requests);
+                break;
             case 'game-starting':
                 setLoading(true, "Spiel startet...");
                 break;
             case 'countdown':
-                showCountdown(payload.round, payload.total);
-                break;
-            case 'pre-round':
-                setupPreRound(payload);
+                showCountdown(payload.number); // Geändert zu 'number'
                 break;
             case 'new-round':
                 setLoading(false);
@@ -518,7 +516,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             case 'game-over':
                 setLoading(false);
                 showGameOver(payload);
-                updatePlayerProgress(); // Stats/XP vom Server holen
+                updatePlayerProgress(); 
                 break;
             case 'player-reacted':
                 displayReaction(payload.playerId, payload.reaction);
@@ -532,7 +530,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         }
     };
     
-    // --- Lobby-Update-Funktion implementiert ---
+    // --- Lobby-Update-Funktion ---
     function handleLobbyUpdate(data) {
         console.log("Handling lobby update", data);
         const { pin, hostId, players, settings, gameMode } = data;
@@ -541,36 +539,31 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         currentGame.playerId = currentUser.id;
         currentGame.isHost = hostId === currentUser.id;
         currentGame.gameMode = gameMode;
-        currentGame.players = players; // Spielerliste für In-Game-Anzeige speichern
+        currentGame.players = players; 
 
         if (elements.lobby.pinDisplay) {
             elements.lobby.pinDisplay.textContent = pin;
         }
 
         renderPlayerList(players, hostId);
-        renderGamePlayerList(players); // NEU: Auch In-Game-Liste aktualisieren
+        renderGamePlayerList(players); 
 
         elements.lobby.hostSettings?.classList.toggle('hidden', !currentGame.isHost);
         elements.lobby.guestWaitingMessage?.classList.toggle('hidden', currentGame.isHost);
 
-        updateHostSettings(settings, currentGame.isHost, gameMode);
+        updateHostSettings(settings, currentGame.isHost);
     }
     
-    // --- Funktion zum Anzeigen des Game Over Screens (Stub) ---
+    // --- Game Over ---
     function showGameOver(payload) {
         console.log("STUB: showGameOver", payload);
         showToast("Spiel beendet!", false);
-        showScreen('home-screen'); // Vorerst zurück zum Home-Screen
-        if(elements.game.playerList) elements.game.playerList.innerHTML = ''; // In-Game-Liste leeren
+        showScreen('home-screen'); 
+        if(elements.game.playerList) elements.game.playerList.innerHTML = '';
     }
 
 
     // --- UI Rendering Functions ---
-    // (Hier beginnt die zweite Hälfte)
-// script.js - HÄLFTE 2 VON 2
-// (Direkt unter die erste Hälfte einfügen)
-
-    // --- renderPlayerList implementiert ---
     function renderPlayerList(players, hostId) {
         if (!elements.lobby.playerList) return;
         elements.lobby.playerList.innerHTML = ''; // Leere die Liste
@@ -583,11 +576,10 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             playerCard.className = 'player-card';
             playerCard.dataset.playerId = player.id;
             
-            // Benutze 'player.iconId', das vom Server kommt
             const icon = iconsList.find(i => i.id === player.iconId) || iconsList[0];
             const iconClass = isHost ? 'fa-crown' : (icon ? icon.iconClass : 'fa-user'); 
             
-            const color = nameColorsList.find(c => c.id === player.colorId); // colorId wird (noch) nicht vom Server gesendet, aber für später
+            const color = nameColorsList.find(c => c.id === player.colorId); 
             const colorStyle = color ? `style="color: ${color.colorHex}"` : '';
             
             playerCard.innerHTML = `
@@ -598,12 +590,10 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         });
     }
 
-    // --- NEU: renderGamePlayerList implementiert ---
     function renderGamePlayerList(players) {
         if (!elements.game.playerList) return;
         elements.game.playerList.innerHTML = ''; // Leere die Liste
         
-        // Annahme: 'players' ist bereits sortiert (kommt von getScores)
         players.forEach(player => {
             const playerCard = document.createElement('div');
             playerCard.className = 'game-player-card';
@@ -624,28 +614,32 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         });
     }
 
-    // --- updateHostSettings implementiert ---
-// NEU: updateHostSettings
-    function updateHostSettings(settings, isHost, gameMode) {
+    // --- updateHostSettings (angepasst, da Einstellungen verschoben) ---
+    function updateHostSettings(settings, isHost) {
         console.log("Updating host settings display", settings);
 
         const updatePresets = (presetContainer, value, customValueType) => {
             if (!presetContainer) return;
             let valueFound = false;
             presetContainer.querySelectorAll('.preset-button').forEach(btn => {
-                if (btn.dataset.value === value.toString()) {
+                if (btn.dataset.value === String(value)) {
                     btn.classList.add('active');
                     valueFound = true;
                 } else {
                     btn.classList.remove('active');
                 }
             });
+            
             const customBtn = presetContainer.querySelector(`[data-value="custom"][data-type="${customValueType}"]`);
-            if (!valueFound && customBtn) {
+            if (!valueFound && customBtn && value) {
                 customBtn.classList.add('active');
-                customBtn.textContent = `${value} (Custom)`;
+                customBtn.textContent = (customValueType === 'guess-time') ? `${value}s` : `${value}`;
             } else if (customBtn) {
-                customBtn.textContent = 'Custom';
+                // Setze den Text zurück
+                customBtn.textContent = (customValueType === 'guess-time') ? 'Custom' : 'Custom';
+                if (valueFound) {
+                    customBtn.classList.remove('active');
+                }
             }
         };
 
@@ -655,27 +649,13 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         if (elements.lobby.playlistSelectBtn) {
             elements.lobby.playlistSelectBtn.textContent = settings.playlistName || 'Playlist auswählen';
         }
-        
-        // NEU: Hintergrund aus 2 IDs zusammensetzen
-        if (settings.chosenBgColorId || settings.chosenBgSymbolId) {
-            applyLobbyBackground(
-                settings.chosenBgColorId || 'default_color', 
-                settings.chosenBgSymbolId || 'default_symbol'
-            );
+        if (elements.lobby.backgroundSelectButton) {
+             elements.lobby.backgroundSelectButton.textContent = backgroundsList.find(b => b.backgroundId === settings.chosenBackgroundId)?.name || 'Standard';
+             applyLobbyBackground(settings.chosenBackgroundId || 'default');
         }
 
         updatePresets(elements.lobby.songCountPresets, settings.songCount, 'song-count');
         updatePresets(elements.lobby.guessTimePresets, settings.guessTime, 'guess-time');
-        
-        if (elements.lobby.guessTypesSetting) {
-            elements.lobby.guessTypesSetting.classList.toggle('hidden', gameMode !== 'quiz' || !isHost);
-        }
-        
-        if (gameMode === 'quiz' && settings.guessTypes && elements.lobby.guessTypesCheckboxes) {
-            elements.lobby.guessTypesCheckboxes.forEach(checkbox => {
-                checkbox.checked = settings.guessTypes.includes(checkbox.value);
-            });
-        }
         
         if (isHost && elements.lobby.startGameBtn) {
             const canStart = settings.deviceName && settings.playlistName;
@@ -691,28 +671,26 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
 
     // --- Implementierte UI-Funktionen ---
     
-    // --- renderAchievements (AKTUALISIERT mit Sortierung) ---
     function renderAchievements() {
         if (!elements.achievements.grid || currentUser.isGuest) return;
         elements.achievements.grid.innerHTML = '';
         
-        // NEU: Sortierung
         const sortedAchievements = [...achievementsList].sort((a, b) => {
             const aUnlocked = userUnlockedAchievementIds.includes(a.id);
             const bUnlocked = userUnlockedAchievementIds.includes(b.id);
             if (aUnlocked && !bUnlocked) return -1;
             if (!aUnlocked && bUnlocked) return 1;
-            return a.id - b.id; // Sekundäre Sortierung nach ID
+            return a.id - b.id; 
         });
         
-        sortedAchievements.forEach(ach => { // Geändert zu sortedAchievements
+        sortedAchievements.forEach(ach => { 
             const isUnlocked = userUnlockedAchievementIds.includes(ach.id);
             const card = document.createElement('div');
             card.className = 'achievement-card';
             card.classList.toggle('unlocked', isUnlocked);
             
             const reward = allItems.find(item => item.unlockType === 'achievement' && item.unlockValue === ach.id);
-            let rewardText = '<span class="reward">+50 🎵</span>'; // Standard-Belohnung
+            let rewardText = '<span class="reward">+50 🎵</span>'; 
             if (reward) {
                 rewardText += ` & ${reward.type === 'title' ? 'Titel' : 'Icon'}: ${reward.name || reward.iconClass}`;
             }
@@ -741,8 +719,8 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         if (elements.home.profileTitleBtn) {
             elements.home.profileTitleBtn.querySelector('span').textContent = title.name;
         }
-        renderTitles(); // Veraltete Liste
-        renderCustomTitles(); // Neue Liste
+        renderTitles(); 
+        renderCustomTitles(); 
 
         if (saveToDb && supabase) {
             const { error } = await supabase.from('profiles').update({ equipped_title_id: titleId }).eq('id', currentUser.id);
@@ -754,13 +732,11 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         }
     }
 
-    // --- renderTitles (AKTUALISIERT mit Sortierung) ---
     function renderTitles() {
         if (!elements.titles.list || currentUser.isGuest) return;
         elements.titles.list.innerHTML = '';
         const currentLevel = getLevelForXp(userProfile.xp || 0);
         
-        // NEU: Sortierung
         const sortedTitles = [...titlesList].sort((a, b) => {
             const aUnlocked = isItemUnlocked(a, currentLevel);
             const bUnlocked = isItemUnlocked(b, currentLevel);
@@ -769,7 +745,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             return a.id - b.id;
         });
         
-        sortedTitles.forEach(title => { // Geändert zu sortedTitles
+        sortedTitles.forEach(title => { 
             const isUnlocked = isItemUnlocked(title, currentLevel);
             const isEquipped = userProfile.equipped_title_id === title.id;
 
@@ -802,8 +778,8 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         if (elements.home.profileIcon) {
             elements.home.profileIcon.className = `fa-solid ${icon.iconClass}`;
         }
-        renderIcons(); // Veraltete Liste
-        renderCustomIcons(); // Neue Liste
+        renderIcons(); 
+        renderCustomIcons(); 
 
         if (saveToDb && supabase) {
             const { error } = await supabase.from('profiles').update({ equipped_icon_id: iconId }).eq('id', currentUser.id);
@@ -815,13 +791,11 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         }
     }
 
-    // --- renderIcons (AKTUALISIERT mit Sortierung) ---
     function renderIcons() {
         if (!elements.icons.list || currentUser.isGuest) return;
         elements.icons.list.innerHTML = '';
         const currentLevel = getLevelForXp(userProfile.xp || 0);
 
-        // NEU: Sortierung
         const sortedIcons = [...iconsList].sort((a, b) => {
             const aUnlocked = isItemUnlocked(a, currentLevel);
             const bUnlocked = isItemUnlocked(b, currentLevel);
@@ -830,7 +804,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             return a.id - b.id;
         });
 
-        sortedIcons.forEach(icon => { // Geändert zu sortedIcons
+        sortedIcons.forEach(icon => { 
             const isUnlocked = isItemUnlocked(icon, currentLevel);
             const isEquipped = userProfile.equipped_icon_id === icon.id;
 
@@ -847,18 +821,14 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             elements.icons.list.appendChild(card);
         });
     }
-// script.js - MODIFIZIERT - TEIL 2 VON 2
-// (Direkt unter Teil 1 einfügen)
-
     
-    // --- NEU: Funktionen für Anpassungsmenü ---
+    // --- "Anpassen"-Menü Funktionen ---
     function renderCustomizationMenu() {
         if (!elements.customize.screen || currentUser.isGuest) return;
         renderCustomTitles();
         renderCustomIcons();
         renderCustomColors();
-        renderCustomBgColors(); // NEU
-        renderCustomBgSymbols(); // NEU
+        renderCustomBackgrounds();
     }
     
     function renderCustomTitles() {
@@ -926,13 +896,11 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
     async function equipColor(colorId, saveToDb = true) {
         if (currentUser.isGuest) return;
         
-        // Erlaube das Abwählen (ID null oder 0)
         if (!colorId) {
             userProfile.equipped_color_id = null;
-            if(elements.home.usernameContainer) elements.home.usernameContainer.style.color = ''; // Zurücksetzen
+            if(elements.home.usernameContainer) elements.home.usernameContainer.style.color = ''; 
             renderCustomColors();
             if (saveToDb && supabase) {
-                // KORREKTUR: "Fehler beim Speichern der Farbe" wird von hier ausgelöst.
                 const { error } = await supabase.from('profiles').update({ equipped_color_id: null }).eq('id', currentUser.id);
                 if (error) {
                     console.error("Fehler beim Abwählen der Farbe:", error);
@@ -958,7 +926,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         renderCustomColors(); 
 
         if (saveToDb && supabase) {
-            // KORREKTUR: "Fehler beim Speichern der Farbe" wird von hier ausgelöst.
             const { error } = await supabase.from('profiles').update({ equipped_color_id: colorId }).eq('id', currentUser.id);
             if (error) {
                 console.error("Fehler beim Speichern der Farbe:", error);
@@ -975,7 +942,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         container.innerHTML = '';
         const currentLevel = getLevelForXp(userProfile.xp || 0);
 
-        // Sortieren
         const sortedColors = [...nameColorsList].sort((a, b) => {
             const aUnlocked = isItemUnlocked(a, currentLevel);
             const bUnlocked = isItemUnlocked(b, currentLevel);
@@ -984,11 +950,10 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             return a.id - b.id;
         });
 
-        // "Keine Farbe" Option
         const noneCard = document.createElement('div');
         noneCard.className = 'color-card';
         noneCard.classList.toggle('equipped', !userProfile.equipped_color_id);
-        noneCard.dataset.colorId = ''; // Leerer String für "keine"
+        noneCard.dataset.colorId = ''; 
         noneCard.innerHTML = `
             <div class="color-preview" style="background-color: var(--dark-grey); border: 2px dashed var(--medium-grey);">
                 <i class="fa-solid fa-ban"></i>
@@ -998,7 +963,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         `;
         container.appendChild(noneCard);
 
-        // Gerenderte Farben
         sortedColors.forEach(color => {
             const isUnlocked = isItemUnlocked(color, currentLevel);
             const isEquipped = userProfile.equipped_color_id === color.id;
@@ -1020,117 +984,29 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         });
     }
 
-    // --- NEUE FUNKTIONEN FÜR HINTERGRUND ---
-    async function equipBgColor(colorKey, saveToDb = true) {
-        if (currentUser.isGuest) return;
-        
-        const color = bgColorsList.find(c => c.storageKey === colorKey);
-        if (!color) return;
-
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        if (!isItemUnlocked(color, currentLevel)) {
-            showToast("Du hast diese Farbe noch nicht freigeschaltet.", true);
-            return;
-        }
-
-        userProfile.equipped_bg_color_id = colorKey;
-        renderCustomBgColors(); // UI im Anpassungsmenü aktualisieren
-        applyLobbyBackground(userProfile.equipped_bg_color_id, userProfile.equipped_bg_symbol_id); // Vorschau anwenden
-
-        if (saveToDb && supabase) {
-            const { error } = await supabase.from('profiles').update({ equipped_bg_color_id: colorKey }).eq('id', currentUser.id);
-            if (error) {
-                showToast("Fehler beim Speichern der Hintergrundfarbe.", true);
-            } else {
-                showToast(`Hintergrund "${color.name}" ausgerüstet!`, false);
-            }
-        }
-    }
-
-    async function equipBgSymbol(symbolKey, saveToDb = true) {
-        if (currentUser.isGuest) return;
-        
-        const symbol = bgSymbolsList.find(s => s.storageKey === symbolKey);
-        if (!symbol) return;
-
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        if (!isItemUnlocked(symbol, currentLevel)) {
-            showToast("Du hast dieses Symbol noch nicht freigeschaltet.", true);
-            return;
-        }
-
-        userProfile.equipped_bg_symbol_id = symbolKey;
-        renderCustomBgSymbols(); // UI im Anpassungsmenü aktualisieren
-        applyLobbyBackground(userProfile.equipped_bg_color_id, userProfile.equipped_bg_symbol_id); // Vorschau anwenden
-
-        if (saveToDb && supabase) {
-            const { error } = await supabase.from('profiles').update({ equipped_bg_symbol_id: symbolKey }).eq('id', currentUser.id);
-            if (error) {
-                showToast("Fehler beim Speichern des Symbols.", true);
-            } else {
-                showToast(`Symbol "${symbol.name}" ausgerüstet!`, false);
-            }
-        }
-    }
-
-    function renderCustomBgColors() {
-        const container = elements.customize.bgColorsList;
-        if (!container || currentUser.isGuest) return;
+    // NEU: Logik für Lobby-Hintergründe im "Anpassen"-Tab
+    function renderCustomBackgrounds() {
+        const container = elements.customize.backgroundsList;
+        if (currentUser.isGuest || !container) return;
         container.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
         
-        const sorted = [...bgColorsList].sort((a, b) => a.cost - b.cost);
+        // Standard-Option
+        const defaultLi = document.createElement('li');
+        defaultLi.dataset.bgId = 'default';
+        defaultLi.innerHTML = `<button class="button-select">Standard</button>`;
+        container.appendChild(defaultLi);
 
-        sorted.forEach(color => {
-            const isUnlocked = isItemUnlocked(color, currentLevel);
-            const isEquipped = userProfile.equipped_bg_color_id === color.storageKey;
-
-            const card = document.createElement('div');
-            // Wir recyceln die 'color-card' CSS-Klasse
-            card.className = 'color-card'; 
-            card.classList.toggle('locked', !isUnlocked);
-            card.classList.toggle('equipped', isEquipped);
-            card.dataset.colorKey = color.storageKey;
-
-            card.innerHTML = `
-                <div class="color-preview" style="background: ${color.cssBackground}">
-                    ${color.iconClass ? `<i class="${color.iconClass}"></i>` : ''}
-                </div>
-                <span class="color-name">${color.name}</span>
-                <span class="color-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Klicken') : getUnlockDescription(color)}</span>
-            `;
-            container.appendChild(card);
+        backgroundsList.forEach(bg => {
+            if (bg.id !== 'default' && ownedBackgroundIds.has(bg.backgroundId)) {
+                const li = document.createElement('li');
+                li.dataset.bgId = bg.backgroundId;
+                li.innerHTML = `<button class="button-select">${bg.name}</button>`;
+                container.appendChild(li);
+            }
         });
     }
 
-    function renderCustomBgSymbols() {
-        const container = elements.customize.bgSymbolsList;
-        if (!container || currentUser.isGuest) return;
-        container.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        
-        const sorted = [...bgSymbolsList].sort((a, b) => a.cost - b.cost);
-
-        sorted.forEach(symbol => {
-            const isUnlocked = isItemUnlocked(symbol, currentLevel);
-            const isEquipped = userProfile.equipped_bg_symbol_id === symbol.storageKey;
-
-            const card = document.createElement('div');
-            // Wir recyceln die 'icon-card' CSS-Klasse
-            card.className = 'icon-card'; 
-            card.classList.toggle('locked', !isUnlocked);
-            card.classList.toggle('equipped', isEquipped);
-            card.dataset.symbolKey = symbol.storageKey;
-
-            card.innerHTML = `
-                <div class="icon-preview"><i class="${symbol.iconClass}"></i></div>
-                <span class="color-name" style="font-size: 0.8rem;">${symbol.name}</span>
-                <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Klicken') : getUnlockDescription(symbol)}</span>
-            `;
-            container.appendChild(card);
-        });
-    }
-    // --- ENDE: Funktionen für Anpassungsmenü ---
+    // --- ENDE: "Anpassen"-Menü Funktionen ---
 
     function renderLevelProgress() {
         if (!elements.levelProgress.list || currentUser.isGuest) return;
@@ -1223,8 +1099,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         if(elements.stats.avgScore) elements.stats.avgScore.textContent = avgScore;
     }
 
-    // --- SHOP-System (KORRIGIERT) ---
-// NEU: loadShopItems
+    // --- SHOP-System (KORRIGIERT mit await getSession) ---
     async function loadShopItems() {
         if (currentUser.isGuest) return;
         setLoading(true, "Lade Shop...");
@@ -1241,7 +1116,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             updateSpotsDisplay();
 
             const response = await fetch('/api/shop/items', {
-                headers: { 'Authorization': `Bearer ${accessToken}` }
+                headers: { 'Authorization': `Bearer ${accessToken}` } 
             });
             if (!response.ok) {
                 const errData = await response.json();
@@ -1250,46 +1125,38 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             
             const { items: shopItemsFromServer } = await response.json();
             
-            // NEU: Referenzen zu den neuen Listen
             const titlesListEl = elements.shop.titlesList;
             const iconsListEl = elements.shop.iconsList;
-            const bgColorsListEl = elements.shop.bgColorsList;
-            const bgSymbolsListEl = elements.shop.bgSymbolsList;
+            const backgroundsListEl = elements.shop.backgroundsList;
             const colorsListEl = elements.shop.colorsList;
 
             titlesListEl.innerHTML = '';
             iconsListEl.innerHTML = '';
-            bgColorsListEl.innerHTML = ''; // NEU
-            bgSymbolsListEl.innerHTML = ''; // NEU
+            backgroundsListEl.innerHTML = '';
             colorsListEl.innerHTML = '';
 
-            // NEU: Wir verwenden allItems (das alle 5 Listen enthält)
-            allItems.filter(item => item.unlockType === 'spots').forEach(item => {
-                // Finde das Item in der Server-Antwort (basierend auf der einzigartigen ID, nicht storageKey)
+            const allShopItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList]
+                .filter(item => item.unlockType === 'spots');
+
+            allShopItems.forEach(item => {
                 const serverItem = shopItemsFromServer.find(si => si.id === item.id);
                 const isOwned = serverItem ? serverItem.isOwned : false;
                 
-                // Aktualisiere unsere lokalen Besitz-Sets
                 if (isOwned) {
                     if (item.type === 'title') ownedTitleIds.add(item.id);
                     else if (item.type === 'icon') ownedIconIds.add(item.id);
+                    else if (item.type === 'background') ownedBackgroundIds.add(item.backgroundId);
                     else if (item.type === 'color') ownedColorIds.add(item.id);
-                    else if (item.type === 'bg_color') ownedBgColorIds.add(item.storageKey);
-                    else if (item.type === 'bg_symbol') ownedBgSymbolIds.add(item.storageKey);
                 }
 
-                // NEU: Füge das Item der korrekten Shop-Liste hinzu
-                const itemEl = renderShopItem(item, userProfile.spots, isOwned);
                 if (item.type === 'title') {
-                    titlesListEl.appendChild(itemEl);
+                    titlesListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
                 } else if (item.type === 'icon') {
-                    iconsListEl.appendChild(itemEl);
-                } else if (item.type === 'bg_color') {
-                    bgColorsListEl.appendChild(itemEl);
-                } else if (item.type === 'bg_symbol') {
-                    bgSymbolsListEl.appendChild(itemEl);
+                    iconsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
+                } else if (item.type === 'background') {
+                    backgroundsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
                 } else if (item.type === 'color') {
-                    colorsListEl.appendChild(itemEl);
+                    colorsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
                 }
             });
 
@@ -1301,31 +1168,19 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         }
     }
 
-// NEU: renderShopItem
     function renderShopItem(item, userSpots, isOwned) {
         const el = document.createElement('div');
         el.className = 'shop-item';
         el.classList.toggle('owned', isOwned);
         
         let previewHtml = '';
-        // NEU: Logik für getrennte BG-Typen
         if (item.type === 'icon') {
             previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
-        
-        } else if (item.type === 'bg_color') {
-            // Vorschau für Hintergrund-Farben (recycelt .item-preview-color)
-            const iconHtml = item.iconClass ? `<i class="${item.iconClass}"></i>` : '';
-            previewHtml = `<div class="item-preview-color" style="height: 80px; background: ${item.cssBackground}">${iconHtml}</div>`;
-        
-        } else if (item.type === 'bg_symbol') {
-            // Vorschau für Hintergrund-Symbole (recycelt .item-preview-icon)
-            previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
-        
+        } else if (item.type === 'background') {
+            previewHtml = `<div class="item-preview-background" style="background-image: url('${item.imageUrl}')"></div>`;
         } else if (item.type === 'color') {
-            // Vorschau für Namensfarben
             previewHtml = `<div class="item-preview-color" style="background-color: ${item.colorHex}"><i class="fa-solid fa-font"></i></div>`;
-        
-        } else { // 'title'
+        } else {
             previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-ticket"></i></div>`;
         }
 
@@ -1344,7 +1199,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         return el;
     }
 
-// NEU: handleBuyItem
     async function handleBuyItem(itemId) {
         const item = allItems.find(i => i.id == itemId);
         if (!item) return;
@@ -1355,44 +1209,35 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             async () => {
                 setLoading(true, "Kauf wird verarbeitet...");
                 try {
-                    // --- KORREKTUR START ---
-                    // 1. Session asynchron abrufen
                     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
                     if (sessionError || !session) {
                         throw new Error(sessionError?.message || "Authentifizierung fehlgeschlagen. Bitte neu einloggen.");
                     }
                     const accessToken = session.access_token;
-                    // --- KORREKTUR ENDE ---
 
                     const response = await fetch('/api/shop/buy', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${accessToken}` // Benutze die abgerufene Variable
+                            'Authorization': `Bearer ${accessToken}`
                         },
-                        body: JSON.stringify({ itemId: item.id }) // Server findet den Rest (Typ, Key, etc.)
+                        body: JSON.stringify({ itemId: item.id })
                     });
-                    
                     const result = await response.json();
                     if (!response.ok || !result.success) {
                         throw new Error(result.message || "Kauf fehlgeschlagen.");
                     }
-
                     setLoading(false);
                     showToast(result.message, false);
                     userProfile.spots = result.newSpots;
                     updateSpotsDisplay();
-                    
-                    // NEU: Füge das Item dem korrekten lokalen Set hinzu
                     if (result.itemType === 'title') ownedTitleIds.add(item.id);
                     else if (result.itemType === 'icon') ownedIconIds.add(item.id);
+                    else if (result.itemType === 'background') ownedBackgroundIds.add(item.backgroundId);
                     else if (result.itemType === 'color') ownedColorIds.add(item.id);
-                    else if (result.itemType === 'bg_color') ownedBgColorIds.add(item.storageKey);
-                    else if (result.itemType === 'bg_symbol') ownedBgSymbolIds.add(item.storageKey);
+                    loadShopItems(); // Shop neu laden, um "Besitzt du" anzuzeigen
                     
-                    // Lade den Shop neu, um den "Besitzt du"-Status anzuzeigen
-                    loadShopItems();
+                    awardClientSideAchievement(21);
 
                 } catch (error) {
                     setLoading(false);
@@ -1402,78 +1247,8 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             }
         );
     }
-
-// NEU: Geteilte Modal-Funktionen
-    function showBgColorSelectionModal() {
-        if (currentUser.isGuest || !elements.bgColorSelectModal.list) return;
-        elements.bgColorSelectModal.list.innerHTML = '';
-        
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-
-        bgColorsList.forEach(color => {
-            if (isItemUnlocked(color, currentLevel)) {
-                const li = document.createElement('li');
-                li.className = 'color-card'; // Wiederverwenden der CSS-Klasse
-                li.dataset.colorKey = color.storageKey;
-                li.innerHTML = `
-                    <div class="color-preview" style="background: ${color.cssBackground}">
-                         ${color.iconClass ? `<i class="${color.iconClass}"></i>` : ''}
-                    </div>
-                    <span class="color-name">${color.name}</span>
-                `;
-                elements.bgColorSelectModal.list.appendChild(li);
-            }
-        });
-        elements.bgColorSelectModal.overlay.classList.remove('hidden');
-    }
-
-    function showBgSymbolSelectionModal() {
-        if (currentUser.isGuest || !elements.bgSymbolSelectModal.list) return;
-        elements.bgSymbolSelectModal.list.innerHTML = '';
-        
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-
-        bgSymbolsList.forEach(symbol => {
-            if (isItemUnlocked(symbol, currentLevel)) {
-                const li = document.createElement('li');
-                li.className = 'icon-card'; // Wiederverwenden der CSS-Klasse
-                li.dataset.symbolKey = symbol.storageKey;
-                li.innerHTML = `
-                    <div class="icon-preview"><i class="${symbol.iconClass}"></i></div>
-                    <span class="color-name" style="font-size: 0.8rem;">${symbol.name}</span>
-                `;
-                elements.bgSymbolSelectModal.list.appendChild(li);
-            }
-        });
-        elements.bgSymbolSelectModal.overlay.classList.remove('hidden');
-    }
-
-    // NEU: applyLobbyBackground kombiniert jetzt 2 IDs
-    function applyLobbyBackground(colorKey, symbolKey) {
-        const lobbyScreen = document.getElementById('lobby-screen');
-        if (!lobbyScreen) return;
-
-        const color = bgColorsList.find(c => c.storageKey === colorKey) || bgColorsList[0];
-        const symbol = bgSymbolsList.find(s => s.storageKey === symbolKey) || bgSymbolsList[0];
-
-        // 1. Setze die Hintergrundfarbe
-        lobbyScreen.style.backgroundImage = color.cssBackground || 'var(--dark-grey)';
-        
-        // 2. Setze (oder entferne) das Symbol-Overlay
-        // (Wir implementieren das Symbol-Overlay später in CSS, jetzt aktualisieren wir nur die Buttons)
-        
-        // 3. Aktualisiere die Host-Buttons
-        if (elements.lobby.bgColorSelectButton) {
-            elements.lobby.bgColorSelectButton.textContent = color.name;
-        }
-        if (elements.lobby.bgSymbolSelectButton) {
-            elements.lobby.bgSymbolSelectButton.textContent = symbol.name;
-        }
-    }
     
-    // --- displayReaction (AKTUALISIERT) ---
     function displayReaction(playerId, reaction) {
-        // Dieser Selektor findet die Spielerkarte, egal ob in der Lobby ODER im Spiel
         const playerCard = document.querySelector(
             `.player-card[data-player-id="${playerId}"], .game-player-card[data-player-id="${playerId}"]`
         );
@@ -1486,37 +1261,106 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         }
     }
     
-    async function handleGiftSpots(friendId, friendName) {
-        showToast("Freunde-System (Gifting) kommt bald!", false);
-    }
-    // --- ENDE: Implementierte UI-Funktionen ---
-
     // --- Game Logic Functions (Stubs) ---
-    function showCountdown(round, total) { 
-        console.log("STUB: showCountdown"); 
-        // Aktualisiere In-Game-Spielerliste für den Fall, dass jemand gejoint/geleavt ist
-        renderGamePlayerList(currentGame.players);
+    function showCountdown(number) { 
+        console.log(`Countdown: ${number}`); 
+        elements.countdownOverlay.textContent = number;
+        elements.countdownOverlay.classList.remove('hidden');
     }
     function setupPreRound(data) { 
-        console.log("STUB: setupPreRound"); 
+        console.log("Pre-Round Setup"); 
+        elements.countdownOverlay.classList.add('hidden');
+        elements.game.gameContentArea.innerHTML = `<h2>Macht euch bereit...</h2>`;
         renderGamePlayerList(currentGame.players);
     }
     function setupNewRound(data) { 
-        console.log("STUB: setupNewRound"); 
-        renderGamePlayerList(currentGame.players); // Scores zurücksetzen
+        console.log("New Round Setup", data); 
+        elements.countdownOverlay.classList.add('hidden');
+        elements.game.round.textContent = data.round;
+        elements.game.totalRounds.textContent = data.totalRounds;
+        elements.game.gameContentArea.innerHTML = `<h2>Was ist das für ein Song?</h2>`; // Platzhalter
+        // TODO: Input-Felder / Multiple-Choice-Buttons anzeigen
     }
     function showRoundResult(data) { 
-        console.log("STUB: showRoundResult"); 
+        console.log("Round Result", data); 
+        elements.game.gameContentArea.innerHTML = `
+            <h2>Runde vorbei!</h2>
+            <h3>Der Song war: ${data.correctTrack.title} - ${data.correctTrack.artist} (${data.correctTrack.year})</h3>
+        `;
         renderGamePlayerList(data.scores); // Scores aktualisieren
     }
     
-    // --- Friends Modal Logic (Stubs - kommt als nächstes) ---
-    async function loadFriendsData() { console.log("STUB: loadFriendsData"); if (elements.friendsModal.friendsList) elements.friendsModal.friendsList.innerHTML = '<li>Lade Freunde... (STUB)</li>'; if(elements.friendsModal.requestsList) elements.friendsModal.requestsList.innerHTML = '<li>Lade Anfragen... (STUB)</li>'; }
-    function renderRequestsList(requests) { console.log("STUB: renderRequestsList"); }
+    // --- Friends Modal Logic (Implementiert) ---
+    async function loadFriendsData() { 
+        if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) {
+            showToast("Keine Serververbindung.", true);
+            return;
+        }
+        console.log("Lade Freunde...");
+        elements.friendsModal.friendsList.innerHTML = '<li>Lade Freunde...</li>';
+        elements.friendsModal.requestsList.innerHTML = '<li>Lade Anfragen...</li>';
+        ws.socket.send(JSON.stringify({ type: 'load-friends' }));
+    }
+    
+    function renderFriendsList(friends) {
+        if (!elements.friendsModal.friendsList) return;
+        elements.friendsModal.friendsList.innerHTML = '';
+        onlineFriends = friends.filter(f => f.isOnline); // Cache für Einladungen
+        
+        if (friends.length === 0) {
+            elements.friendsModal.friendsList.innerHTML = '<li>Du hast noch keine Freunde.</li>';
+            return;
+        }
+        
+        // Sortiere: Online-Freunde zuerst
+        friends.sort((a, b) => b.isOnline - a.isOnline);
+        
+        friends.forEach(friend => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <div class="friend-info">
+                    <span class="friend-name">${friend.username}</span>
+                    <span class="friend-status ${friend.isOnline ? 'online' : ''}">${friend.isOnline ? 'Online' : 'Offline'}</span>
+                </div>
+                <div class="friend-actions">
+                    <button class="button-icon button-gift" data-friend-id="${friend.id}" data-friend-name="${friend.username}" title="Spots schenken"><i class="fa-solid fa-gift"></i></button>
+                    <button class="button-icon button-danger button-remove-friend" data-friend-id="${friend.id}" data-friend-name="${friend.username}" title="Freund entfernen"><i class="fa-solid fa-user-minus"></i></button>
+                </div>
+            `;
+            elements.friendsModal.friendsList.appendChild(li);
+        });
+    }
+
+    function renderRequestsList(requests) {
+        if (!elements.friendsModal.requestsList) return;
+        elements.friendsModal.requestsList.innerHTML = '';
+        
+        if (requests.length === 0) {
+            elements.friendsModal.requestsList.innerHTML = '<li>Keine neuen Anfragen.</li>';
+            elements.friendsModal.requestsCount.classList.add('hidden');
+            return;
+        }
+        
+        elements.friendsModal.requestsCount.textContent = requests.length;
+        elements.friendsModal.requestsCount.classList.remove('hidden');
+
+        requests.forEach(req => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <div class="friend-info">
+                    <span class="friend-name">${req.username}</span>
+                </div>
+                <div class="friend-actions">
+                    <button class="button-icon button-primary button-accept-request" data-sender-id="${req.id}" title="Annehmen"><i class="fa-solid fa-check"></i></button>
+                    <button class="button-icon button-danger button-decline-request" data-sender-id="${req.id}" title="Ablehnen"><i class="fa-solid fa-user-minus"></i></button>
+                </div>
+            `;
+            elements.friendsModal.requestsList.appendChild(li);
+        });
+    }
     
     // --- Utility & Modal Functions (AKTUALISIERT) ---
     
-    // --- fetchHostData (Implementiert) ---
     async function fetchHostData(isRefresh = false) {
         console.log(`Fetching host data... Refresh: ${isRefresh}`);
         if (!spotifyToken) {
@@ -1524,7 +1368,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             return;
         }
         
-        // Cache-Prüfung (nur wenn nicht erzwungen)
         if (allPlaylists.length > 0 && availableDevices.length > 0 && !isRefresh) {
             console.log("Using cached host data.");
             renderPaginatedPlaylists(allPlaylists, 1);
@@ -1532,7 +1375,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             return;
         }
 
-        setLoading(true, "Lade Spotify-Daten..."); // <-- DIESE NACHRICHT SOLLTEST DU SEHEN
+        setLoading(true, "Lade Spotify-Daten...");
         try {
             const authHeader = { 'Authorization': `Bearer ${spotifyToken}` };
             
@@ -1556,14 +1399,13 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         } catch (error) {
             console.error("Error fetching host data:", error);
             showToast(`Fehler: ${error.message}`, true);
-            spotifyToken = null; // Token könnte ungültig sein
+            spotifyToken = null; 
             checkSpotifyStatus();
         } finally {
             setLoading(false);
         }
     }
 
-    // --- NEU: renderDeviceList ---
     function renderDeviceList(devices) {
         if (!elements.deviceSelectModal.list) return;
         elements.deviceSelectModal.list.innerHTML = '';
@@ -1582,7 +1424,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         });
     }
     
-    // --- NEU: getDeviceIcon ---
     function getDeviceIcon(type) {
         switch (type.toLowerCase()) {
             case 'computer': return 'fa-desktop';
@@ -1592,7 +1433,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         }
     }
 
-    // --- renderPaginatedPlaylists (Implementiert) ---
     function renderPaginatedPlaylists(playlistsToRender, page = 1) {
         if (!elements.playlistSelectModal.list) return;
         
@@ -1648,13 +1488,71 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
         }
     }
     
-    function openCustomValueModal(type, title) { console.log("STUB: openCustomValueModal"); }
-    function showInvitePopup(from, pin) { console.log("STUB: showInvitePopup"); }
-    function handlePresetClick(e, groupId) { console.log(`STUB: handlePresetClick for group ${groupId}`); }
-    async function handleRemoveFriend(friendId) { console.log(`STUB: handleRemoveFriend(${friendId})`); showToast("Freund entfernen (STUB)", true); }
+    function openCustomValueModal(type, title, min = 1, max = 100) { 
+        currentCustomType = { type, min, max };
+        customValueInput = "";
+        elements.customValueModal.title.textContent = `${title} (${min}-${max})`;
+        elements.customValueModal.display.forEach(d => d.textContent = "");
+        elements.customValueModal.confirmBtn.disabled = true;
+        elements.customValueModal.overlay.classList.remove('hidden');
+    }
 
+    function showInvitePopup(from, pin) { 
+        document.getElementById('invite-sender-name').textContent = from;
+        const popup = document.getElementById('invite-popup');
+        popup.classList.remove('hidden');
+        
+        // Alte Listener entfernen, um Duplikate zu vermeiden
+        const newAcceptBtn = document.getElementById('accept-invite-button').cloneNode(true);
+        document.getElementById('accept-invite-button').parentNode.replaceChild(newAcceptBtn, document.getElementById('accept-invite-button'));
+        
+        const newDeclineBtn = document.getElementById('decline-invite-button').cloneNode(true);
+        document.getElementById('decline-invite-button').parentNode.replaceChild(newDeclineBtn, document.getElementById('decline-invite-button'));
 
-    // --- Event Listeners (FINAL - mit Anpassungen) ---
+        // Neue Listener
+        newAcceptBtn.onclick = () => {
+            if(!currentUser){ showToast("Anmelden/Gast zuerst.", true); return; } 
+            if(!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } 
+            setLoading(true, "Trete Lobby bei..."); 
+            ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pin, user: currentUser } })); 
+            popup.classList.add('hidden');
+        };
+        newDeclineBtn.onclick = () => {
+            popup.classList.add('hidden');
+        };
+    }
+    
+    function handlePresetClick(e, groupId) { 
+        const btn = e.target.closest('.preset-button');
+        if (!btn || !btn.closest('.preset-group')) return;
+        
+        const presetGroup = btn.closest('.preset-group');
+        presetGroup.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        const value = btn.dataset.value;
+        const type = btn.dataset.type;
+        
+        if (value === 'custom') {
+            if (type === 'song-count') openCustomValueModal('song-count', 'Anzahl Songs', 1, 999);
+            else if (type === 'guess-time') openCustomValueModal('guess-time', 'Ratezeit (Sek.)', 10, 120);
+            return;
+        }
+
+        // Send-Setting an Server (nur in Lobby)
+        if (currentGame.pin && currentGame.isHost) {
+            let setting = {};
+            if (groupId === 'song-count-presets') setting.songCount = parseInt(value);
+            if (groupId === 'guess-time-presets') setting.guessTime = parseInt(value);
+            
+            ws.socket.send(JSON.stringify({
+                type: 'update-settings',
+                payload: setting
+            }));
+        }
+    }
+
+    // --- Event Listeners (FINAL) ---
     function addEventListeners() {
         try { 
             console.log("Adding all application event listeners...");
@@ -1699,98 +1597,148 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             elements.home.friendsBtn?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { loadFriendsData(); elements.friendsModal.overlay?.classList.remove('hidden'); } });
             elements.home.usernameContainer?.addEventListener('click', () => { if (!currentUser || currentUser.isGuest) return; elements.changeNameModal.input.value = currentUser.username; elements.changeNameModal.overlay?.classList.remove('hidden'); elements.changeNameModal.input?.focus(); });
             elements.home.shopButton?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { loadShopItems(); showScreen('shop-screen'); } });
-            elements.home.customizationBtn?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { renderCustomizationMenu(); showScreen('customization-screen'); } }); // NEU
+            elements.home.customizationBtn?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { renderCustomizationMenu(); showScreen('customization-screen'); } }); 
 
              // Modus & Spieltyp Auswahl
-            elements.modeSelection.container?.addEventListener('click', (e) => { const mb=e.target.closest('.mode-box'); if(mb && !mb.disabled){ selectedGameMode=mb.dataset.mode; console.log(`Mode: ${selectedGameMode}`); if (elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=true; if (elements.gameTypeScreen.pointsBtn) elements.gameTypeScreen.pointsBtn.classList.remove('active'); if (elements.gameTypeScreen.livesBtn) elements.gameTypeScreen.livesBtn.classList.remove('active'); if (elements.gameTypeScreen.livesSettings) elements.gameTypeScreen.livesSettings.classList.add('hidden'); showScreen('game-type-selection-screen'); } });
+            elements.modeSelection.container?.addEventListener('click', (e) => { 
+                const mb=e.target.closest('.mode-box'); 
+                if(mb && !mb.disabled){ 
+                    selectedGameMode=mb.dataset.mode; 
+                    console.log(`Mode: ${selectedGameMode}`); 
+                    
+                    // Reset Game Creation Settings
+                    gameCreationSettings = { gameType: null, lives: 3, guessTypes: ['title', 'artist'], answerType: 'freestyle' };
+                    
+                    if (elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=true; 
+                    if (elements.gameTypeScreen.pointsBtn) elements.gameTypeScreen.pointsBtn.classList.remove('active'); 
+                    if (elements.gameTypeScreen.livesBtn) elements.gameTypeScreen.livesBtn.classList.remove('active'); 
+                    if (elements.gameTypeScreen.livesSettings) elements.gameTypeScreen.livesSettings.classList.add('hidden'); 
+                    
+                    // Zeige Quiz-spezifische Einstellungen nur für Quiz-Modus
+                    elements.gameTypeScreen.quizSettingsContainer.classList.toggle('hidden', selectedGameMode !== 'quiz');
+                    
+                    showScreen('game-type-selection-screen'); 
+                } 
+            });
+            
+            // Spieltyp (Punkte/Leben)
             elements.gameTypeScreen.pointsBtn?.addEventListener('click', () => { gameCreationSettings.gameType='points'; elements.gameTypeScreen.pointsBtn.classList.add('active'); elements.gameTypeScreen.livesBtn?.classList.remove('active'); elements.gameTypeScreen.livesSettings?.classList.add('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
             elements.gameTypeScreen.livesBtn?.addEventListener('click', () => { gameCreationSettings.gameType='lives'; elements.gameTypeScreen.pointsBtn?.classList.remove('active'); elements.gameTypeScreen.livesBtn.classList.add('active'); elements.gameTypeScreen.livesSettings?.classList.remove('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
-            elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const btn=e.target.closest('.preset-button'); if(btn){ elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const v=btn.dataset.value; if(v==='custom'){ openCustomValueModal('lives', 'Leben (1-10)'); } else { gameCreationSettings.lives=parseInt(v); console.log(`Lives: ${gameCreationSettings.lives}`); } } });
+            elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const btn=e.target.closest('.preset-button'); if(btn){ elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const v=btn.dataset.value; if(v==='custom'){ openCustomValueModal('lives', 'Leben (1-10)', 1, 10); } else { gameCreationSettings.lives=parseInt(v); console.log(`Lives: ${gameCreationSettings.lives}`); } } });
+            
+            // Spieltyp (Quiz-Einstellungen)
+            elements.gameTypeScreen.guessTypesCheckboxes.forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const checked = Array.from(elements.gameTypeScreen.guessTypesCheckboxes).filter(c => c.checked).map(c => c.value);
+                    if (checked.length === 0) {
+                        elements.gameTypeScreen.guessTypesError.classList.remove('hidden');
+                    } else {
+                        elements.gameTypeScreen.guessTypesError.classList.add('hidden');
+                    }
+                    gameCreationSettings.guessTypes = checked;
+                });
+            });
+            elements.gameTypeScreen.answerTypePresets?.addEventListener('click', (e) => {
+                const btn = e.target.closest('.preset-button');
+                if (btn) {
+                    elements.gameTypeScreen.answerTypePresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    gameCreationSettings.answerType = btn.dataset.value;
+                }
+            });
             
             elements.gameTypeScreen.createLobbyBtn?.addEventListener('click', () => { 
                 if(!selectedGameMode || !gameCreationSettings.gameType){ showToast("Modus/Typ fehlt.", true); return; } 
+                if(selectedGameMode === 'quiz' && gameCreationSettings.guessTypes.length === 0) {
+                    showToast("Wähle mindestens eine Sache zum Raten aus.", true);
+                    elements.gameTypeScreen.guessTypesError.classList.remove('hidden');
+                    return;
+                }
                 if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } 
                 
                 setLoading(true, "Lobby wird erstellt...");
                 
-                let defaultSettings = {
-                    gameMode: selectedGameMode, 
-                    gameType: gameCreationSettings.gameType, 
-                    lives: gameCreationSettings.gameType === 'lives' ? gameCreationSettings.lives : 3
-                };
-                if (selectedGameMode === 'quiz') {
-                    defaultSettings.guessTypes = ['title', 'artist']; 
-                }
-
                 ws.socket.send(JSON.stringify({ 
                     type: 'create-game', 
-                    payload: { user: currentUser, token: spotifyToken, ...defaultSettings } 
+                    payload: { 
+                        user: currentUser, 
+                        token: spotifyToken, 
+                        gameMode: selectedGameMode,
+                        ...gameCreationSettings // Sendet gameType, lives, guessTypes, answerType
+                    } 
                 })); 
             });
 
             // Lobby Screen
-            elements.lobby.inviteFriendsBtn?.addEventListener('click', async () => { /* STUB */ console.log("Invite friends clicked"); showToast("Freunde einladen (STUB)", false); });
-            elements.lobby.deviceSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.deviceSelectModal.overlay?.classList.remove('hidden'); }); // IMPLEMENTIERT
-            elements.lobby.playlistSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.playlistSelectModal.overlay?.classList.remove('hidden'); }); // IMPLEMENTIERT
-            // NEU: Geteilte BG-Buttons
-            elements.lobby.bgColorSelectButton?.addEventListener('click', showBgColorSelectionModal);
-            elements.lobby.bgSymbolSelectButton?.addEventListener('click', showBgSymbolSelectionModal);
-            
-            document.getElementById('host-settings')?.addEventListener('click', (e) => { const btn = e.target.closest('.preset-button'); if(btn && btn.closest('.preset-group')) { handlePresetClick(e, btn.closest('.preset-group').id); } });
-            
-            elements.lobby.guessTypesSetting?.addEventListener('change', () => {
-                if (!currentGame.isHost) return;
-                
-                const checkedCheckboxes = Array.from(elements.lobby.guessTypesCheckboxes)
-                    .filter(cb => cb.checked)
-                    .map(cb => cb.value);
-                
-                if (checkedCheckboxes.length === 0) {
-                    elements.lobby.guessTypesError?.classList.remove('hidden');
-                    elements.lobby.startGameBtn.disabled = true;
-                    return; 
+            elements.lobby.inviteFriendsBtn?.addEventListener('click', async () => { 
+                elements.inviteFriendsModal.list.innerHTML = '';
+                if(onlineFriends.length === 0) {
+                    elements.inviteFriendsModal.list.innerHTML = '<li>Keine Freunde online.</li>';
                 } else {
-                    elements.lobby.guessTypesError?.classList.add('hidden');
-                    const canStart = elements.lobby.deviceSelectBtn.textContent !== 'Gerät auswählen' && elements.lobby.playlistSelectBtn.textContent !== 'Playlist auswählen';
-                    elements.lobby.startGameBtn.disabled = !canStart;
+                    onlineFriends.forEach(friend => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<button class="button-select" data-friend-id="${friend.id}">${friend.username}</button>`;
+                        elements.inviteFriendsModal.list.appendChild(li);
+                    });
                 }
-                
-                ws.socket.send(JSON.stringify({
-                    type: 'update-settings',
-                    payload: { guessTypes: checkedCheckboxes }
-                }));
+                elements.inviteFriendsModal.overlay.classList.remove('hidden');
             });
-
-            elements.lobby.startGameBtn?.addEventListener('click', () => { if (elements.lobby.startGameBtn && !elements.lobby.startGameBtn.disabled && ws.socket?.readyState === WebSocket.OPEN) { setLoading(true, "Spiel startet..."); ws.socket.send(JSON.stringify({ type: 'start-game', payload: { pin: currentGame.pin } })); } else { showToast("Wähle Gerät & Playlist.", true); } });
-            // elements.lobby.reactionButtons?.addEventListener('click', ...); // ENTFERNT (jetzt global)
+            elements.lobby.deviceSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.deviceSelectModal.overlay?.classList.remove('hidden'); }); 
+            elements.lobby.playlistSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.playlistSelectModal.overlay?.classList.remove('hidden'); });
+            elements.lobby.backgroundSelectButton?.addEventListener('click', () => {
+                 renderCustomizationMenu(); 
+                 showScreen('customization-screen');
+                 // Wechsle direkt zum Hintergründe-Tab
+                 elements.customize.tabsContainer.querySelectorAll('.tab-button').forEach(t => t.classList.remove('active'));
+                 elements.customize.tabContents.forEach(c => c.classList.remove('active'));
+                 document.querySelector('[data-tab="tab-customize-backgrounds"]').classList.add('active');
+                 document.getElementById('tab-customize-backgrounds').classList.add('active');
+            });
+            elements.lobby.songCountPresets?.addEventListener('click', (e) => handlePresetClick(e, 'song-count-presets'));
+            elements.lobby.guessTimePresets?.addEventListener('click', (e) => handlePresetClick(e, 'guess-time-presets'));
             
-            // Item/Title/Icon Selection Screens
+            elements.lobby.startGameBtn?.addEventListener('click', () => { if (elements.lobby.startGameBtn && !elements.lobby.startGameBtn.disabled && ws.socket?.readyState === WebSocket.OPEN) { setLoading(true, "Spiel startet..."); ws.socket.send(JSON.stringify({ type: 'start-game', payload: { pin: currentGame.pin } })); } else { showToast("Wähle Gerät & Playlist.", true); } });
+            
+            // Veraltete Item/Title/Icon Screens
             elements.titles.list?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { equipTitle(parseInt(card.dataset.titleId), true); } });
             elements.icons.list?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipIcon(parseInt(card.dataset.iconId), true); } });
             
-            // --- NEU: Anpassungsmenü-Listener (inkl. Tabs) ---
+            // --- "Anpassen"-Menü-Listener ---
             elements.customize.tabsContainer?.addEventListener('click', (e) => {
-                const tab = e.target.closest('.tab-button'); 
-                if (tab && !tab.classList.contains('active')) { 
-                    document.querySelectorAll('#customization-screen .tab-button').forEach(t => t.classList.remove('active')); 
-                    elements.customize.tabContents?.forEach(c => c.classList.remove('active')); 
-                    tab.classList.add('active'); 
-                    document.getElementById(tab.dataset.tab)?.classList.add('active'); 
+                const tab = e.target.closest('.tab-button');
+                if (tab && !tab.classList.contains('active')) {
+                    elements.customize.tabsContainer.querySelectorAll('.tab-button').forEach(t => t.classList.remove('active'));
+                    elements.customize.tabContents.forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(tab.dataset.tab)?.classList.add('active');
                 }
             });
             elements.customize.titlesList?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { equipTitle(parseInt(card.dataset.titleId), true); } });
             elements.customize.iconsList?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipIcon(parseInt(card.dataset.iconId), true); } });
             elements.customize.colorsList?.addEventListener('click', (e) => { const card = e.target.closest('.color-card:not(.locked)'); if (card) { const colorId = card.dataset.colorId === '' ? null : parseInt(card.dataset.colorId); equipColor(colorId, true); } });
-            elements.customize.bgColorsList?.addEventListener('click', (e) => { const card = e.target.closest('.color-card:not(.locked)'); if (card) { equipBgColor(card.dataset.colorKey, true); } });
-            elements.customize.bgSymbolsList?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipBgSymbol(card.dataset.symbolKey, true); } });
-            
+            elements.customize.backgroundsList?.addEventListener('click', (e) => {
+                const li = e.target.closest('li[data-bg-id]');
+                if (li) {
+                    const bgId = li.dataset.bgId;
+                    applyLobbyBackground(bgId); // Lokal anwenden
+                    
+                    if (ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) {
+                        ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { chosenBackgroundId: bgId === 'default' ? null : bgId } }));
+                        showToast("Lobby-Hintergrund geändert!", false);
+                    } else if (currentGame.isHost) {
+                        showToast("Keine Serververbindung.", true);
+                    }
+                    // Wenn nicht Host, einfach lokal anzeigen (wird eh nicht gespeichert)
+                }
+            });
+
             // Shop Screen
             elements.shop.screen?.addEventListener('click', (e) => { const buyBtn = e.target.closest('.buy-button:not([disabled])'); if (buyBtn) { handleBuyItem(buyBtn.dataset.itemId); } });
             
             // Modals
             document.querySelectorAll('.button-exit-modal').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal-overlay')?.classList.add('hidden')));
             
-            // --- KORREKTUR: Join-Modal-Bug ---
+            // Join-Modal (BUGFIXED)
             elements.joinModal.numpad?.addEventListener('click', (e) => { 
                 const btn=e.target.closest('button'); 
                 if(!btn) return; 
@@ -1805,26 +1753,97 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
                     if(!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } 
                     setLoading(true, "Trete Lobby bei..."); 
                     ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } })); 
-                    // BUGFIX: Modal hier noch nicht schließen, auf 'lobby-update' warten.
-                    // Stattdessen Pin zurücksetzen für den Fall, dass es fehlschlägt.
-                    pinInput = "";
+                    pinInput = ""; // Zurücksetzen
+                    // BUGFIX: Modal wird jetzt durch 'lobby-update' Nachricht geschlossen
                 } 
                 elements.joinModal.pinDisplay?.forEach((d,i)=>d.textContent=pinInput[i]||""); 
                 if(confirmBtn) confirmBtn.disabled = pinInput.length !== 4; 
             });
-
+            
+            // Friends-Modal
             elements.friendsModal.tabsContainer?.addEventListener('click', (e) => { const tab = e.target.closest('.tab-button'); if (tab && !tab.classList.contains('active')) { elements.friendsModal.tabs?.forEach(t => t.classList.remove('active')); elements.friendsModal.tabContents?.forEach(c => c.classList.remove('active')); tab.classList.add('active'); document.getElementById(tab.dataset.tab)?.classList.add('active'); } });
-            elements.friendsModal.addFriendBtn?.addEventListener('click', async () => { /* STUB */ const name = elements.friendsModal.addFriendInput.value; if(name) { console.log(`Adding friend: ${name}`); showToast(`Freund hinzufügen: ${name} (STUB)`, false); elements.friendsModal.addFriendInput.value = ''; }});
-            elements.friendsModal.requestsList?.addEventListener('click', (e) => { /* STUB */ console.log("Request list clicked"); });
-            elements.friendsModal.friendsList?.addEventListener('click', (e) => { const removeBtn = e.target.closest('.button-remove-friend'); const giftBtn = e.target.closest('.button-gift'); if (removeBtn) { handleRemoveFriend(removeBtn.dataset.friendId); } else if (giftBtn) { handleGiftSpots(giftBtn.dataset.friendId, giftBtn.dataset.friendName); } });
-            elements.inviteFriendsModal.list?.addEventListener('click', (e) => { /* STUB */ console.log("Invite list clicked"); });
-            elements.customValueModal.numpad?.addEventListener('click', (e) => { /* STUB */ console.log("Custom value numpad"); });
-            elements.customValueModal.confirmBtn?.addEventListener('click', () => { /* STUB */ console.log("Confirm custom value"); });
+            elements.friendsModal.addFriendBtn?.addEventListener('click', async () => { 
+                const name = elements.friendsModal.addFriendInput.value; 
+                if(name && ws.socket?.readyState === WebSocket.OPEN) { 
+                    ws.socket.send(JSON.stringify({ type: 'add-friend', payload: { friendName: name } }));
+                    elements.friendsModal.addFriendInput.value = ''; 
+                }
+            });
+            elements.friendsModal.requestsList?.addEventListener('click', (e) => { 
+                const acceptBtn = e.target.closest('.button-accept-request');
+                const declineBtn = e.target.closest('.button-decline-request');
+                if (acceptBtn && ws.socket?.readyState === WebSocket.OPEN) {
+                    ws.socket.send(JSON.stringify({ type: 'accept-friend-request', payload: { senderId: acceptBtn.dataset.senderId } }));
+                } else if (declineBtn && ws.socket?.readyState === WebSocket.OPEN) {
+                    ws.socket.send(JSON.stringify({ type: 'decline-friend-request', payload: { friendId: declineBtn.dataset.senderId } }));
+                }
+            });
+            elements.friendsModal.friendsList?.addEventListener('click', (e) => { 
+                const removeBtn = e.target.closest('.button-remove-friend'); 
+                const giftBtn = e.target.closest('.button-gift'); 
+                if (removeBtn && ws.socket?.readyState === WebSocket.OPEN) { 
+                    showConfirmModal("Freund entfernen", `Möchtest du ${removeBtn.dataset.friendName || 'diesen Freund'} wirklich entfernen?`, () => {
+                        ws.socket.send(JSON.stringify({ type: 'remove-friend', payload: { friendId: removeBtn.dataset.friendId } }));
+                    });
+                } else if (giftBtn) { 
+                    handleGiftSpots(giftBtn.dataset.friendId, giftBtn.dataset.friendName); 
+                } 
+            });
+            
+            elements.inviteFriendsModal.list?.addEventListener('click', (e) => {
+                const btn = e.target.closest('button[data-friend-id]');
+                if (btn && ws.socket?.readyState === WebSocket.OPEN) {
+                    ws.socket.send(JSON.stringify({ type: 'invite-friend', payload: { friendId: btn.dataset.friendId } }));
+                    btn.disabled = true;
+                    btn.textContent = "Eingeladen";
+                }
+            });
+            
+            // Custom-Value-Modal (Implementiert)
+            elements.customValueModal.numpad?.addEventListener('click', (e) => { 
+                const btn=e.target.closest('button'); if(!btn) return; 
+                const key=btn.dataset.key, action=btn.dataset.action;
+                if(key >= '0' && key <= '9' && customValueInput.length < 3) {
+                    customValueInput += key; 
+                } else if(action==='clear'||action==='backspace') {
+                    customValueInput = customValueInput.slice(0, -1); 
+                }
+                elements.customValueModal.display.forEach((d,i)=>d.textContent=customValueInput[i]||""); 
+                
+                const value = parseInt(customValueInput || "0");
+                const isValid = value >= currentCustomType.min && value <= currentCustomType.max;
+                elements.customValueModal.confirmBtn.disabled = !isValid;
+            });
+            elements.customValueModal.confirmBtn?.addEventListener('click', () => { 
+                const value = parseInt(customValueInput);
+                if (!currentCustomType || isNaN(value) || value < currentCustomType.min || value > currentCustomType.max) {
+                    showToast(`Ungültiger Wert. Muss zwischen ${currentCustomType.min} und ${currentCustomType.max} sein.`, true);
+                    return;
+                }
+                
+                let setting = {};
+                if (currentCustomType.type === 'song-count') {
+                    setting.songCount = value;
+                    updatePresets(elements.lobby.songCountPresets, value, 'song-count');
+                } else if (currentCustomType.type === 'guess-time') {
+                    setting.guessTime = value;
+                    updatePresets(elements.lobby.guessTimePresets, value, 'guess-time');
+                } else if (currentCustomType.type === 'lives') {
+                    gameCreationSettings.lives = value;
+                    // updatePresets(elements.gameTypeScreen.livesPresets, value, 'lives'); // TODO: Fix this preset update
+                }
+                
+                if (currentGame.pin && currentGame.isHost && (currentCustomType.type === 'song-count' || currentCustomType.type === 'guess-time')) {
+                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: setting }));
+                }
+
+                elements.customValueModal.overlay.classList.add('hidden');
+            });
+            
             elements.changeNameModal.submitBtn?.addEventListener('click', async () => { /* STUB */ console.log("Change name submit"); showToast("Name ändern (STUB)", false); });
             
             elements.deviceSelectModal.refreshBtn?.addEventListener('click', () => fetchHostData(true));
             elements.deviceSelectModal.list?.addEventListener('click', (e) => { 
-                // IMPLEMENTIERT
                 const li = e.target.closest('li[data-device-id]');
                 if (li && ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) {
                     const { deviceId, deviceName } = li.dataset;
@@ -1837,14 +1856,12 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
             });
             
             elements.playlistSelectModal.search?.addEventListener('input', () => { 
-                // IMPLEMENTIERT
                 clearTimeout(elements.playlistSelectModal.search.debounceTimer); 
                 elements.playlistSelectModal.search.debounceTimer = setTimeout(() => { 
                     renderPaginatedPlaylists(allPlaylists, 1); 
                 }, 300); 
             });
             elements.playlistSelectModal.list?.addEventListener('click', (e) => { 
-                // IMPLEMENTIERT
                 const li = e.target.closest('li[data-playlist-id]');
                 if (li && ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) {
                     const { playlistId, playlistName } = li.dataset;
@@ -1856,7 +1873,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
                 }
             });
             elements.playlistSelectModal.pagination?.addEventListener('click', (e) => { 
-                // IMPLEMENTIERT
                 const btn = e.target.closest('button[data-page]');
                 if (btn && !btn.disabled) {
                     const newPage = parseInt(btn.dataset.page);
@@ -1864,26 +1880,6 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
                 }
             });
 
-            // NEU: Geteilte BG-Modal-Listener
-            elements.bgColorSelectModal.list?.addEventListener('click', (e) => { 
-                const li = e.target.closest('li[data-color-key]'); 
-                if (li && ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) { 
-                    const colorKey = li.dataset.colorKey;
-                    console.log(`Selected BG Color: ${colorKey}`); 
-                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { chosenBgColorId: colorKey } })); 
-                    elements.bgColorSelectModal.overlay?.classList.add('hidden'); 
-                } 
-            });
-            elements.bgSymbolSelectModal.list?.addEventListener('click', (e) => { 
-                const li = e.target.closest('li[data-symbol-key]'); 
-                if (li && ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) { 
-                    const symbolKey = li.dataset.symbolKey;
-                    console.log(`Selected BG Symbol: ${symbolKey}`); 
-                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { chosenBgSymbolId: symbolKey } })); 
-                    elements.bgSymbolSelectModal.overlay?.classList.add('hidden'); 
-                } 
-            });
-            
             elements.confirmActionModal.cancelBtn?.addEventListener('click', () => { elements.confirmActionModal.overlay?.classList.add('hidden'); currentConfirmAction = null; });
             elements.confirmActionModal.confirmBtn?.addEventListener('click', () => { if (typeof currentConfirmAction === 'function') { currentConfirmAction(); } elements.confirmActionModal.overlay?.classList.add('hidden'); currentConfirmAction = null; });
 
@@ -1918,7 +1914,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
                 console.log(`Supabase Auth Event: ${event}`, session ? `User: ${session.user.id}` : 'No session');
                 if (event === 'SIGNED_OUT') { 
                     currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
-                    ownedTitleIds.clear(); ownedIconIds.clear(); ownedColorIds.clear(); ownedBgColorIds.clear(); ownedBgSymbolIds.clear(); inventory = {}; // ownedBg... hinzugefügt
+                    ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {};
                     if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
                     if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                     localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); 
@@ -1938,7 +1934,7 @@ window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsLis
                      console.log(`No active session or invalid (Event: ${event}). Showing auth.`);
                      if (currentUser) { 
                          currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
-                         ownedTitleIds.clear(); ownedIconIds.clear(); ownedColorIds.clear(); ownedBgColorIds.clear(); ownedBgSymbolIds.clear(); inventory = {}; // ownedBg... hinzugefügt
+                         ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {};
                          if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
                          if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                          localStorage.removeItem('fakesterGame'); 
