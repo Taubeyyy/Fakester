@@ -1,4 +1,4 @@
-// server.js - FINAL VERSION (Mit ECHTEN Spotify URLs - KORRIGIERT)
+// server.js - FINAL VERSION (Mit ECHTEN Spotify URLs - ENDGÜLTIG KORRIGIERT)
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -75,7 +75,7 @@ let games = {};
 const onlineUsers = new Map();
 const HEARTBEAT_INTERVAL = 30000;
 
-// --- Shop Data (AKTUALISIERT) ---
+// --- Shop Data ---
 const shopItems = [
     { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Zeige allen dein Wissen!' },
     { id: 102, type: 'title', name: 'Playlist-Meister', cost: 150, unlockType: 'spots', description: 'Für echte Kenner.' },
@@ -94,22 +94,20 @@ const shopItems = [
     { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' }
 ];
 
-
 // --- Helper Functions ---
 function getScores(pin) { 
     const game = games[pin]; 
     if (!game) return []; 
-    // HINWEIS: Füge 'iconId' hinzu, damit der Client das Icon anzeigen kann
     return Object.values(game.players)
         .map(p => ({ 
-            id: p.id, // ID ist jetzt p.id, nicht p.ws?.playerId
+            id: p.id,
             nickname: p.nickname, 
             score: p.score, 
             lives: p.lives, 
             isConnected: p.isConnected, 
             lastPointsBreakdown: p.lastPointsBreakdown,
-            iconId: p.iconId || 1, // Sende die Icon-ID
-            colorId: p.colorId || null // Sende die Color-ID
+            iconId: p.iconId || 1,
+            colorId: p.colorId || null
         }))
         .filter(p => p.id)
         .sort((a, b) => b.score - a.score); 
@@ -129,19 +127,18 @@ function broadcastLobbyUpdate(pin) {
      const payload = { 
          pin, 
          hostId: game.hostId, 
-         players: getScores(pin), // getScores liefert die Spielerliste
-         gameMode: game.gameMode, // Sende auch den gameMode
+         players: getScores(pin),
+         gameMode: game.gameMode,
          settings: {
              songCount: game.settings.songCount, 
              guessTime: game.settings.guessTime,
              answerType: game.settings.answerType, 
              lives: game.settings.lives, 
              gameType: game.settings.gameType,
-             guessTypes: game.settings.guessTypes, // Sende die Quiz-Typen
+             guessTypes: game.settings.guessTypes,
              chosenBackgroundId: game.settings.chosenBackgroundId,
              deviceName: game.settings.deviceName, 
              playlistName: game.settings.playlistName,
-             // NEU: Sende auch die IDs, nicht nur die Namen
              deviceId: game.settings.deviceId,
              playlistId: game.settings.playlistId
          }
@@ -156,6 +153,7 @@ async function awardAchievement(ws, userId, achievementId) {
     const alreadyHas = await hasAchievement(userId, achievementId);
     if (alreadyHas) return;
 
+    // HIER WIRD DIE SERVICE_KEY BENÖTIGT
     const { error: insertError } = await supabase.from('user_achievements').insert({ user_id: userId, achievement_id: achievementId });
     if (insertError) { console.error(`Fehler beim Speichern von Server-Achievement ${achievementId} für User ${userId}:`, insertError); return; }
 
@@ -163,6 +161,7 @@ async function awardAchievement(ws, userId, achievementId) {
     showToastToPlayer(ws, `Neuer Erfolg freigeschaltet! (ID: ${achievementId})`);
 
     const achievementSpotBonus = 50;
+    // HIER WIRD DIE SERVICE_KEY BENÖTIGT
     const { error: spotError } = await supabase.from('profiles').update({ spots: supabase.sql(`spots + ${achievementSpotBonus}`) }).eq('id', userId);
     if (spotError) { console.error(`Fehler beim Vergeben von Bonus-Spots für Achievement ${achievementId} an User ${userId}:`, spotError); }
     else { showToastToPlayer(ws, `+${achievementSpotBonus} Spots für neuen Erfolg!`); }
@@ -216,7 +215,7 @@ app.get('/api/status', (req, res) => { const token = req.cookies.spotify_access_
 
 // KORRIGIERTE Spotify URL
 app.get('/api/playlists', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
-    const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
+    const d = await axios.get('https://api.spotify.com/v1/me/playlists?limit=50', { headers: { 'Authorization': `Bearer ${token}` } });
     res.json(d.data); } catch (e) { console.error("Playlist API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Playlists" }); } });
 
 // KORRIGIERTE Spotify URL
@@ -230,6 +229,7 @@ apiRouter.get('/shop/items', async (req, res) => {
     let ownedItems = { titles: new Set(), icons: new Set(), backgrounds: new Set(), colors: new Set() };
     if (userId) {
         try {
+            // HIER WIRD DIE SERVICE_KEY BENÖTIGT (um RLS zu umgehen)
             const [titles, icons, backgrounds, colors] = await Promise.all([
                 supabase.from('user_owned_titles').select('title_id').eq('user_id', userId),
                 supabase.from('user_owned_icons').select('icon_id').eq('user_id', userId),
@@ -242,6 +242,7 @@ apiRouter.get('/shop/items', async (req, res) => {
             colors.data?.forEach(c => ownedItems.colors.add(c.color_id));
         } catch (e) {
             console.error("Error fetching owned items for shop:", e);
+            // Wenn dieser Fehler auftritt, ist es wahrscheinlich das SERVICE_KEY Problem
         }
     }
     const itemsWithOwnership = shopItems.map(item => {
@@ -267,6 +268,7 @@ apiRouter.post('/shop/buy', async (req, res) => {
         return res.status(400).json({ success: false, message: "Item nicht kaufbar." });
     }
     try {
+        // HIER WIRD DIE SERVICE_KEY BENÖTIGT (für RPC)
         const { data, error } = await supabase.rpc('purchase_item', {
             p_user_id: userId,
             p_item_id: itemToBuy.id.toString(),
@@ -276,6 +278,7 @@ apiRouter.post('/shop/buy', async (req, res) => {
         });
         if (error) {
             console.error(`Supabase RPC 'purchase_item' Error:`, error.message);
+            // Wenn dieser Fehler auftritt, ist es wahrscheinlich das SERVICE_KEY Problem
             return res.status(400).json({ success: false, message: error.message });
         }
         res.json({
@@ -353,9 +356,45 @@ async function handleWebSocketMessage(ws, data) {
         if (type === 'reconnect') { /* ... handle reconnect ... */ return; }
 
         // Reactions
-        if (type === 'send-reaction') { if (!game || !game.players[playerId]) return; const reactionCost = 1; const reactionType = payload.reaction; const senderNickname = game.players[playerId].nickname; if (reactionCost > 0 && !playerId.startsWith('guest-')) { supabase.rpc('deduct_spots', { p_user_id: playerId, p_amount: reactionCost }).then(({ data: success, error }) => { if (error || !success) { console.error(`Failed to deduct spots for reaction from ${playerId}:`, error || 'RPC failed'); showToastToPlayer(ws, "Reaktion fehlgeschlagen (Spots?).", true); } else { broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); showToastToPlayer(ws, `-${reactionCost} Spot für Reaktion.`); } }); } else { broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); } return; }
+        if (type === 'send-reaction') { 
+            if (!game || !game.players[playerId]) return; 
+            const reactionCost = 1; 
+            const reactionType = payload.reaction; 
+            const senderNickname = game.players[playerId].nickname; 
+            if (reactionCost > 0 && !playerId.startsWith('guest-')) { 
+                // HIER WIRD DIE SERVICE_KEY BENÖTIGT (für RPC)
+                supabase.rpc('deduct_spots', { p_user_id: playerId, p_amount: reactionCost }).then(({ data: success, error }) => { 
+                    if (error || !success) { 
+                        console.error(`Failed to deduct spots for reaction from ${playerId}:`, error || 'RPC failed'); 
+                        showToastToPlayer(ws, "Reaktion fehlgeschlagen (Spots?).", true); 
+                    } else { 
+                        broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); 
+                        showToastToPlayer(ws, `-${reactionCost} Spot für Reaktion.`); 
+                    } 
+                }); 
+            } else { 
+                broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); 
+            } 
+            return; 
+        }
         // Consumables
-        if (type === 'use-consumable') { if (!game || !game.players[playerId] || game.gameState !== 'PLAYING') return; const itemId = payload.itemId; supabase.rpc('upsert_inventory_item', { p_user_id: playerId, p_item_id: itemId, p_quantity_change: -1 }).then(({ error }) => { if (error) { console.error(`Failed to use consumable ${itemId} for ${playerId}:`, error); showToastToPlayer(ws, "Item konnte nicht verwendet werden (Menge?).", true); } else { game.players[playerId].activeEffects = game.players[playerId].activeEffects || {}; game.players[playerId].activeEffects[itemId] = true; showToastToPlayer(ws, `"${itemId}" aktiviert!`); console.log(`Player ${playerId} used ${itemId}`); } }); return; }
+        if (type === 'use-consumable') { 
+            if (!game || !game.players[playerId] || game.gameState !== 'PLAYING') return; 
+            const itemId = payload.itemId; 
+            // HIER WIRD DIE SERVICE_KEY BENÖTIGT (für RPC)
+            supabase.rpc('upsert_inventory_item', { p_user_id: playerId, p_item_id: itemId, p_quantity_change: -1 }).then(({ error }) => { 
+                if (error) { 
+                    console.error(`Failed to use consumable ${itemId} for ${playerId}:`, error); 
+                    showToastToPlayer(ws, "Item konnte nicht verwendet werden (Menge?).", true); 
+                } else { 
+                    game.players[playerId].activeEffects = game.players[playerId].activeEffects || {}; 
+                    game.players[playerId].activeEffects[itemId] = true; 
+                    showToastToPlayer(ws, `"${itemId}" aktiviert!`); 
+                    console.log(`Player ${playerId} used ${itemId}`); 
+                } 
+            }); 
+            return; 
+        }
 
         // Friends-System Calls
         if (type === 'add-friend') { handleAddFriend(ws, playerId, payload); return; }
@@ -368,20 +407,17 @@ async function handleWebSocketMessage(ws, data) {
         if (!game && !['create-game', 'join-game'].includes(type)) { console.warn(`Action ${type} requires game (Pin: ${pin}).`); return; }
         if (game && !game.players[playerId] && !['create-game', 'join-game'].includes(type)) { console.warn(`Player ${playerId} not in game ${pin} for action ${type}.`); return; }
 
-        // ===========================================
-        // KORREKTUR: HIER WIRD DIE LOGIK EINGEFÜGT
-        // ===========================================
         switch (type) {
             case 'create-game':
                 try {
                     const pin = generatePin();
-                    ws.pin = pin; // Speichere PIN auf der WS-Verbindung des Hosts
+                    ws.pin = pin;
                     console.log(`User ${playerId} creating new game with PIN: ${pin}`);
                     
                     games[pin] = {
                         pin: pin,
                         hostId: playerId,
-                        players: {}, // Spieler-Objekt
+                        players: {},
                         gameMode: payload.gameMode || 'quiz',
                         gameState: 'LOBBY',
                         spotifyToken: payload.token,
@@ -391,21 +427,18 @@ async function handleWebSocketMessage(ws, data) {
                             answerType: 'freestyle',
                             lives: payload.lives || 3,
                             gameType: payload.gameType || 'points',
-                            guessTypes: payload.guessTypes || ['title', 'artist'], // Dein neues Feature
+                            guessTypes: payload.guessTypes || ['title', 'artist'],
                             chosenBackgroundId: null,
                             deviceName: null,
                             playlistName: null,
                             playlistId: null,
-                            deviceId: null // NEU
+                            deviceId: null
                         },
                         tracks: [],
                         currentRound: 0
                     };
                     
-                    // Füge den Host als ersten Spieler hinzu
                     await joinGame(ws, payload.user, pin);
-
-                    // Lobe den "Gastgeber"-Erfolg aus
                     awardAchievement(ws, playerId, 10);
                     
                 } catch (e) {
@@ -442,10 +475,7 @@ async function handleWebSocketMessage(ws, data) {
                 }
                 
                 console.log(`Host updated settings for ${pin}:`, payload);
-                // Wende die neuen Einstellungen an
                 Object.assign(game.settings, payload);
-                
-                // Informiere alle Spieler über die neuen Einstellungen
                 broadcastLobbyUpdate(pin);
                 break;
 
@@ -453,15 +483,12 @@ async function handleWebSocketMessage(ws, data) {
                 if (!game || ws.playerId !== game.hostId) {
                     return showToastToPlayer(ws, "Nur der Host kann das Spiel starten.", true);
                 }
-                if (!game.settings.playlistId || !game.settings.deviceId) { // Geändert zu deviceId
+                if (!game.settings.playlistId || !game.settings.deviceId) {
                      return showToastToPlayer(ws, "Wähle zuerst Playlist und Wiedergabegerät.", true);
                 }
                 
-                // (Hier kommt die 'startGame'-Logik hin, vorerst nur ein Stub)
                 console.log(`Attempting to start game ${pin}... (STUB)`);
-                // STUB: Sende Start-Nachricht an alle
                 broadcastToLobby(pin, { type: 'game-starting', payload: {} });
-                // --- Hier würdest du `await startGame(pin)` aufrufen ---
                 showToastToPlayer(ws, "Spielstart ist noch nicht implementiert.", true);
                 break;
 
@@ -491,13 +518,11 @@ function handlePlayerDisconnect(ws) {
     
     const game = games[pin];
     if (!game) {
-        // console.log(`Player ${playerId} disconnected, no game found.`);
         return;
     }
     
     const player = game.players[playerId];
     if (!player) {
-         // console.log(`Player ${playerId} not in game ${pin}.`);
         return;
     }
     
@@ -505,14 +530,7 @@ function handlePlayerDisconnect(ws) {
     player.isConnected = false;
     player.ws = null;
     
-    // (Hier könnte Logik hin, um den Host zu wechseln oder das Spiel zu beenden)
-    // ...
-
-    // Informiere alle über den Disconnect
     broadcastLobbyUpdate(pin);
-    
-    // (Hier könnte Logik hin, um leere Spiele aufzuräumen)
-    // ...
 }
 
 // --- KORREKTUR: joinGame Logic ---
@@ -533,14 +551,14 @@ async function joinGame(ws, user, pin) {
         // --- Neuer Spieler tritt bei ---
         console.log(`Player ${user.username} (${playerId}) joining ${pin}.`);
         
-        // Hole das ausgerüstete Icon UND die Farbe des Spielers
-        let iconId = 1; // Standard-Icon
-        let colorId = null; // Standard-Farbe
+        let iconId = 1;
+        let colorId = null;
         if (!user.isGuest) {
             try {
+                // HIER WIRD DIE SERVICE_KEY BENÖTIGT
                 const { data: profile, error } = await supabase
                     .from('profiles')
-                    .select('equipped_icon_id, equipped_color_id') // Beides holen
+                    .select('equipped_icon_id, equipped_color_id')
                     .eq('id', playerId)
                     .single();
                 if (error) throw error;
@@ -550,6 +568,7 @@ async function joinGame(ws, user, pin) {
                 }
             } catch (e) {
                 console.error(`Could not fetch icon/color for player ${playerId}:`, e.message);
+                // Wenn dieser Fehler auftritt, ist es wahrscheinlich das SERVICE_KEY Problem
             }
         }
         
@@ -563,17 +582,15 @@ async function joinGame(ws, user, pin) {
             lives: game.settings.lives,
             activeEffects: {},
             lastPointsBreakdown: null,
-            iconId: iconId, // Speichere die Icon-ID
-            colorId: colorId // Speichere die Color-ID
+            iconId: iconId,
+            colorId: colorId
         };
         game.players[playerId] = player;
     }
     
-    // Setze die Metadaten auf der WebSocket-Verbindung
     ws.pin = pin;
     ws.playerId = playerId;
     
-    // Informiere alle (inkl. des neuen Spielers)
     broadcastLobbyUpdate(pin);
 }
 
