@@ -68,6 +68,7 @@
                 <div class="profile-actions">
                     <button id="friends-button" class="button-icon guest-hidden" title="Freunde"><i class="fa-solid fa-user-group"></i></button>
                     <button id="achievements-button" class="button-icon guest-hidden" title="Erfolge"><i class="fa-solid fa-trophy"></i></button>
+                    <button id="customization-button" class="button-icon guest-hidden" title="Anpassen"><i class="fa-solid fa-paint-brush"></i></button>
                 </div>
             </div>
 
@@ -84,7 +85,7 @@
                 <a href="/login" class="button-primary guest-hidden" id="spotify-connect-button"><i class="fa-brands fa-spotify"></i> Mit Spotify verbinden</a>
                 <button class="button-primary hidden" id="show-create-button-action"><i class="fa-solid fa-plus"></i> Raum erstellen</button>
                 <button class="button-secondary" id="show-join-button"><i class="fa-solid fa-right-to-bracket"></i> Raum beitreten</button>
-                <button id="customization-button" class="button-secondary guest-hidden"><i class="fa-solid fa-palette"></i> Anpassen</button> <button id="shop-button" class="button-secondary guest-hidden"><i class="fa-solid fa-store"></i> Shop</button>
+                <button id="shop-button" class="button-secondary guest-hidden"><i class="fa-solid fa-store"></i> Shop</button>
                 </div>
         </div>
         <button id="corner-logout-button" class="corner-button" title="Ausloggen"><i class="fa-solid fa-right-from-bracket"></i></button>
@@ -154,7 +155,7 @@
                     <button id="invite-friends-button" class="button-secondary button-small guest-hidden"><i class="fa-solid fa-user-plus"></i> Freunde einladen</button>
                 </div>
                 <div id="player-list" class="player-grid"></div>
-                </div>
+            </div>
             <div id="host-settings" class="hidden">
                  <h3>Einstellungen</h3>
                  <div class="settings-grid">
@@ -334,28 +335,37 @@
     </main>
     
     <main id="customization-screen" class="screen">
-        <div class="container text-left">
-            <h2>Anpassen</h2>
+        <div class="container text-left customization-modal"> <h2>Anpassen</h2>
             <p>Wähle deine freigeschalteten Titel, Icons und Farben.</p>
 
-            <div class="shop-section">
-                <h3>Titel</h3>
-                <div id="customize-title-list" class="selection-grid">
+            <div class="tabs">
+                <button class="tab-button active" data-tab="tab-customize-titles">Titel</button>
+                <button class="tab-button" data-tab="tab-customize-icons">Icons</button>
+                <button class="tab-button" data-tab="tab-customize-colors">Farben</button>
+                <button class="tab-button" data-tab="tab-customize-backgrounds">Hintergründe</button>
+            </div>
+            
+            <div id="tab-customize-titles" class="tab-content active">
+                <div id="customize-title-list" class="selection-grid" style="margin-top: 20px;">
                     <p>Lade Titel...</p>
                 </div>
             </div>
-
-            <div class="shop-section">
-                <h3>Icons</h3>
-                <div id="customize-icon-list" class="icon-grid">
+            
+            <div id="tab-customize-icons" class="tab-content">
+                <div id="customize-icon-list" class="icon-grid" style="margin-top: 20px;">
                     <p>Lade Icons...</p>
                 </div>
             </div>
-
-            <div class="shop-section">
-                <h3>Namensfarben</h3>
-                <div id="customize-color-list" class="color-grid">
+            
+            <div id="tab-customize-colors" class="tab-content">
+                <div id="customize-color-list" class="color-grid" style="margin-top: 20px;">
                     <p>Lade Farben...</p>
+                </div>
+            </div>
+            
+            <div id="tab-customize-backgrounds" class="tab-content">
+                 <div id="customize-background-list" class="selection-grid" style="margin-top: 20px;">
+                    <p>Lade Hintergründe...</p>
                 </div>
             </div>
 
@@ -385,7 +395,7 @@
 
     <div id="guest-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
-            <button class="button-exit-modal" id="close-guest-modal-button">&times;</button>
+            <button class="button-exit-modal" id="close-guest-modal-button">×</button>
             <h2>Als Gast spielen</h2>
             <p>Wähle einen Nickname, um als Gast zu spielen.</p>
             <input type="text" id="guest-nickname-input" placeholder="Nickname (3-15 Zeichen)" maxlength="15" autocomplete="off">
@@ -395,7 +405,7 @@
 
     <div id="join-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
-            <button class="button-exit-modal" id="close-join-modal-button">&times;</button>
+            <button class="button-exit-modal" id="close-join-modal-button">×</button>
             <h2>Raum beitreten</h2>
             <p>Gib die 4-stellige Lobby-PIN ein.</p>
             <div id="join-pin-display" class="pin-display">
@@ -423,8 +433,9 @@
 
     <div id="custom-value-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
-            <button class="button-exit-modal" id="close-custom-value-modal-button">&times;</button>
+            <button class="button-exit-modal" id="close-custom-value-modal-button">×</button>
             <h2 id="custom-value-title">Wert eingeben</h2>
+            <p id="custom-value-description" style="font-size: 0.9rem; margin-bottom: 10px;"></p>
             <div id="custom-value-display" class="pin-display" style="gap: 5px;">
                 <div class="pin-digit"></div>
                 <div class="pin-digit"></div>
@@ -449,7 +460,7 @@
 
     <div id="change-name-modal-overlay" class="modal-overlay hidden">
         <div class="modal">
-            <button class="button-exit-modal" id="close-change-name-modal-button">&times;</button>
+            <button class="button-exit-modal" id="close-change-name-modal-button">×</button>
             <h2>Namen ändern</h2>
             <p>Wähle einen neuen Benutzernamen.</p>
             <input type="text" id="change-name-input" placeholder="Neuer Name (3-15 Zeichen)" maxlength="15">
@@ -459,7 +470,7 @@
 
     <div id="device-select-modal-overlay" class="modal-overlay hidden selection-modal">
         <div class="modal">
-            <button class="button-exit-modal" id="close-device-select-modal">&times;</button>
+            <button class="button-exit-modal" id="close-device-select-modal">×</button>
             <h2>Gerät auswählen</h2>
             <ul id="device-list" class="selection-list">
                 </ul>
@@ -469,7 +480,7 @@
 
     <div id="playlist-select-modal-overlay" class="modal-overlay hidden selection-modal">
         <div class="modal" style="max-height: 80dvh; overflow: hidden; display: flex; flex-direction: column;">
-            <button class="button-exit-modal" id="close-playlist-select-modal">&times;</button>
+            <button class="button-exit-modal" id="close-playlist-select-modal">×</button>
             <h2>Playlist auswählen</h2>
             <input type="text" id="playlist-search" placeholder="Playlist suchen..." style="margin-bottom: 10px;">
             <ul id="playlist-list" class="selection-list" style="overflow-y: auto; flex-grow: 1;">
@@ -481,7 +492,7 @@
 
     <div id="background-select-modal-overlay" class="modal-overlay hidden selection-modal">
         <div class="modal">
-            <button class="button-exit-modal" id="close-background-select-modal">&times;</button>
+            <button class="button-exit-modal" id="close-background-select-modal">×</button>
             <h2>Lobby-Hintergrund</h2>
             <p>Wähle einen freigeschalteten Hintergrund.</p>
             <ul id="owned-backgrounds-list" class="selection-list">
@@ -513,7 +524,7 @@
     
     <div id="friends-modal-overlay" class="modal-overlay hidden friends-modal">
         <div class="modal" style="max-height: 80dvh; overflow: hidden; display: flex; flex-direction: column;">
-            <button class="button-exit-modal" id="close-friends-modal-button">&times;</button>
+            <button class="button-exit-modal" id="close-friends-modal-button">×</button>
             <div class="tabs">
                 <button class="tab-button active" data-tab="tab-friends">Freunde</button>
                 <button class="tab-button" data-tab="tab-requests">Anfragen <span id="requests-count" class="badge hidden">0</span></button>
@@ -540,7 +551,7 @@
     
     <div id="invite-friends-modal-overlay" class="modal-overlay hidden selection-modal">
         <div class="modal">
-            <button class="button-exit-modal" id="close-invite-modal-button">&times;</button>
+            <button class="button-exit-modal" id="close-invite-modal-button">×</button>
             <h2>Freunde einladen</h2>
             <p>Lade Online-Freunde in deine Lobby ein.</p>
             <ul id="online-friends-list" class="selection-list" style="max-height: 40vh; overflow-y: auto;">

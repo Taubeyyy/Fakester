@@ -1,5 +1,6 @@
 // script.js - FINAL VERSION (Checked for early errors)
 // KORREKTUR: supabase.auth.getSession() wird jetzt asynchron mit 'await' aufgerufen.
+// HÄLFTE 1 VON 2
 
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
@@ -485,6 +486,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- UI Rendering Functions ---
+    // (Hier beginnt die zweite Hälfte)
+// script.js - HÄLFTE 2 VON 2
+// (Direkt unter die erste Hälfte einfügen)
 
     // --- renderPlayerList implementiert ---
     function renderPlayerList(players, hostId) {
@@ -1041,7 +1045,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch('/api/shop/items', {
                 headers: { 'Authorization': `Bearer ${accessToken}` } // Benutze die abgerufene Variable
             });
-            if (!response.ok) throw new Error('Shop-Daten konnten nicht geladen werden.');
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.message || 'Shop-Daten konnten nicht geladen werden.');
+            }
             
             const { items: shopItemsFromServer } = await response.json();
             
@@ -1507,7 +1514,30 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Modals
             document.querySelectorAll('.button-exit-modal').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal-overlay')?.classList.add('hidden')));
-            elements.joinModal.numpad?.addEventListener('click', (e) => { const btn=e.target.closest('button'); if(!btn) return; const key=btn.dataset.key, action=btn.dataset.action; let confirmBtn = elements.joinModal.numpad.querySelector('[data-action="confirm"]'); if(key >= '0' && key <= '9' && pinInput.length < 4) pinInput += key; else if(action==='clear'||action==='backspace') pinInput = pinInput.slice(0, -1); else if(action==='confirm' && pinInput.length===4){ if(!currentUser){ showToast("Anmelden/Gast zuerst.", true); return; } if(!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } setLoading(true, "Trete Lobby bei..."); ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } })); } elements.joinModal.pinDisplay?.forEach((d,i)=>d.textContent=pinInput[i]||""); if(confirmBtn) confirmBtn.disabled = pinInput.length !== 4; });
+            
+            // --- KORREKTUR: Join-Modal-Bug ---
+            elements.joinModal.numpad?.addEventListener('click', (e) => { 
+                const btn=e.target.closest('button'); 
+                if(!btn) return; 
+                const key=btn.dataset.key, action=btn.dataset.action; 
+                let confirmBtn = elements.joinModal.numpad.querySelector('[data-action="confirm"]'); 
+                if(key >= '0' && key <= '9' && pinInput.length < 4) {
+                    pinInput += key; 
+                } else if(action==='clear'||action==='backspace') {
+                    pinInput = pinInput.slice(0, -1); 
+                } else if(action==='confirm' && pinInput.length===4) { 
+                    if(!currentUser){ showToast("Anmelden/Gast zuerst.", true); return; } 
+                    if(!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } 
+                    setLoading(true, "Trete Lobby bei..."); 
+                    ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } })); 
+                    // BUGFIX: Modal hier noch nicht schließen, auf 'lobby-update' warten.
+                    // Stattdessen Pin zurücksetzen für den Fall, dass es fehlschlägt.
+                    pinInput = "";
+                } 
+                elements.joinModal.pinDisplay?.forEach((d,i)=>d.textContent=pinInput[i]||""); 
+                if(confirmBtn) confirmBtn.disabled = pinInput.length !== 4; 
+            });
+
             elements.friendsModal.tabsContainer?.addEventListener('click', (e) => { const tab = e.target.closest('.tab-button'); if (tab && !tab.classList.contains('active')) { elements.friendsModal.tabs?.forEach(t => t.classList.remove('active')); elements.friendsModal.tabContents?.forEach(c => c.classList.remove('active')); tab.classList.add('active'); document.getElementById(tab.dataset.tab)?.classList.add('active'); } });
             elements.friendsModal.addFriendBtn?.addEventListener('click', async () => { /* STUB */ const name = elements.friendsModal.addFriendInput.value; if(name) { console.log(`Adding friend: ${name}`); showToast(`Freund hinzufügen: ${name} (STUB)`, false); elements.friendsModal.addFriendInput.value = ''; }});
             elements.friendsModal.requestsList?.addEventListener('click', (e) => { /* STUB */ console.log("Request list clicked"); });

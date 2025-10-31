@@ -124,7 +124,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 
 .corner-button { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background-color: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; font-size: 1rem; z-index: 100; cursor: pointer; display: flex !important; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 
-/* --- NEU: STATS, TITEL & ICON KARTEN --- */
+/* --- STATS, TITEL & ICON KARTEN --- */
 .stats-full-grid, .selection-grid, .icon-grid { 
     display: grid; 
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
@@ -629,21 +629,17 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 
 
 /* ==================
-   NEU: Anpassungsmenü
+   NEU: Anpassungsmenü (Tabs)
    ================== */
-#customization-screen .shop-section {
-    width: 100%;
-    margin-bottom: 15px;
-}
-#customization-screen .shop-section h3 {
-    margin-bottom: 15px;
-    padding-bottom: 8px;
-    color: var(--text-muted-color);
-    font-size: 1.1rem;
-    text-align: left;
-    border-bottom: 1px solid var(--dark-grey);
-}
-/* Wiederverwendung der Icon-Grid-Stile für Farben */
+.customization-modal .tabs { display: flex; width: 100%; border-bottom: 1px solid var(--dark-grey); }
+.customization-modal .tab-button { flex: 1; background: none; border: none; color: var(--text-muted-color); padding: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; border-bottom: 2px solid transparent; }
+.customization-modal .tab-button.active { color: var(--primary-color); border-bottom-color: var(--primary-color); }
+.customization-modal .tab-content { display: none; margin-top: 15px; }
+.customization-modal .tab-content.active { display: block; }
+
+/* ==================
+   NEU: Farb-Karten (für Anpassen-Menü)
+   ================== */
 .color-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -745,7 +741,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 1rem;
     color: var(--text-color);
     transition: color 0.3s ease;
-    /* Farbstil wird per JS hinzugefügt, falls freigeschaltet */
 }
 
 /* Style für Reaktionen anpassen */
