@@ -1,4 +1,4 @@
-// script.js - FINAL VERSION (Checked for early errors)
+// script.js - MODIFIZIERT - TEIL 1 VON 2
 // KORREKTUR: supabase.auth.getSession() wird jetzt asynchron mit 'await' aufgerufen.
 // HÄLFTE 1 VON 2
 
@@ -13,8 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let onlineFriends = [];
     let ownedTitleIds = new Set();
     let ownedIconIds = new Set();
-    let ownedBackgroundIds = new Set();
-    let ownedColorIds = new Set(); // NEU
+    let ownedColorIds = new Set();
+    let ownedBgColorIds = new Set(); // ERSETZT ownedBackgroundIds
+    let ownedBgSymbolIds = new Set(); // NEU
     let inventory = {};
 
     let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [], players: [] }; // players hinzugefügt
@@ -51,12 +52,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const achievementsList = [ { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' }, { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' }, { id: 4, name: 'Historiker', description: 'Gewinne eine Timeline-Runde.' }, { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' }, { id: 6, name: 'Musik-Lexikon', description: 'Beantworte 500 Fragen richtig (gesamt).' }, { id: 7, name: 'Unbesiegbar', description: 'Gewinne 5 Spiele in Folge.' }, { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt (gesamt).' }, { id: 9, name: 'Spotify-Junkie', description: 'Verbinde dein Spotify-Konto.' }, { id: 10, name: 'Gastgeber', description: 'Hoste dein erstes Spiel.' }, { id: 11, name: 'Party-Löwe', description: 'Spiele mit 3+ Freunden (in einer Lobby).' }, { id: 12, name: 'Knapp Daneben', description: 'Antworte 5 Mal falsch in einem Spiel.' }, { id: 13, name: 'Präzisionsarbeit', description: 'Errate Titel, Künstler UND Jahr exakt in einer Runde (Quiz).'}, { id: 14, name: 'Sozial Vernetzt', description: 'Füge deinen ersten Freund hinzu.' }, { id: 15, name: 'Sammler', description: 'Schalte 5 Titel frei.' }, { id: 16, name: 'Icon-Liebhaber', description: 'Schalte 5 Icons frei.' }, { id: 17, name: 'Aufwärmrunde', description: 'Spiele 3 Spiele.' }, { id: 18, name: 'Highscorer', description: 'Erreiche über 1000 Punkte in einem Spiel.' }, { id: 19, name: 'Perfektionist', description: 'Beantworte alle Fragen in einem Spiel richtig (min. 5 Runden).'}, { id: 20, name: 'Dabei sein ist alles', description: 'Verliere 3 Spiele.'} ];
     const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100));
     const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
-    const titlesList = [ { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1, type:'title' }, { id: 2, name: 'Musik-Kenner', unlockType: 'achievement', unlockValue: 2, type:'title' }, { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3, type:'title' }, { id: 4, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4, type:'title' }, { id: 5, name: 'Star-Experte', unlockType: 'achievement', unlockValue: 5, type:'title' }, { id: 6, name: 'Pechvogel', unlockType: 'achievement', unlockValue: 12, type:'title' }, { id: 7, name: 'Präzise', unlockType: 'achievement', unlockValue: 13, type:'title' }, { id: 8, name: 'Gesellig', unlockType: 'achievement', unlockValue: 14, type:'title' }, { id: 9, name: 'Sammler', unlockType: 'achievement', unlockValue: 15, type:'title' }, { id: 10, name: 'Kenner', unlockType: 'level', unlockValue: 5, type:'title' }, { id: 11, name: 'Experte', unlockType: 'level', unlockValue: 10, type:'title' }, { id: 12, name: 'Meister', unlockType: 'level', unlockValue: 15, type:'title' }, { id: 13, name: 'Virtuose', unlockType: 'level', unlockValue: 20, type:'title' }, { id: 14, name: 'Maestro', unlockType: 'level', unlockValue: 25, type:'title' }, { id: 15, name: 'Großmeister', unlockType: 'level', unlockValue: 30, type:'title' }, { id: 16, name: 'Orakel', unlockType: 'level', unlockValue: 40, type:'title' }, { id: 17, name: 'Musikgott', unlockType: 'level', unlockValue: 50, type:'title' }, { id: 18, name: 'Perfektionist', unlockType: 'achievement', unlockValue: 19, type:'title' }, { id: 19, name: 'Highscorer', unlockType: 'achievement', unlockValue: 18, type:'title' }, { id: 20, name: 'Dauerbrenner', unlockType: 'achievement', unlockValue: 17, type:'title' }, { id: 101, name: 'Musik-Guru', unlockType: 'spots', cost: 100, unlockValue: 100, description: 'Nur im Shop', type:'title' }, { id: 102, name: 'Playlist-Meister', unlockType: 'spots', cost: 150, unlockValue: 150, description: 'Nur im Shop', type:'title' }, { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 99, name: 'Entwickler', iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Titel', type:'title' } ];
-    const iconsList = [ { id: 1, iconClass: 'fa-user', unlockType: 'level', unlockValue: 1, description: 'Standard-Icon', type:'icon' }, { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5', type:'icon' }, { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10', type:'icon' }, { id: 4, iconClass: 'fa-trophy', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger', type:'icon' }, { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20', type:'icon' }, { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser', type:'icon' }, { id: 7, iconClass: 'fa-guitar', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15', type:'icon' }, { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 25, description: 'Erreiche Level 25', type:'icon' }, { id: 9, iconClass: 'fa-record-vinyl', unlockType: 'level', unlockValue: 30, description: 'Erreiche Level 30', type:'icon' }, { id: 10, name: 'Feuer', iconClass: 'fa-fire', unlockType: 'level', unlockValue: 40, description: 'Erreiche Level 40', type:'icon' }, { id: 11, name: 'Geist', iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45', type:'icon' }, { id: 12, name: 'Meteor', iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50', type:'icon' }, { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber', type:'icon'}, { id: 201, name: 'Diamant', iconClass: 'fa-diamond', unlockType: 'spots', cost: 250, unlockValue: 250, description: 'Nur im Shop', type:'icon' }, { id: 202, name: 'Zauberhut', iconClass: 'fa-hat-wizard', unlockType: 'spots', cost: 300, unlockValue: 300, description: 'Nur im Shop', type:'icon' }, { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' } ];
-    const backgroundsList = [ { id: 'default', name: 'Standard', imageUrl: '', cost: 0, unlockType: 'free', type: 'background', backgroundId: 'default'}, { id: '301', name: 'Synthwave', imageUrl: '/assets/img/bg_synthwave.jpg', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '301'}, { id: '302', name: 'Konzertbühne', imageUrl: '/assets/img/bg_stage.jpg', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '302'}, { id: '303', type: 'background', name: 'Plattenladen', imageUrl: '/assets/img/bg_vinyl.jpg', cost: 700, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '303'} ];
+    const titlesList = [ { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1, type:'title' }, { id: 2, name: 'Musik-Kenner', unlockType: 'achievement', unlockValue: 2, type:'title' }, { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3, type:'title' }, { id: 4, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4, type:'title' }, { id: 5, name: 'Star-Experte', unlockType: 'achievement', unlockValue: 5, type:'title' }, { id: 6, name: 'Pechvogel', unlockType: 'achievement', unlockValue: 12, type:'title' }, { id: 7, name: 'Präzise', unlockType: 'achievement', unlockValue: 13, type:'title' }, { id: 8, name: 'Gesellig', unlockType: 'achievement', unlockValue: 14, type:'title' }, { id: 9, name: 'Sammler', unlockType: 'achievement', unlockValue: 15, type:'title' }, { id: 10, name: 'Kenner', unlockType: 'level', unlockValue: 5, type:'title' }, { id: 11, name: 'Experte', unlockType: 'level', unlockValue: 10, type:'title' }, { id: 12, name: 'Meister', unlockType: 'level', unlockValue: 15, type:'title' }, { id: 13, name: 'Virtuose', unlockType: 'level', unlockValue: 20, type:'title' }, { id: 14, name: 'Maestro', unlockType: 'level', unlockValue: 25, type:'title' }, { id: 15, name: 'Großmeister', unlockType: 'level', unlockValue: 30, type:'title' }, { id: 16, name: 'Orakel', unlockType: 'level', unlockValue: 40, type:'title' }, { id: 17, name: 'Musikgott', unlockType: 'level', unlockValue: 50, type:'title' }, { id: 18, name: 'Perfektionist', unlockType: 'achievement', unlockValue: 19, type:'title' }, { id: 19, name: 'Highscorer', unlockType: 'achievement', unlockValue: 18, type:'title' }, { id: 20, name: 'Dauerbrenner', unlockType: 'achievement', unlockValue: 17, type:'title' }, { id: 101, name: 'Musik-Guru', unlockType: 'spots', cost: 100, unlockValue: 100, description: 'Nur im Shop', type:'title' }, { id: 102, name: 'Playlist-Meister', unlockType: 'spots', cost: 150, unlockValue: 150, description: 'Nur im Shop', type:'title' }, { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 105, type: 'title', name: '90er-Kid', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 106, type: 'title', name: 'Rock-Legende', cost: 250, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 107, type: 'title', name: 'Pop-Prinz', cost: 250, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 108, type: 'title', name: 'Gold-Kehlchen', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 109, type: 'title', name: 'Connaisseur', cost: 500, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 110, type: 'title', name: 'Platin', cost: 1000, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, { id: 99, name: 'Entwickler', iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Titel', type:'title' } ];
+    const iconsList = [ { id: 1, iconClass: 'fa-user', unlockType: 'level', unlockValue: 1, description: 'Standard-Icon', type:'icon' }, { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5', type:'icon' }, { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10', type:'icon' }, { id: 4, iconClass: 'fa-trophy', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger', type:'icon' }, { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20', type:'icon' }, { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser', type:'icon' }, { id: 7, iconClass: 'fa-guitar', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15', type:'icon' }, { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 25, description: 'Erreiche Level 25', type:'icon' }, { id: 9, iconClass: 'fa-record-vinyl', unlockType: 'level', unlockValue: 30, description: 'Erreiche Level 30', type:'icon' }, { id: 10, name: 'Feuer', iconClass: 'fa-fire', unlockType: 'level', unlockValue: 40, description: 'Erreiche Level 40', type:'icon' }, { id: 11, name: 'Geist', iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45', type:'icon' }, { id: 12, name: 'Meteor', iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50', type:'icon' }, { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber', type:'icon'}, { id: 201, name: 'Diamant', iconClass: 'fa-diamond', unlockType: 'spots', cost: 250, unlockValue: 250, description: 'Nur im Shop', type:'icon' }, { id: 202, name: 'Zauberhut', iconClass: 'fa-hat-wizard', unlockType: 'spots', cost: 300, unlockValue: 300, description: 'Nur im Shop', type:'icon' }, { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 450, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 207, type: 'icon', name: 'Anker', iconClass: 'fa-anchor', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 208, type: 'icon', name: 'Feder', iconClass: 'fa-feather', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 209, type: 'icon', name: 'Auge', iconClass: 'fa-eye', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 210, type: 'icon', name: 'Schneeflocke', iconClass: 'fa-snowflake', cost: 600, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' } ];
+// NEU: Getrennte Listen
+const bgColorsList = [
+    { id: 'default_color', name: 'Standard', cssBackground: 'var(--dark-grey)', iconClass: 'fa-solid fa-ban', cost: 0, unlockType: 'free', type: 'bg_color', storageKey: 'default_color'},
+    { id: 301, name: 'Sonnenuntergang', cssBackground: 'linear-gradient(135deg, #FF8C00, #E94057, #8A2387)', iconClass: null, cost: 400, unlockType: 'spots', type: 'bg_color', storageKey: '301'},
+    { id: 302, name: 'Gift-Oase', cssBackground: 'linear-gradient(135deg, #00FF00, #008080)', iconClass: null, cost: 400, unlockType: 'spots', type: 'bg_color', storageKey: '302'},
+    { id: 303, name: 'Ozean', cssBackground: 'linear-gradient(135deg, #0072FF, #00C6FF)', iconClass: null, cost: 400, unlockType: 'spots', type: 'bg_color', storageKey: '303'},
+    { id: 304, name: 'Königlich', cssBackground: 'linear-gradient(135deg, #FFD700, #4B0082)', iconClass: null, cost: 500, unlockType: 'spots', type: 'bg_color', storageKey: '304'},
+    { id: 305, name: 'Flamme', cssBackground: 'linear-gradient(135deg, #FF4500, #FFD700)', iconClass: null, cost: 500, unlockType: 'spots', type: 'bg_color', storageKey: '305'},
+];
+const bgSymbolsList = [
+    { id: 'default_symbol', name: 'Standard', iconClass: 'fa-solid fa-ban', cost: 0, unlockType: 'free', type: 'bg_symbol', storageKey: 'default_symbol'},
+    { id: 401, name: 'Notenregen', iconClass: 'fa-solid fa-music', cost: 600, unlockType: 'spots', type: 'bg_symbol', storageKey: '401'},
+    { id: 402, name: 'Sternenhimmel', iconClass: 'fa-solid fa-star', cost: 600, unlockType: 'spots', type: 'bg_symbol', storageKey: '402'},
+    { id: 403, name: 'Retro-Welle', iconClass: 'fa-solid fa-wave-square', cost: 700, unlockType: 'spots', type: 'bg_symbol', storageKey: '403'},
+    { id: 404, name: 'Digital', iconClass: 'fa-solid fa-border-all', cost: 700, unlockType: 'spots', type: 'bg_symbol', storageKey: '404'},
+    { id: 405, name: 'Königsklasse', iconClass: 'fa-solid fa-crown', cost: 1000, unlockType: 'spots', type: 'bg_symbol', storageKey: '405'},
+];
     const nameColorsList = [ { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' }, { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' }, { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }, { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' } ];
-    const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList];
-    window.titlesList = titlesList; window.iconsList = iconsList; window.backgroundsList = backgroundsList; window.nameColorsList = nameColorsList; window.allItems = allItems;
+// NEU
+const allItems = [...titlesList, ...iconsList, ...bgColorsList, ...bgSymbolsList, ...nameColorsList];
+window.titlesList = titlesList; window.iconsList = iconsList; window.bgColorsList = bgColorsList; window.bgSymbolsList = bgSymbolsList; window.nameColorsList = nameColorsList; window.allItems = allItems;
     const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
     // --- DOM Element References ---
@@ -83,7 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
             answerTypeContainer: document.getElementById('answer-type-container'), 
             answerTypePresets: document.getElementById('answer-type-presets'), 
             // reactionButtons: document.getElementById('reaction-buttons'), // Entfernt, da global
-            backgroundSelectButton: document.getElementById('select-background-button'),
+            bgColorSelectButton: document.getElementById('select-bg-color-button'),
+            bgSymbolSelectButton: document.getElementById('select-bg-symbol-button'),
             guessTypesSetting: document.getElementById('guess-types-setting'),
             guessTypesCheckboxes: document.querySelectorAll('#guess-types-setting input[type="checkbox"]'),
             guessTypesError: document.getElementById('guess-types-error')
@@ -105,9 +124,35 @@ document.addEventListener('DOMContentLoaded', () => {
         leaveConfirmModal: { overlay: document.getElementById('leave-confirm-modal-overlay'), confirmBtn: document.getElementById('confirm-leave-button'), cancelBtn: document.getElementById('cancel-leave-button'), }, 
         confirmActionModal: { overlay: document.getElementById('confirm-action-modal-overlay'), title: document.getElementById('confirm-action-title'), text: document.getElementById('confirm-action-text'), confirmBtn: document.getElementById('confirm-action-confirm-button'), cancelBtn: document.getElementById('confirm-action-cancel-button'), }, 
         stats: { screen: document.getElementById('stats-screen'), gamesPlayed: document.getElementById('stat-games-played'), wins: document.getElementById('stat-wins'), winrate: document.getElementById('stat-winrate'), highscore: document.getElementById('stat-highscore'), correctAnswers: document.getElementById('stat-correct-answers'), avgScore: document.getElementById('stat-avg-score'), gamesPlayedPreview: document.getElementById('stat-games-played-preview'), winsPreview: document.getElementById('stat-wins-preview'), correctAnswersPreview: document.getElementById('stat-correct-answers-preview'), }, 
-        shop: { screen: document.getElementById('shop-screen'), titlesList: document.getElementById('shop-titles-list'), iconsList: document.getElementById('shop-icons-list'), backgroundsList: document.getElementById('shop-backgrounds-list'), colorsList: document.getElementById('shop-colors-list'), spotsBalance: document.getElementById('shop-spots-balance'), }, 
-        backgroundSelectModal: { overlay: document.getElementById('background-select-modal-overlay'), closeBtn: document.getElementById('close-background-select-modal'), list: document.getElementById('owned-backgrounds-list'), }, 
-        customize: { screen: document.getElementById('customization-screen'), titlesList: document.getElementById('customize-title-list'), iconsList: document.getElementById('customize-icon-list'), colorsList: document.getElementById('customize-color-list') }, // NEU
+        shop: { 
+            screen: document.getElementById('shop-screen'), 
+            titlesList: document.getElementById('shop-titles-list'), 
+            iconsList: document.getElementById('shop-icons-list'), 
+            bgColorsList: document.getElementById('shop-bg-colors-list'), // NEU
+            bgSymbolsList: document.getElementById('shop-bg-symbols-list'), // NEU
+            colorsList: document.getElementById('shop-colors-list'), 
+            spotsBalance: document.getElementById('shop-spots-balance'), 
+        }, 
+        bgColorSelectModal: { // NEU
+            overlay: document.getElementById('bg-color-select-modal-overlay'), 
+            closeBtn: document.getElementById('close-bg-color-select-modal'), 
+            list: document.getElementById('owned-bg-colors-list'), 
+        }, 
+        bgSymbolSelectModal: { // NEU
+            overlay: document.getElementById('bg-symbol-select-modal-overlay'), 
+            closeBtn: document.getElementById('close-bg-symbol-select-modal'), 
+            list: document.getElementById('owned-bg-symbols-list'), 
+        }, 
+        customize: { 
+            screen: document.getElementById('customization-screen'), 
+            tabsContainer: document.querySelector('#customization-screen .tabs'), // NEU
+            tabContents: document.querySelectorAll('#customization-screen .tab-content'), // NEU
+            titlesList: document.getElementById('customize-title-list'), 
+            iconsList: document.getElementById('customize-icon-list'), 
+            colorsList: document.getElementById('customize-color-list'),
+            bgColorsList: document.getElementById('customize-bg-color-list'), // NEU
+            bgSymbolsList: document.getElementById('customize-bg-symbol-list') // NEU
+        },
     };
 
 
@@ -178,6 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const showConfirmModal = (title, text, onConfirm) => { elements.confirmActionModal.title.textContent = title; elements.confirmActionModal.text.textContent = text; currentConfirmAction = onConfirm; elements.confirmActionModal.overlay.classList.remove('hidden'); };
 
     // --- Helper Functions ---
+// NEU
     function isItemUnlocked(item, currentLevel) { 
         if (!item || !currentUser ) return false; 
         if (!currentUser.isGuest && currentUser.username.toLowerCase() === 'taubey') return true; 
@@ -185,10 +231,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // Prüfe Besitz für Shop-Items
         if (item.unlockType === 'spots') { 
             if (currentUser.isGuest) return false; 
+            // Wichtig: Wir prüfen jetzt auf item.storageKey
             if (item.type === 'title') return ownedTitleIds.has(item.id); 
             if (item.type === 'icon') return ownedIconIds.has(item.id); 
-            if (item.type === 'background') return ownedBackgroundIds.has(item.backgroundId); 
-            if (item.type === 'color') return ownedColorIds.has(item.id); // NEU
+            if (item.type === 'color') return ownedColorIds.has(item.id);
+            if (item.type === 'bg_color') return ownedBgColorIds.has(item.storageKey);
+            if (item.type === 'bg_symbol') return ownedBgSymbolIds.has(item.storageKey);
         } 
         
         switch (item.unlockType) { 
@@ -204,11 +252,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Initialization and Auth ---
+// NEU: initializeApp
     const initializeApp = (user, isGuest = false) => { 
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`); 
         localStorage.removeItem('fakesterGame'); 
+        
+        // NEU: Fallback-Profil enthält jetzt die getrennten BG-IDs
         const fallbackUsername = isGuest ? user.username : user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt'; 
-        const fallbackProfile = { id: user.id, username: fallbackUsername, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, spots: 0, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null }; // equipped_color_id hinzugefügt
+        const fallbackProfile = { 
+            id: user.id, 
+            username: fallbackUsername, 
+            xp: 0, 
+            games_played: 0, 
+            wins: 0, 
+            correct_answers: 0, 
+            highscore: 0, 
+            spots: 0, 
+            equipped_title_id: 1, 
+            equipped_icon_id: 1, 
+            equipped_color_id: null,
+            equipped_bg_color_id: 'default_color', // NEU
+            equipped_bg_symbol_id: 'default_symbol' // NEU
+        };
         
         if (isGuest) { 
             currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest }; 
@@ -216,8 +281,9 @@ document.addEventListener('DOMContentLoaded', () => {
             userUnlockedAchievementIds = []; 
             ownedTitleIds.clear(); 
             ownedIconIds.clear(); 
-            ownedBackgroundIds.clear(); 
-            ownedColorIds.clear(); // NEU
+            ownedColorIds.clear();
+            ownedBgColorIds.clear(); // NEU
+            ownedBgSymbolIds.clear(); // NEU
             inventory = {}; 
         } else { 
             currentUser = { id: user.id, username: fallbackUsername, isGuest }; 
@@ -225,8 +291,9 @@ document.addEventListener('DOMContentLoaded', () => {
             userUnlockedAchievementIds = []; 
             ownedTitleIds.clear(); 
             ownedIconIds.clear(); 
-            ownedBackgroundIds.clear(); 
-            ownedColorIds.clear(); // NEU
+            ownedColorIds.clear();
+            ownedBgColorIds.clear(); // NEU
+            ownedBgSymbolIds.clear(); // NEU
             inventory = {}; 
         } 
         
@@ -235,7 +302,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; 
         if(document.getElementById('profile-title')) equipTitle(userProfile.equipped_title_id || 1, false); 
         if(elements.home.profileIcon) equipIcon(userProfile.equipped_icon_id || 1, false);
-        equipColor(userProfile.equipped_color_id, false); // NEU
+        equipColor(userProfile.equipped_color_id, false);
+        // NEU: Setze Standard-Hintergrund (wird später vom Server überschrieben)
+        applyLobbyBackground('default_color', 'default_symbol');
+
         if(elements.home.profileLevel) updatePlayerProgressDisplay(); 
         if(elements.stats.gamesPlayed) updateStatsDisplay(); 
         updateSpotsDisplay(); 
@@ -249,15 +319,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!isGuest && supabase) { 
             console.log("Fetching profile, owned items, achievements, and Spotify status in background..."); 
+            // NEU: Promise.all fragt die 7 Tabellen ab
             Promise.all([ 
                 supabase.from('profiles').select('*').eq('id', user.id).single(), 
                 supabase.from('user_owned_titles').select('title_id').eq('user_id', user.id), 
                 supabase.from('user_owned_icons').select('icon_id').eq('user_id', user.id), 
-                supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', user.id),
-                supabase.from('user_owned_colors').select('color_id').eq('user_id', user.id), // NEU
+                supabase.from('user_owned_bg_colors').select('background_id').eq('user_id', user.id), // NEU
+                supabase.from('user_owned_bg_symbols').select('symbol_id').eq('user_id', user.id), // NEU
+                supabase.from('user_owned_colors').select('color_id').eq('user_id', user.id),
                 supabase.from('user_inventory').select('item_id, quantity').eq('user_id', user.id) 
             ]).then((results) => { 
-                const [profileResult, titlesResult, iconsResult, backgroundsResult, colorsResult, inventoryResult] = results; // colorsResult hinzugefügt
+                const [profileResult, titlesResult, iconsResult, bgColorsResult, bgSymbolsResult, colorsResult, inventoryResult] = results; // NEU aufgeteilt
                 if (profileResult.error || !profileResult.data) { 
                     console.error("BG Profile Error:", profileResult.error || "No data"); 
                     if (!profileResult.error?.details?.includes("0 rows")) showToast("Fehler beim Laden des Profils.", true); 
@@ -272,18 +344,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('welcome-nickname').textContent = currentUser.username; 
                     equipTitle(userProfile.equipped_title_id || 1, false); 
                     equipIcon(userProfile.equipped_icon_id || 1, false); 
-                    equipColor(userProfile.equipped_color_id, false); // NEU
+                    equipColor(userProfile.equipped_color_id, false);
+                    // NEU: Setze ausgerüsteten Hintergrund aus dem Profil
+                    applyLobbyBackground(userProfile.equipped_bg_color_id, userProfile.equipped_bg_symbol_id);
                     updatePlayerProgressDisplay(); 
                     updateStatsDisplay(); 
                     updateSpotsDisplay(); 
                 } 
                 ownedTitleIds = new Set(titlesResult.data?.map(t => t.title_id) || []); 
                 ownedIconIds = new Set(iconsResult.data?.map(i => i.icon_id) || []); 
-                ownedBackgroundIds = new Set(backgroundsResult.data?.map(b => b.background_id) || []);
-                ownedColorIds = new Set(colorsResult.data?.map(c => c.color_id) || []); // NEU
+                ownedColorIds = new Set(colorsResult.data?.map(c => c.color_id) || []);
+                // NEU: Getrennte Sets befüllen
+                ownedBgColorIds = new Set(bgColorsResult.data?.map(b => b.background_id) || []);
+                ownedBgSymbolIds = new Set(bgSymbolsResult.data?.map(s => s.symbol_id) || []);
+                ownedBgColorIds.add('default_color'); // Standard ist immer freigeschaltet
+                ownedBgSymbolIds.add('default_symbol'); // Standard ist immer freigeschaltet
+
                 inventory = {}; 
                 inventoryResult.data?.forEach(item => inventory[item.item_id] = item.quantity); 
-                console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, B: ownedBackgroundIds.size, C: ownedColorIds.size, Inv: Object.keys(inventory).length }); 
+                console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, C: ownedColorIds.size, BGC: ownedBgColorIds.size, BGS: ownedBgSymbolIds.size }); 
+                
                 if(elements.titles.list) renderTitles(); 
                 if(elements.icons.list) renderIcons(); 
                 if(elements.levelProgress.list) renderLevelProgress(); 
@@ -325,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
             username = formData.get('username'); 
             credentials.email = `${username}@fakester.app`; 
             credentials.password = formData.get('password'); 
-            credentials.options = { data: { username: username, xp: 0, spots: 100, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null } }; // equipped_color_id hinzugefügt
+            credentials.options = { data: { username: username, xp: 0, spots: 100, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null, equipped_bg_color_id: 'default_color', equipped_bg_symbol_id: 'default_symbol' } }; // equipped_bg... hinzugefügt
         } else { 
             username = formData.get('username'); 
             credentials.email = `${username}@fakester.app`; 
@@ -545,6 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- updateHostSettings implementiert ---
+// NEU: updateHostSettings
     function updateHostSettings(settings, isHost, gameMode) {
         console.log("Updating host settings display", settings);
 
@@ -574,8 +655,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elements.lobby.playlistSelectBtn) {
             elements.lobby.playlistSelectBtn.textContent = settings.playlistName || 'Playlist auswählen';
         }
-        if (elements.lobby.backgroundSelectButton) {
-            applyLobbyBackground(settings.chosenBackgroundId || 'default');
+        
+        // NEU: Hintergrund aus 2 IDs zusammensetzen
+        if (settings.chosenBgColorId || settings.chosenBgSymbolId) {
+            applyLobbyBackground(
+                settings.chosenBgColorId || 'default_color', 
+                settings.chosenBgSymbolId || 'default_symbol'
+            );
         }
 
         updatePresets(elements.lobby.songCountPresets, settings.songCount, 'song-count');
@@ -761,6 +847,9 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.icons.list.appendChild(card);
         });
     }
+// script.js - MODIFIZIERT - TEIL 2 VON 2
+// (Direkt unter Teil 1 einfügen)
+
     
     // --- NEU: Funktionen für Anpassungsmenü ---
     function renderCustomizationMenu() {
@@ -768,6 +857,8 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCustomTitles();
         renderCustomIcons();
         renderCustomColors();
+        renderCustomBgColors(); // NEU
+        renderCustomBgSymbols(); // NEU
     }
     
     function renderCustomTitles() {
@@ -929,6 +1020,116 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // --- NEUE FUNKTIONEN FÜR HINTERGRUND ---
+    async function equipBgColor(colorKey, saveToDb = true) {
+        if (currentUser.isGuest) return;
+        
+        const color = bgColorsList.find(c => c.storageKey === colorKey);
+        if (!color) return;
+
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        if (!isItemUnlocked(color, currentLevel)) {
+            showToast("Du hast diese Farbe noch nicht freigeschaltet.", true);
+            return;
+        }
+
+        userProfile.equipped_bg_color_id = colorKey;
+        renderCustomBgColors(); // UI im Anpassungsmenü aktualisieren
+        applyLobbyBackground(userProfile.equipped_bg_color_id, userProfile.equipped_bg_symbol_id); // Vorschau anwenden
+
+        if (saveToDb && supabase) {
+            const { error } = await supabase.from('profiles').update({ equipped_bg_color_id: colorKey }).eq('id', currentUser.id);
+            if (error) {
+                showToast("Fehler beim Speichern der Hintergrundfarbe.", true);
+            } else {
+                showToast(`Hintergrund "${color.name}" ausgerüstet!`, false);
+            }
+        }
+    }
+
+    async function equipBgSymbol(symbolKey, saveToDb = true) {
+        if (currentUser.isGuest) return;
+        
+        const symbol = bgSymbolsList.find(s => s.storageKey === symbolKey);
+        if (!symbol) return;
+
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        if (!isItemUnlocked(symbol, currentLevel)) {
+            showToast("Du hast dieses Symbol noch nicht freigeschaltet.", true);
+            return;
+        }
+
+        userProfile.equipped_bg_symbol_id = symbolKey;
+        renderCustomBgSymbols(); // UI im Anpassungsmenü aktualisieren
+        applyLobbyBackground(userProfile.equipped_bg_color_id, userProfile.equipped_bg_symbol_id); // Vorschau anwenden
+
+        if (saveToDb && supabase) {
+            const { error } = await supabase.from('profiles').update({ equipped_bg_symbol_id: symbolKey }).eq('id', currentUser.id);
+            if (error) {
+                showToast("Fehler beim Speichern des Symbols.", true);
+            } else {
+                showToast(`Symbol "${symbol.name}" ausgerüstet!`, false);
+            }
+        }
+    }
+
+    function renderCustomBgColors() {
+        const container = elements.customize.bgColorsList;
+        if (!container || currentUser.isGuest) return;
+        container.innerHTML = '';
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        
+        const sorted = [...bgColorsList].sort((a, b) => a.cost - b.cost);
+
+        sorted.forEach(color => {
+            const isUnlocked = isItemUnlocked(color, currentLevel);
+            const isEquipped = userProfile.equipped_bg_color_id === color.storageKey;
+
+            const card = document.createElement('div');
+            // Wir recyceln die 'color-card' CSS-Klasse
+            card.className = 'color-card'; 
+            card.classList.toggle('locked', !isUnlocked);
+            card.classList.toggle('equipped', isEquipped);
+            card.dataset.colorKey = color.storageKey;
+
+            card.innerHTML = `
+                <div class="color-preview" style="background: ${color.cssBackground}">
+                    ${color.iconClass ? `<i class="${color.iconClass}"></i>` : ''}
+                </div>
+                <span class="color-name">${color.name}</span>
+                <span class="color-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Klicken') : getUnlockDescription(color)}</span>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function renderCustomBgSymbols() {
+        const container = elements.customize.bgSymbolsList;
+        if (!container || currentUser.isGuest) return;
+        container.innerHTML = '';
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        
+        const sorted = [...bgSymbolsList].sort((a, b) => a.cost - b.cost);
+
+        sorted.forEach(symbol => {
+            const isUnlocked = isItemUnlocked(symbol, currentLevel);
+            const isEquipped = userProfile.equipped_bg_symbol_id === symbol.storageKey;
+
+            const card = document.createElement('div');
+            // Wir recyceln die 'icon-card' CSS-Klasse
+            card.className = 'icon-card'; 
+            card.classList.toggle('locked', !isUnlocked);
+            card.classList.toggle('equipped', isEquipped);
+            card.dataset.symbolKey = symbol.storageKey;
+
+            card.innerHTML = `
+                <div class="icon-preview"><i class="${symbol.iconClass}"></i></div>
+                <span class="color-name" style="font-size: 0.8rem;">${symbol.name}</span>
+                <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Klicken') : getUnlockDescription(symbol)}</span>
+            `;
+            container.appendChild(card);
+        });
+    }
     // --- ENDE: Funktionen für Anpassungsmenü ---
 
     function renderLevelProgress() {
@@ -1023,19 +1224,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- SHOP-System (KORRIGIERT) ---
+// NEU: loadShopItems
     async function loadShopItems() {
         if (currentUser.isGuest) return;
         setLoading(true, "Lade Shop...");
         try {
-            // --- KORREKTUR START ---
-            // 1. Session asynchron abrufen
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
             if (sessionError || !session) {
                 throw new Error(sessionError?.message || "Authentifizierung fehlgeschlagen. Bitte neu einloggen.");
             }
             const accessToken = session.access_token;
-            // --- KORREKTUR ENDE ---
 
             const { data: profileData, error: profileError } = await supabase.from('profiles').select('spots').eq('id', currentUser.id).single();
             if (profileError) throw profileError;
@@ -1043,7 +1241,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateSpotsDisplay();
 
             const response = await fetch('/api/shop/items', {
-                headers: { 'Authorization': `Bearer ${accessToken}` } // Benutze die abgerufene Variable
+                headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             if (!response.ok) {
                 const errData = await response.json();
@@ -1052,38 +1250,46 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const { items: shopItemsFromServer } = await response.json();
             
+            // NEU: Referenzen zu den neuen Listen
             const titlesListEl = elements.shop.titlesList;
             const iconsListEl = elements.shop.iconsList;
-            const backgroundsListEl = elements.shop.backgroundsList;
+            const bgColorsListEl = elements.shop.bgColorsList;
+            const bgSymbolsListEl = elements.shop.bgSymbolsList;
             const colorsListEl = elements.shop.colorsList;
 
             titlesListEl.innerHTML = '';
             iconsListEl.innerHTML = '';
-            backgroundsListEl.innerHTML = '';
+            bgColorsListEl.innerHTML = ''; // NEU
+            bgSymbolsListEl.innerHTML = ''; // NEU
             colorsListEl.innerHTML = '';
 
-            const allShopItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList]
-                .filter(item => item.unlockType === 'spots');
-
-            allShopItems.forEach(item => {
+            // NEU: Wir verwenden allItems (das alle 5 Listen enthält)
+            allItems.filter(item => item.unlockType === 'spots').forEach(item => {
+                // Finde das Item in der Server-Antwort (basierend auf der einzigartigen ID, nicht storageKey)
                 const serverItem = shopItemsFromServer.find(si => si.id === item.id);
                 const isOwned = serverItem ? serverItem.isOwned : false;
                 
+                // Aktualisiere unsere lokalen Besitz-Sets
                 if (isOwned) {
                     if (item.type === 'title') ownedTitleIds.add(item.id);
                     else if (item.type === 'icon') ownedIconIds.add(item.id);
-                    else if (item.type === 'background') ownedBackgroundIds.add(item.backgroundId);
                     else if (item.type === 'color') ownedColorIds.add(item.id);
+                    else if (item.type === 'bg_color') ownedBgColorIds.add(item.storageKey);
+                    else if (item.type === 'bg_symbol') ownedBgSymbolIds.add(item.storageKey);
                 }
 
+                // NEU: Füge das Item der korrekten Shop-Liste hinzu
+                const itemEl = renderShopItem(item, userProfile.spots, isOwned);
                 if (item.type === 'title') {
-                    titlesListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
+                    titlesListEl.appendChild(itemEl);
                 } else if (item.type === 'icon') {
-                    iconsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
-                } else if (item.type === 'background') {
-                    backgroundsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
+                    iconsListEl.appendChild(itemEl);
+                } else if (item.type === 'bg_color') {
+                    bgColorsListEl.appendChild(itemEl);
+                } else if (item.type === 'bg_symbol') {
+                    bgSymbolsListEl.appendChild(itemEl);
                 } else if (item.type === 'color') {
-                    colorsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
+                    colorsListEl.appendChild(itemEl);
                 }
             });
 
@@ -1095,19 +1301,31 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+// NEU: renderShopItem
     function renderShopItem(item, userSpots, isOwned) {
         const el = document.createElement('div');
         el.className = 'shop-item';
         el.classList.toggle('owned', isOwned);
         
         let previewHtml = '';
+        // NEU: Logik für getrennte BG-Typen
         if (item.type === 'icon') {
             previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
-        } else if (item.type === 'background') {
-            previewHtml = `<div class="item-preview-background" style="background-image: url('${item.imageUrl}')"></div>`;
+        
+        } else if (item.type === 'bg_color') {
+            // Vorschau für Hintergrund-Farben (recycelt .item-preview-color)
+            const iconHtml = item.iconClass ? `<i class="${item.iconClass}"></i>` : '';
+            previewHtml = `<div class="item-preview-color" style="height: 80px; background: ${item.cssBackground}">${iconHtml}</div>`;
+        
+        } else if (item.type === 'bg_symbol') {
+            // Vorschau für Hintergrund-Symbole (recycelt .item-preview-icon)
+            previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
+        
         } else if (item.type === 'color') {
+            // Vorschau für Namensfarben
             previewHtml = `<div class="item-preview-color" style="background-color: ${item.colorHex}"><i class="fa-solid fa-font"></i></div>`;
-        } else {
+        
+        } else { // 'title'
             previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-ticket"></i></div>`;
         }
 
@@ -1126,6 +1344,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return el;
     }
 
+// NEU: handleBuyItem
     async function handleBuyItem(itemId) {
         const item = allItems.find(i => i.id == itemId);
         if (!item) return;
@@ -1152,21 +1371,29 @@ document.addEventListener('DOMContentLoaded', () => {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${accessToken}` // Benutze die abgerufene Variable
                         },
-                        body: JSON.stringify({ itemId: item.id })
+                        body: JSON.stringify({ itemId: item.id }) // Server findet den Rest (Typ, Key, etc.)
                     });
+                    
                     const result = await response.json();
                     if (!response.ok || !result.success) {
                         throw new Error(result.message || "Kauf fehlgeschlagen.");
                     }
+
                     setLoading(false);
                     showToast(result.message, false);
                     userProfile.spots = result.newSpots;
                     updateSpotsDisplay();
+                    
+                    // NEU: Füge das Item dem korrekten lokalen Set hinzu
                     if (result.itemType === 'title') ownedTitleIds.add(item.id);
                     else if (result.itemType === 'icon') ownedIconIds.add(item.id);
-                    else if (result.itemType === 'background') ownedBackgroundIds.add(item.backgroundId);
                     else if (result.itemType === 'color') ownedColorIds.add(item.id);
+                    else if (result.itemType === 'bg_color') ownedBgColorIds.add(item.storageKey);
+                    else if (result.itemType === 'bg_symbol') ownedBgSymbolIds.add(item.storageKey);
+                    
+                    // Lade den Shop neu, um den "Besitzt du"-Status anzuzeigen
                     loadShopItems();
+
                 } catch (error) {
                     setLoading(false);
                     console.error("Fehler beim Kaufen:", error);
@@ -1176,37 +1403,71 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 
-    function showBackgroundSelectionModal() {
-        if (currentUser.isGuest || !elements.backgroundSelectModal.list) return;
-        elements.backgroundSelectModal.list.innerHTML = '';
+// NEU: Geteilte Modal-Funktionen
+    function showBgColorSelectionModal() {
+        if (currentUser.isGuest || !elements.bgColorSelectModal.list) return;
+        elements.bgColorSelectModal.list.innerHTML = '';
         
-        const defaultLi = document.createElement('li');
-        defaultLi.dataset.bgId = 'default';
-        defaultLi.innerHTML = `<button class="button-select">Standard</button>`;
-        elements.backgroundSelectModal.list.appendChild(defaultLi);
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
 
-        backgroundsList.forEach(bg => {
-            if (bg.id !== 'default' && ownedBackgroundIds.has(bg.backgroundId)) {
+        bgColorsList.forEach(color => {
+            if (isItemUnlocked(color, currentLevel)) {
                 const li = document.createElement('li');
-                li.dataset.bgId = bg.backgroundId;
-                li.innerHTML = `<button class="button-select">${bg.name}</button>`;
-                elements.backgroundSelectModal.list.appendChild(li);
+                li.className = 'color-card'; // Wiederverwenden der CSS-Klasse
+                li.dataset.colorKey = color.storageKey;
+                li.innerHTML = `
+                    <div class="color-preview" style="background: ${color.cssBackground}">
+                         ${color.iconClass ? `<i class="${color.iconClass}"></i>` : ''}
+                    </div>
+                    <span class="color-name">${color.name}</span>
+                `;
+                elements.bgColorSelectModal.list.appendChild(li);
             }
         });
-        elements.backgroundSelectModal.overlay.classList.remove('hidden');
+        elements.bgColorSelectModal.overlay.classList.remove('hidden');
     }
 
-    function applyLobbyBackground(backgroundId) {
+    function showBgSymbolSelectionModal() {
+        if (currentUser.isGuest || !elements.bgSymbolSelectModal.list) return;
+        elements.bgSymbolSelectModal.list.innerHTML = '';
+        
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+
+        bgSymbolsList.forEach(symbol => {
+            if (isItemUnlocked(symbol, currentLevel)) {
+                const li = document.createElement('li');
+                li.className = 'icon-card'; // Wiederverwenden der CSS-Klasse
+                li.dataset.symbolKey = symbol.storageKey;
+                li.innerHTML = `
+                    <div class="icon-preview"><i class="${symbol.iconClass}"></i></div>
+                    <span class="color-name" style="font-size: 0.8rem;">${symbol.name}</span>
+                `;
+                elements.bgSymbolSelectModal.list.appendChild(li);
+            }
+        });
+        elements.bgSymbolSelectModal.overlay.classList.remove('hidden');
+    }
+
+    // NEU: applyLobbyBackground kombiniert jetzt 2 IDs
+    function applyLobbyBackground(colorKey, symbolKey) {
         const lobbyScreen = document.getElementById('lobby-screen');
         if (!lobbyScreen) return;
-        const bg = backgroundsList.find(b => b.backgroundId === backgroundId);
-        if (bg && bg.imageUrl) {
-            lobbyScreen.style.backgroundImage = `url('${bg.imageUrl}')`;
-        } else {
-            lobbyScreen.style.backgroundImage = 'none';
+
+        const color = bgColorsList.find(c => c.storageKey === colorKey) || bgColorsList[0];
+        const symbol = bgSymbolsList.find(s => s.storageKey === symbolKey) || bgSymbolsList[0];
+
+        // 1. Setze die Hintergrundfarbe
+        lobbyScreen.style.backgroundImage = color.cssBackground || 'var(--dark-grey)';
+        
+        // 2. Setze (oder entferne) das Symbol-Overlay
+        // (Wir implementieren das Symbol-Overlay später in CSS, jetzt aktualisieren wir nur die Buttons)
+        
+        // 3. Aktualisiere die Host-Buttons
+        if (elements.lobby.bgColorSelectButton) {
+            elements.lobby.bgColorSelectButton.textContent = color.name;
         }
-        if (elements.lobby.backgroundSelectButton) {
-            elements.lobby.backgroundSelectButton.textContent = bg ? bg.name : 'Standard';
+        if (elements.lobby.bgSymbolSelectButton) {
+            elements.lobby.bgSymbolSelectButton.textContent = symbol.name;
         }
     }
     
@@ -1471,7 +1732,10 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.lobby.inviteFriendsBtn?.addEventListener('click', async () => { /* STUB */ console.log("Invite friends clicked"); showToast("Freunde einladen (STUB)", false); });
             elements.lobby.deviceSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.deviceSelectModal.overlay?.classList.remove('hidden'); }); // IMPLEMENTIERT
             elements.lobby.playlistSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.playlistSelectModal.overlay?.classList.remove('hidden'); }); // IMPLEMENTIERT
-            elements.lobby.backgroundSelectButton?.addEventListener('click', showBackgroundSelectionModal);
+            // NEU: Geteilte BG-Buttons
+            elements.lobby.bgColorSelectButton?.addEventListener('click', showBgColorSelectionModal);
+            elements.lobby.bgSymbolSelectButton?.addEventListener('click', showBgSymbolSelectionModal);
+            
             document.getElementById('host-settings')?.addEventListener('click', (e) => { const btn = e.target.closest('.preset-button'); if(btn && btn.closest('.preset-group')) { handlePresetClick(e, btn.closest('.preset-group').id); } });
             
             elements.lobby.guessTypesSetting?.addEventListener('change', () => {
@@ -1504,10 +1768,21 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.titles.list?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { equipTitle(parseInt(card.dataset.titleId), true); } });
             elements.icons.list?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipIcon(parseInt(card.dataset.iconId), true); } });
             
-            // --- NEU: Anpassungsmenü-Listener ---
+            // --- NEU: Anpassungsmenü-Listener (inkl. Tabs) ---
+            elements.customize.tabsContainer?.addEventListener('click', (e) => {
+                const tab = e.target.closest('.tab-button'); 
+                if (tab && !tab.classList.contains('active')) { 
+                    document.querySelectorAll('#customization-screen .tab-button').forEach(t => t.classList.remove('active')); 
+                    elements.customize.tabContents?.forEach(c => c.classList.remove('active')); 
+                    tab.classList.add('active'); 
+                    document.getElementById(tab.dataset.tab)?.classList.add('active'); 
+                }
+            });
             elements.customize.titlesList?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { equipTitle(parseInt(card.dataset.titleId), true); } });
             elements.customize.iconsList?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipIcon(parseInt(card.dataset.iconId), true); } });
             elements.customize.colorsList?.addEventListener('click', (e) => { const card = e.target.closest('.color-card:not(.locked)'); if (card) { const colorId = card.dataset.colorId === '' ? null : parseInt(card.dataset.colorId); equipColor(colorId, true); } });
+            elements.customize.bgColorsList?.addEventListener('click', (e) => { const card = e.target.closest('.color-card:not(.locked)'); if (card) { equipBgColor(card.dataset.colorKey, true); } });
+            elements.customize.bgSymbolsList?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipBgSymbol(card.dataset.symbolKey, true); } });
             
             // Shop Screen
             elements.shop.screen?.addEventListener('click', (e) => { const buyBtn = e.target.closest('.buy-button:not([disabled])'); if (buyBtn) { handleBuyItem(buyBtn.dataset.itemId); } });
@@ -1589,7 +1864,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            elements.backgroundSelectModal.list?.addEventListener('click', (e) => { const li = e.target.closest('li[data-bg-id]'); if (li && ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) { const bgId = li.dataset.bgId; console.log(`Selected background: ${bgId}`); ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { chosenBackgroundId: bgId === 'default' ? null : bgId } })); elements.backgroundSelectModal.overlay?.classList.add('hidden'); } });
+            // NEU: Geteilte BG-Modal-Listener
+            elements.bgColorSelectModal.list?.addEventListener('click', (e) => { 
+                const li = e.target.closest('li[data-color-key]'); 
+                if (li && ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) { 
+                    const colorKey = li.dataset.colorKey;
+                    console.log(`Selected BG Color: ${colorKey}`); 
+                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { chosenBgColorId: colorKey } })); 
+                    elements.bgColorSelectModal.overlay?.classList.add('hidden'); 
+                } 
+            });
+            elements.bgSymbolSelectModal.list?.addEventListener('click', (e) => { 
+                const li = e.target.closest('li[data-symbol-key]'); 
+                if (li && ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) { 
+                    const symbolKey = li.dataset.symbolKey;
+                    console.log(`Selected BG Symbol: ${symbolKey}`); 
+                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { chosenBgSymbolId: symbolKey } })); 
+                    elements.bgSymbolSelectModal.overlay?.classList.add('hidden'); 
+                } 
+            });
+            
             elements.confirmActionModal.cancelBtn?.addEventListener('click', () => { elements.confirmActionModal.overlay?.classList.add('hidden'); currentConfirmAction = null; });
             elements.confirmActionModal.confirmBtn?.addEventListener('click', () => { if (typeof currentConfirmAction === 'function') { currentConfirmAction(); } elements.confirmActionModal.overlay?.classList.add('hidden'); currentConfirmAction = null; });
 
@@ -1624,7 +1918,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`Supabase Auth Event: ${event}`, session ? `User: ${session.user.id}` : 'No session');
                 if (event === 'SIGNED_OUT') { 
                     currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
-                    ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; // ownedColorIds hinzugefügt
+                    ownedTitleIds.clear(); ownedIconIds.clear(); ownedColorIds.clear(); ownedBgColorIds.clear(); ownedBgSymbolIds.clear(); inventory = {}; // ownedBg... hinzugefügt
                     if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
                     if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                     localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); 
@@ -1644,7 +1938,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      console.log(`No active session or invalid (Event: ${event}). Showing auth.`);
                      if (currentUser) { 
                          currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
-                         ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {}; // ownedColorIds hinzugefügt
+                         ownedTitleIds.clear(); ownedIconIds.clear(); ownedColorIds.clear(); ownedBgColorIds.clear(); ownedBgSymbolIds.clear(); inventory = {}; // ownedBg... hinzugefügt
                          if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
                          if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                          localStorage.removeItem('fakesterGame'); 
