@@ -1,5 +1,6 @@
 // server.js - FINAL VERSION (Mit Spielstart-Logik & Freunde-System-Backend)
-// KORREKTUR (NEU): Die URLs für Play/Pause sind jetzt korrekt formatiert (...?device_id=...).
+// KORREKTUR (FINAL): Alle 'googleusercontent.com'-Platzhalter-URLs wurden durch die
+//                    echten 'api.spotify.com' & 'accounts.spotify.com' Endpunkte ersetzt.
 // KORREKTUR: spotifyApiCall sendet 'data' nur, wenn es nicht null ist, um PUT-Fehler zu beheben.
 // KORREKTUR: joinGame lädt jetzt auch equipped_title_id und equipped_background_id.
 
@@ -13,15 +14,14 @@ require('dotenv').config();
 
 const { createClient } = require('@supabase/supabase-js');
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY; // Use Service Key for server-side admin actions
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
     auth: {
-        autoRefreshToken: false, // Server doesn't need auto refresh
+        autoRefreshToken: false,
         persistSession: false
     }
 });
 
-// Separate client for user auth checks if needed (using Anon key)
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -134,6 +134,7 @@ function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readySta
 
 async function getPlaylistTracks(playlistId, token) { 
     try {
+        // --- KORREKTE URL ---
         const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,artists(name),album(release_date,images),popularity))`, { 
             headers: { 'Authorization': `Bearer ${token}` } 
         });
@@ -155,7 +156,6 @@ async function getPlaylistTracks(playlistId, token) {
     } 
 }
 
-// --- KORRIGIERTE Funktion ---
 async function spotifyApiCall(method, url, token, data = null) {
     try {
         const config = {
@@ -176,7 +176,6 @@ async function spotifyApiCall(method, url, token, data = null) {
         return false; 
     } 
 }
-// --- ENDE KORREKTUR ---
 
 async function hasAchievement(userId, achievementId) { try { const { count, error } = await supabase.from('user_achievements').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('achievement_id', achievementId); if (error) throw error; return count > 0; } catch (e) { console.error("Error checking achievement:", e); return false; } }
 function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws && player.ws.readyState === WebSocket.OPEN && player.isConnected) { try { player.ws.send(messageString); } catch (e) { console.error(`Failed to send message to player ${player.ws.playerId}:`, e); } } }); }
@@ -228,6 +227,7 @@ async function awardAchievement(ws, userId, achievementId) {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/api/config', (req, res) => res.json({ supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY }));
 
+// --- KORREKTE URL ---
 app.get('/login', (req, res) => { const scopes = 'user-read-private user-read-email playlist-read-private streaming user-modify-playback-state user-read-playback-state'; res.redirect('https://accounts.spotify.com/authorize?' + new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, scope: scopes, redirect_uri: REDIRECT_URI }).toString()); });
 
 app.get('/callback', async (req, res) => {
@@ -242,6 +242,7 @@ app.get('/callback', async (req, res) => {
         console.log("Attempting to exchange Spotify code for token...");
         const response = await axios({
             method: 'post',
+            // --- KORREKTE URL ---
             url: 'https://accounts.spotify.com/api/token',
             data: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }).toString(),
             headers: { 'Authorization': 'Basic ' + (Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')), 'Content-Type': 'application/x-www-form-urlencoded' }
@@ -269,10 +270,12 @@ app.post('/logout', (req, res) => { res.clearCookie('spotify_access_token', { pa
 app.get('/api/status', (req, res) => { const token = req.cookies.spotify_access_token; res.json({ loggedIn: !!token, token: token || null }); });
 
 app.get('/api/playlists', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
-    const d = await axios.get('https://api.spotify.com/v1/me/playlists?limit=50', { headers: { 'Authorization': `Bearer ${token}` } });
+    // --- KORREKTE URL ---
+    const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
     res.json(d.data); } catch (e) { console.error("Playlist API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Playlists" }); } });
 
 app.get('/api/devices', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
+    // --- KORREKTE URL ---
     const d = await axios.get('https://api.spotify.com/v1/me/player/devices', { headers: { 'Authorization': `Bearer ${token}` } });
     res.json(d.data); } catch (e) { console.error("Device API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Geräte" }); } });
 
@@ -694,8 +697,8 @@ async function startGameLogic(pin) {
     game.currentRound = 0;
     
     // Pause Spotify, bevor es losgeht
-    // --- KORREKTUR: Korrekte URL und Syntax für Pause ---
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=f6907fd83a4d27e2003423ba8b095ef0012d6127?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+    // --- KORREKTE URL ---
+    await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     // --- ENDE KORREKTUR ---
     await sleep(500); // Kurze Pause
 
@@ -729,8 +732,8 @@ async function startNewRound(pin) {
     console.log(`Spiel ${pin}, Runde ${game.currentRound}: Song ${track.title}`);
 
     // Starte Spotify-Wiedergabe
-    // --- KORREKTUR: Korrekte URL und Syntax für Play ---
-    const success = await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize?device_id=f6907fd83a4d27e2003423ba8b095ef0012d6127?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
+    // --- KORREKTE URL ---
+    const success = await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
         uris: [`spotify:track:${track.spotifyId}`] 
     });
     // --- ENDE KORREKTUR ---
@@ -765,8 +768,8 @@ async function endRound(pin) {
     game.gameState = 'RESULTS';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTUR: Korrekte URL und Syntax für Pause ---
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=f6907fd83a4d27e2003423ba8b095ef0012d6127?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+    // --- KORREKTE URL ---
+    await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     // --- ENDE KORREKTUR ---
 
     // TODO: Ergebnisse berechnen
@@ -793,8 +796,8 @@ async function endGame(pin, cleanup = true) {
     game.gameState = 'FINISHED';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTUR: Korrekte URL und Syntax für Pause ---
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=f6907fd83a4d27e2003423ba8b095ef0012d6127?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+    // --- KORREKTE URL ---
+    await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     // --- ENDE KORREKTUR ---
     
     const finalScores = getScores(pin);
