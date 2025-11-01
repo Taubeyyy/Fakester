@@ -1,15 +1,21 @@
+// script.js - FINAL VERSION (Mit allen Features & Bugfixes)
+// NEU: Gameplay (Raten, Ready, Leaderboard), Freundes-Popups, Akzentfarben,
+// CSS-Hintergründe, Cooldowns, Level-Spots & alle Bugfixes.
+
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let currentConfirmAction = null;
 
+    // Globale Speicher für DB-Daten
     let userProfile = {};
     let userUnlockedAchievementIds = [];
-    let onlineFriends = [];
+    let onlineFriends = []; 
     let ownedTitleIds = new Set();
     let ownedIconIds = new Set();
     let ownedBackgroundIds = new Set();
     let ownedColorIds = new Set();
+    let ownedAccentColorIds = new Set(); // NEU
     let inventory = {};
 
     let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [], players: [] };
@@ -19,14 +25,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let gameCreationSettings = {
         gameType: null,
         lives: 3,
-        guessTypes: ['title', 'artist'],
+        guessTypes: [], // KORREKTUR: Standardmäßig leer
         answerType: 'freestyle'
     };
 
     let allPlaylists = [], availableDevices = [], currentPage = 1, itemsPerPage = 10;
     let wsPingInterval = null;
-    let guessDebounceTimer = null;
+    let guessDebounceTimer = null; 
+    let reactionCooldown = false; // NEU
     
+    // NEU: Für Freundes-Invites
     let pendingGameInvites = {};
     let inviteCooldowns = {};
     let activePopups = {
@@ -34,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
         friendRequest: null
     };
 
+    // --- On-Page Konsole Setup ---
     const consoleOutput = document.getElementById('console-output');
     const onPageConsole = document.getElementById('on-page-console');
     const toggleConsoleBtn = document.getElementById('toggle-console-btn');
@@ -49,7 +58,9 @@ document.addEventListener('DOMContentLoaded', () => {
     console.info = (...args) => { originalConsole.info(...args); logToPage('info', args); };
     window.onerror = (message, source, lineno, colno, error) => { const errorArgs = error ? [error] : [message, `at ${source}:${lineno}:${colno}`]; originalConsole.error('Uncaught Error:', ...errorArgs); logToPage('error', ['🚨 Uncaught Error:', ...errorArgs]); return true; };
     window.onunhandledrejection = (event) => { const reason = event.reason instanceof Error ? event.reason : new Error(JSON.stringify(event.reason)); originalConsole.error('Unhandled Promise Rejection:', reason); logToPage('error', ['🚧 Unhandled Promise Rejection:', reason]); };
+    // --- Ende On-Page Konsole ---
 
+    // --- ERWEITERTE DATENBANKEN (MEHR CONTENT) ---
     const achievementsList = [ 
         { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, 
         { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' }, 
@@ -76,7 +87,12 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 23, name: 'Level 10', description: 'Erreiche Level 10.' },
         { id: 24, name: 'Anpassungs-Künstler', description: 'Ändere dein Icon, Titel und Farbe.' },
         { id: 25, name: 'Willkommen!', description: 'Registriere dein Konto.' },
-        { id: 26, name: 'Host-Flucht', description: 'Überlebe ein Spiel, das der Host abgebrochen hat.' }
+        { id: 26, name: 'Host-Flucht', description: 'Überlebe ein Spiel, das der Host abgebrochen hat.' },
+        // --- NEUE ERFOLGE (Beispiele) ---
+        { id: 27, name: 'Schnell-Rater', description: 'Sei der Erste, der in einer Runde auf "Bereit" klickt.' },
+        { id: 28, name: 'Bling-Bling', description: 'Rüste eine Gold-Namensfarbe aus.' },
+        { id: 29, name: '???', description: '???', hidden: true }, // Versteckter Erfolg
+        { id: 30, name: 'Loyal', description: 'Spiele 50 Spiele.' }
     ];
     const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100));
     const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
@@ -134,10 +150,46 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
         { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' } 
     ];
-    const backgroundsList = [ { id: 'default', name: 'Standard', imageUrl: '', cost: 0, unlockType: 'free', type: 'background', backgroundId: 'default'}, { id: '301', name: 'Synthwave', imageUrl: '/assets/img/bg_synthwave.jpg', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '301'}, { id: '302', name: 'Konzertbühne', imageUrl: '/assets/img/bg_stage.jpg', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '302'}, { id: '303', type: 'background', name: 'Plattenladen', imageUrl: '/assets/img/bg_vinyl.jpg', cost: 700, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '303'} ];
-    const nameColorsList = [ { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' }, { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' }, { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }, { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' } ];
-    const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList];
-    window.titlesList = titlesList; window.iconsList = iconsList; window.backgroundsList = backgroundsList; window.nameColorsList = nameColorsList; window.allItems = allItems;
+    // NEU: CSS-Hintergründe statt Bilder
+    const backgroundsList = [ 
+        { id: 'default', name: 'Standard', cssClass: 'radial-only', cost: 0, unlockType: 'free', type: 'background', backgroundId: 'default'}, 
+        { id: '301', name: 'Synthwave', cssClass: 'bg-synthwave', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '301'}, 
+        { id: '302', name: 'Konzertbühne', cssClass: 'bg-concert', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '302'}, 
+        { id: '303', name: 'Plattenladen', cssClass: 'bg-vinyl', cost: 700, unlockType: 'spots', unlockValue: 700, type: 'background', backgroundId: '303'},
+        { id: '304', name: 'Sonnenuntergang', cssClass: 'bg-sunset', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '304'},
+        { id: '305', name: 'Ozean', cssClass: 'bg-ocean', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '305'},
+        { id: '306', name: 'Wald', cssClass: 'bg-forest', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '306'},
+        { id: '307', name: 'Sternenhimmel', cssClass: 'bg-stars', cost: 750, unlockType: 'spots', unlockValue: 750, type: 'background', backgroundId: '307'},
+        { id: '308', name: 'Retro-Rot', cssClass: 'bg-retro', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '308'},
+        { id: '309', name: 'Studio', cssClass: 'bg-studio', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '309'},
+        { id: '310', name: 'Party', cssClass: 'bg-party', cost: 1000, unlockType: 'spots', unlockValue: 1000, type: 'background', backgroundId: '310'}
+    ];
+    const nameColorsList = [ 
+        { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' }, 
+        { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' }, 
+        { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }, 
+        { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' } 
+    ];
+    // NEU: Akzentfarben-Liste
+    const accentColorsList = [
+        { id: 1, name: 'Fakester Grün', type: 'accent-color', colorHex: '#1DB954', unlockType: 'free', description: 'Standardfarbe' },
+        { id: 2, name: 'Spotify Grün', type: 'accent-color', colorHex: '#1ED760', unlockType: 'achievement', unlockValue: 9, description: 'Erfolg: Spotify-Junkie' },
+        { id: 3, name: 'Ozeanblau', type: 'accent-color', colorHex: '#0077be', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5' },
+        { id: 4, name: 'Königs-Lila', type: 'accent-color', colorHex: '#8a2be2', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10' },
+        { id: 5, name: 'Rubinrot', type: 'accent-color', colorHex: '#e01e5a', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15' },
+        { id: 6, name: 'Sonnengelb', type: 'accent-color', colorHex: '#ffc700', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20' },
+        { id: 7, name: 'Platin', type: 'accent-color', colorHex: '#e5e4e2', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50' },
+        { id: 601, name: 'Dynamisches Pink', type: 'accent-color', colorHex: '#FF00FF', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 602, name: 'Dynamisches Blau', type: 'accent-color', colorHex: '#00FFFF', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 603, name: 'Feuriges Orange', type: 'accent-color', colorHex: '#ff4500', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 604, name: 'Reines Gold', type: 'accent-color', colorHex: '#FFD700', cost: 2000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 605, name: 'Regenbogen', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)', cost: 5000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 606, name: 'Synthwave-Verlauf', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff00ff, #00ffff)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 607, name: 'Sonnen-Verlauf', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' }
+    ];
+    
+    const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList, ...accentColorsList];
+    window.titlesList = titlesList; window.iconsList = iconsList; window.backgroundsList = backgroundsList; window.nameColorsList = nameColorsList; window.accentColorsList = accentColorsList; window.allItems = allItems;
     const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
 
     const elements = { 
@@ -146,6 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingOverlay: document.getElementById('loading-overlay'), 
         loadingOverlayMessage: document.getElementById('loading-overlay-message'),
         countdownOverlay: document.getElementById('countdown-overlay'), 
+        appBackground: document.querySelector('.app-background'), // NEU
         auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form') }, 
         home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), profilePictureBtn: document.getElementById('profile-picture-button'), profileIcon: document.getElementById('profile-icon'), profileLevel: document.getElementById('profile-level'), profileXpFill: document.getElementById('profile-xp-fill'), levelProgressBtn: document.getElementById('level-progress-button'), profileXpText: document.getElementById('profile-xp-text'), spotsBalance: document.getElementById('header-spots-balance'), shopButton: document.getElementById('shop-button'), spotifyConnectBtn: document.getElementById('spotify-connect-button'), customizationBtn: document.getElementById('customization-button') }, 
         modeSelection: { container: document.getElementById('mode-selection-screen')?.querySelector('.mode-selection-container') }, 
@@ -162,7 +215,14 @@ document.addEventListener('DOMContentLoaded', () => {
             guessTimePresets: document.getElementById('guess-time-presets'), 
             backgroundSelectButton: null, 
         }, 
-        game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), gameContentArea: document.getElementById('game-content-area'), playerList: document.getElementById('game-player-list') }, 
+        game: { 
+            round: document.getElementById('current-round'), 
+            totalRounds: document.getElementById('total-rounds'), 
+            timerBar: document.getElementById('timer-bar'), 
+            gameContentArea: document.getElementById('game-content-area'), 
+            playerList: document.getElementById('game-player-list'),
+            reactionButtons: document.getElementById('reaction-buttons') // NEU
+        }, 
         guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), input: document.getElementById('guest-nickname-input') }, 
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), }, 
         friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), tabsContainer: document.querySelector('.friends-modal .tabs'), tabs: document.querySelectorAll('.friends-modal .tab-button'), tabContents: document.querySelectorAll('.friends-modal .tab-content') }, 
@@ -198,11 +258,12 @@ document.addEventListener('DOMContentLoaded', () => {
             titlesList: document.getElementById('customize-title-list'), 
             iconsList: document.getElementById('customize-icon-list'), 
             colorsList: document.getElementById('customize-color-list'),
-            backgroundsList: document.getElementById('owned-backgrounds-list') 
+            backgroundsList: document.getElementById('owned-backgrounds-list'),
+            accentColorsList: document.getElementById('customize-accent-color-list') // NEU
         }, 
         popups: {
-            container: null,
-            invite: document.getElementById('invite-popup'),
+            container: document.getElementById('popup-overlay-container'),
+            invite: null,
             friendRequest: null
         }
     };
@@ -221,14 +282,14 @@ document.addEventListener('DOMContentLoaded', () => {
             message: message,
             position: 'topCenter', 
             timeout: 3000,
-            progressBarColor: isError ? 'var(--danger-color)' : 'var(--primary-color)',
+            progressBarColor: isError ? 'var(--danger-color)' : 'var(--accent-color)',
             theme: 'dark',
             layout: 1,
             displayMode: 'replace',
             backgroundColor: 'var(--dark-grey)',
             messageColor: 'var(--text-color)',
             icon: isError ? 'fa-solid fa-circle-xmark' : 'fa-solid fa-circle-check',
-            iconColor: isError ? 'var(--danger-color)' : 'var(--primary-color)',
+            iconColor: isError ? 'var(--danger-color)' : 'var(--accent-color)',
         });
     }
 
@@ -271,6 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.type === 'icon') return ownedIconIds.has(item.id); 
             if (item.type === 'background') return ownedBackgroundIds.has(item.backgroundId); 
             if (item.type === 'color') return ownedColorIds.has(item.id);
+            if (item.type === 'accent-color') return ownedAccentColorIds.has(item.id); // NEU
         } 
         
         switch (item.unlockType) { 
@@ -290,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.removeItem('fakesterGame'); 
         const fallbackUsername = isGuest ? user.username : user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt'; 
         
-        const fallbackProfile = { id: user.id, username: fallbackUsername, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, spots: 0, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null }; 
+        const fallbackProfile = { id: user.id, username: fallbackUsername, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, spots: 0, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null, equipped_background_id: 'default', equipped_accent_color_id: 1 }; 
         
         if (isGuest) { 
             currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest }; 
@@ -300,6 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ownedIconIds.clear(); 
             ownedBackgroundIds.clear(); 
             ownedColorIds.clear();
+            ownedAccentColorIds.clear();
             inventory = {}; 
         } else { 
             currentUser = { id: user.id, username: fallbackUsername, isGuest }; 
@@ -309,6 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ownedIconIds.clear(); 
             ownedBackgroundIds.clear(); 
             ownedColorIds.clear();
+            ownedAccentColorIds.clear();
             inventory = {}; 
         } 
         
@@ -317,7 +381,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; 
         if(document.getElementById('profile-title')) equipTitle(userProfile.equipped_title_id || 1, false); 
         if(elements.home.profileIcon) equipIcon(userProfile.equipped_icon_id || 1, false);
-        equipColor(userProfile.equipped_color_id, false); 
+        equipColor(userProfile.equipped_color_id, false);
+        equipAccentColor(userProfile.equipped_accent_color_id || 1, false);
+        applyBackground(userProfile.equipped_background_id || 'default');
         if(elements.home.profileLevel) updatePlayerProgressDisplay(); 
         if(elements.stats.gamesPlayed) updateStatsDisplay(); 
         updateSpotsDisplay(); 
@@ -337,9 +403,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 supabase.from('user_owned_icons').select('icon_id').eq('user_id', user.id), 
                 supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', user.id),
                 supabase.from('user_owned_colors').select('color_id').eq('user_id', user.id),
+                supabase.from('user_owned_accent_colors').select('accent_color_id').eq('user_id', user.id), // NEU
                 supabase.from('user_inventory').select('item_id, quantity').eq('user_id', user.id) 
             ]).then((results) => { 
-                const [profileResult, titlesResult, iconsResult, backgroundsResult, colorsResult, inventoryResult] = results; 
+                const [profileResult, titlesResult, iconsResult, backgroundsResult, colorsResult, accentColorsResult, inventoryResult] = results; // NEU
                 if (profileResult.error || !profileResult.data) { 
                     console.error("BG Profile Error:", profileResult.error || "No data"); 
                     if (!profileResult.error?.details?.includes("0 rows")) showToast("Fehler beim Laden des Profils.", true); 
@@ -355,6 +422,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     equipTitle(userProfile.equipped_title_id || 1, false); 
                     equipIcon(userProfile.equipped_icon_id || 1, false); 
                     equipColor(userProfile.equipped_color_id, false);
+                    equipAccentColor(userProfile.equipped_accent_color_id || 1, false);
+                    applyBackground(userProfile.equipped_background_id || 'default');
                     updatePlayerProgressDisplay(); 
                     updateStatsDisplay(); 
                     updateSpotsDisplay(); 
@@ -363,9 +432,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 ownedIconIds = new Set(iconsResult.data?.map(i => i.icon_id) || []); 
                 ownedBackgroundIds = new Set(backgroundsResult.data?.map(b => b.background_id) || []);
                 ownedColorIds = new Set(colorsResult.data?.map(c => c.color_id) || []);
+                ownedAccentColorIds = new Set(accentColorsResult.data?.map(a => a.accent_color_id) || []); // NEU
                 inventory = {}; 
                 inventoryResult.data?.forEach(item => inventory[item.item_id] = item.quantity); 
-                console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, B: ownedBackgroundIds.size, C: ownedColorIds.size, Inv: Object.keys(inventory).length }); 
+                console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, B: ownedBackgroundIds.size, C: ownedColorIds.size, A: ownedAccentColorIds.size, Inv: Object.keys(inventory).length }); 
                 if(elements.titles.list) renderTitles(); 
                 if(elements.icons.list) renderIcons(); 
                 if(elements.levelProgress.list) renderLevelProgress(); 
@@ -414,7 +484,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 spots: 100, 
                 equipped_title_id: 25, 
                 equipped_icon_id: 1, 
-                equipped_color_id: null 
+                equipped_color_id: null,
+                equipped_background_id: 'default',
+                equipped_accent_color_id: 1
             } }; 
         } else { 
             username = formData.get('username'); 
@@ -543,7 +615,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 updatePlayerProgress(); 
                 break;
             case 'player-reacted':
-                displayReaction(payload.playerId, payload.reaction);
+                displayReaction(payload.playerId, payload.nickname, payload.iconId, payload.reaction);
                 break;
             case 'invite-received':
                 pendingGameInvites[payload.fromUserId] = payload.pin;
@@ -583,6 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateHostSettings(settings, currentGame.isHost);
         
+        // Lösche Invites, wenn man einer Lobby beitritt (auch per Reconnect)
         pendingGameInvites = {};
     }
     
@@ -617,13 +690,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
             const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = background && background.imageUrl ? `style="background-image: url('${background.imageUrl}')"` : '';
+            const backgroundStyle = background ? `bg-${background.cssClass}` : 'radial-only';
             
             const displayIconClass = isHost ? 'fa-crown' : iconClass;
             const hostClass = isHost ? 'host' : '';
 
             playerCard.innerHTML = `
-                <div class="player-card-background" ${backgroundStyle}></div>
+                <div class="player-card-background ${backgroundStyle}"></div>
                 <div class="player-card-content ${hostClass}">
                     <i class="player-icon fa-solid ${displayIconClass}"></i>
                     <div class="player-info">
@@ -656,10 +729,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
             const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = background && background.imageUrl ? `style="background-image: url('${background.imageUrl}')"` : '';
+            const backgroundStyle = background ? `bg-${background.cssClass}` : 'radial-only';
 
             playerCard.innerHTML = `
-                <div class="player-card-background" ${backgroundStyle}></div>
+                <div class="player-card-background ${backgroundStyle}"></div>
                 <div class="player-card-content">
                     <i class="player-icon fa-solid ${iconClass}" ${colorStyle}></i>
                     <div class="player-info">
@@ -715,7 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.lobby.playlistSelectBtn.textContent = settings.playlistName || 'Playlist auswählen';
         }
         
-        applyLobbyBackground(settings.chosenBackgroundId || 'default');
+        // Persönlicher Hintergrund wird jetzt in initializeApp/equipBackground geladen
 
         updatePresets(elements.lobby.songCountPresets, settings.songCount, 'song-count');
         updatePresets(elements.lobby.guessTimePresets, settings.guessTime, 'guess-time');
@@ -746,9 +819,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         sortedAchievements.forEach(ach => { 
             const isUnlocked = userUnlockedAchievementIds.includes(ach.id);
+            const isHidden = ach.hidden && !isUnlocked;
+            
             const card = document.createElement('div');
             card.className = 'achievement-card';
             card.classList.toggle('unlocked', isUnlocked);
+            card.classList.toggle('hidden-achievement', isHidden);
             
             const reward = allItems.find(item => item.unlockType === 'achievement' && item.unlockValue === ach.id);
             let rewardText = '<span class="reward">+50 🎵</span>'; 
@@ -757,9 +833,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             card.innerHTML = `
-                <h3>${ach.name}</h3>
-                <p>${ach.description}</p>
-                ${isUnlocked ? `<span class="reward">Freigeschaltet!</span>` : rewardText}
+                <h3>${isHidden ? '???' : ach.name}</h3>
+                <p>${isHidden ? '???' : ach.description}</p>
+                ${isUnlocked ? `<span class="reward">Freigeschaltet!</span>` : (isHidden ? '' : rewardText)}
             `;
             elements.achievements.grid.appendChild(card);
         });
@@ -889,6 +965,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCustomIcons();
         renderCustomColors();
         renderCustomBackgrounds();
+        renderCustomAccentColors(); // NEU
     }
     
     function renderCustomTitles() {
@@ -1044,36 +1121,139 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // NEU: Logik für Akzentfarben
+    async function equipAccentColor(colorId, saveToDb = true) {
+        if (currentUser.isGuest) return;
+        
+        const color = accentColorsList.find(c => c.id === colorId);
+        if (!color) return;
+
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        if (!isItemUnlocked(color, currentLevel)) {
+            showToast("Du hast diese Akzentfarbe noch nicht freigeschaltet.", true);
+            return;
+        }
+
+        userProfile.equipped_accent_color_id = colorId;
+        
+        // Farbe global anwenden
+        document.documentElement.style.setProperty('--accent-color', color.colorHex);
+        if (color.colorHex.includes('linear-gradient')) {
+             document.documentElement.style.setProperty('--accent-color-faded', color.colorHex.replace('linear-gradient(90deg, ', 'linear-gradient(90deg, #ffffff20, '));
+        } else {
+             document.documentElement.style.setProperty('--accent-color-faded', color.colorHex + '20');
+        }
+
+        renderCustomAccentColors(); // UI im Menü aktualisieren
+
+        if (saveToDb && supabase) {
+            const { error } = await supabase.from('profiles').update({ equipped_accent_color_id: colorId }).eq('id', currentUser.id);
+            if (error) {
+                console.error("Fehler beim Speichern der Akzentfarbe:", error);
+                showToast("Fehler beim Speichern der Akzentfarbe.", true);
+            } else {
+                showToast(`Akzentfarbe "${color.name}" ausgerüstet!`, false);
+            }
+        }
+    }
+
+    function renderCustomAccentColors() {
+        const container = elements.customize.accentColorsList;
+        if (!container || currentUser.isGuest) return;
+        container.innerHTML = '';
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+
+        const sortedColors = [...accentColorsList].sort((a, b) => {
+            const aUnlocked = isItemUnlocked(a, currentLevel);
+            const bUnlocked = isItemUnlocked(b, currentLevel);
+            if (aUnlocked && !bUnlocked) return -1;
+            if (!aUnlocked && bUnlocked) return 1;
+            return a.id - b.id;
+        });
+
+        sortedColors.forEach(color => {
+            const isUnlocked = isItemUnlocked(color, currentLevel);
+            const isEquipped = userProfile.equipped_accent_color_id === color.id;
+
+            const card = document.createElement('div');
+            card.className = 'color-card';
+            card.classList.toggle('locked', !isUnlocked);
+            card.classList.toggle('equipped', isEquipped);
+            card.dataset.colorId = color.id;
+
+            card.innerHTML = `
+                <div class="color-preview" style="background: ${color.colorHex}">
+                </div>
+                <span class="color-name">${color.name}</span>
+                <span class="color-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Klicken') : getUnlockDescription(color)}</span>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    // NEU: Logik für persönliche CSS-Hintergründe
+    async function equipBackground(backgroundId, saveToDb = true) {
+        if (currentUser.isGuest) return;
+        
+        const background = backgroundsList.find(b => b.backgroundId === backgroundId);
+        if (!background) return;
+
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
+        if (!isItemUnlocked(background, currentLevel)) {
+            showToast("Du hast diesen Hintergrund noch nicht freigeschaltet.", true);
+            return;
+        }
+
+        userProfile.equipped_background_id = backgroundId;
+        applyBackground(backgroundId); // Global anwenden
+        renderCustomBackgrounds(); // UI im Menü aktualisieren
+
+        if (saveToDb && supabase) {
+            const { error } = await supabase.from('profiles').update({ equipped_background_id: backgroundId }).eq('id', currentUser.id);
+            if (error) {
+                console.error("Fehler beim Speichern des Hintergrunds:", error);
+                showToast("Fehler beim Speichern des Hintergrunds.", true);
+            } else {
+                showToast(`Hintergrund "${background.name}" ausgerüstet!`, false);
+            }
+        }
+    }
+
     function renderCustomBackgrounds() {
         const container = elements.customize.backgroundsList;
         if (currentUser.isGuest || !container) return;
         container.innerHTML = '';
+        const currentLevel = getLevelForXp(userProfile.xp || 0);
         
-        const defaultLi = document.createElement('li');
-        defaultLi.dataset.bgId = 'default';
-        defaultLi.innerHTML = `<button class="button-select">Standard</button>`;
-        container.appendChild(defaultLi);
-
         backgroundsList.forEach(bg => {
-            if (bg.id !== 'default' && ownedBackgroundIds.has(bg.backgroundId)) {
-                const li = document.createElement('li');
-                li.dataset.bgId = bg.backgroundId;
-                li.innerHTML = `<button class="button-select">${bg.name}</button>`;
-                container.appendChild(li);
-            }
+            const isUnlocked = isItemUnlocked(bg, currentLevel);
+            const isEquipped = userProfile.equipped_background_id === bg.backgroundId;
+            
+            const li = document.createElement('li');
+            li.dataset.bgId = bg.backgroundId;
+            li.innerHTML = `<button class="button-select ${isEquipped ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}">
+                                ${bg.name}
+                                ${!isUnlocked ? `<span style="font-size: 0.8rem; color: var(--text-muted-color); margin-left: auto;">(${getUnlockDescription(bg)})</span>` : ''}
+                            </button>`;
+            container.appendChild(li);
         });
     }
 
-    function applyLobbyBackground(backgroundId) {
-        const lobbyScreen = document.getElementById('lobby-screen');
-        if (!lobbyScreen) return;
-        const bg = backgroundsList.find(b => b.backgroundId === backgroundId);
-        if (bg && bg.imageUrl) {
-            lobbyScreen.style.backgroundImage = `url('${bg.imageUrl}')`;
-        } else {
-            lobbyScreen.style.backgroundImage = 'none';
+    function applyBackground(backgroundId) {
+        const bg = backgroundsList.find(b => b.backgroundId === backgroundId) || backgroundsList[0];
+        
+        if (elements.appBackground) {
+            // Entferne alle alten bg-Klassen
+            elements.appBackground.className = 'app-background';
+            // Füge die neue Klasse hinzu
+            elements.appBackground.classList.add(bg.cssClass || 'radial-only');
         }
     }
+
+    // KORREKTUR: Funktion entfernt, da Host-Hintergrund nicht mehr geteilt wird
+    // function applyLobbyBackground(backgroundId) { ... }
+    
+    // --- ENDE: "Anpassen"-Menü Funktionen ---
 
     function renderLevelProgress() {
         if (!elements.levelProgress.list || currentUser.isGuest) return;
@@ -1091,15 +1271,17 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const levelTitles = titlesList.filter(t => t.unlockType === 'level' && t.unlockValue === level);
             const levelIcons = iconsList.filter(i => i.unlockType === 'level' && i.unlockValue === level);
-            const rewards = [...levelTitles, ...levelIcons];
+            const levelAccents = accentColorsList.filter(a => a.unlockType === 'level' && a.unlockValue === level); // NEU
+            const rewards = [...levelTitles, ...levelIcons, ...levelAccents];
 
             let rewardsHtml = '';
             
+            // NEU: Spot-Belohnungen alle 5 Level
             if (level % 5 === 0) {
                 const spotAmount = 50 + (Math.floor(level / 5) * 25);
                 rewardsHtml += `
                     <div class="reward-item">
-                        <i class="fa-solid fa-coins"></i>
+                        <i class="fa-solid fa-coins" style="color: #FFD700;"></i>
                         <span>${spotAmount} 🎵</span>
                     </div>
                 `;
@@ -1107,9 +1289,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (rewards.length > 0) {
                 rewards.forEach(reward => {
+                    let icon = 'fa-ticket';
+                    if (reward.type === 'icon') icon = reward.iconClass;
+                    else if (reward.type === 'accent-color') icon = 'fa-palette';
+                    
                     rewardsHtml += `
                         <div class="reward-item">
-                            <i class="fa-solid ${reward.type === 'title' ? 'fa-ticket' : reward.iconClass}"></i>
+                            <i class="fa-solid ${icon}"></i>
                             <span>${reward.name || reward.description}</span>
                         </div>
                     `;
@@ -1214,7 +1400,7 @@ document.addEventListener('DOMContentLoaded', () => {
             backgroundsListEl.innerHTML = '';
             colorsListEl.innerHTML = '';
 
-            const allShopItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList]
+            const allShopItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList, ...accentColorsList]
                 .filter(item => item.unlockType === 'spots');
 
             allShopItems.forEach(item => {
@@ -1226,6 +1412,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (item.type === 'icon') ownedIconIds.add(item.id);
                     else if (item.type === 'background') ownedBackgroundIds.add(item.backgroundId);
                     else if (item.type === 'color') ownedColorIds.add(item.id);
+                    else if (item.type === 'accent-color') ownedAccentColorIds.add(item.id); // NEU
                 }
 
                 if (item.type === 'title') {
@@ -1237,6 +1424,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (item.type === 'color') {
                     colorsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
                 }
+                 // TODO: Akzentfarben zum Shop hinzufügen
             });
 
         } catch (error) {
@@ -1256,9 +1444,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (item.type === 'icon') {
             previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
         } else if (item.type === 'background') {
-            previewHtml = `<div class="item-preview-background" style="background-image: url('${item.imageUrl}')"></div>`;
+            // NEU: CSS-Hintergrund-Vorschau
+            previewHtml = `<div class="item-preview-background ${item.cssClass || 'radial-only'}"></div>`;
         } else if (item.type === 'color') {
             previewHtml = `<div class="item-preview-color" style="background-color: ${item.colorHex}"><i class="fa-solid fa-font"></i></div>`;
+        } else if (item.type === 'accent-color') {
+             previewHtml = `<div class="item-preview-color" style="background: ${item.colorHex}"></div>`;
         } else {
             previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-ticket"></i></div>`;
         }
@@ -1268,9 +1459,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         el.innerHTML = `
             ${previewHtml}
-            <div class="item-name">${item.name}</div>
-            <div class="item-description">${item.description || getUnlockDescription(item)}</div>
-            <div class="item-cost">${item.cost} 🎵</div>
+            <div class="shop-item-info">
+                <div class="item-name">${item.name}</div>
+                <div class="item-description">${item.description || getUnlockDescription(item)}</div>
+                <div class="item-cost">${item.cost} 🎵</div>
+            </div>
             <button class="button-primary buy-button" data-item-id="${item.id}" ${isOwned || !canAfford ? 'disabled' : ''}>
                 ${isOwned ? 'Besitzt du' : 'Kaufen'}
             </button>
@@ -1314,6 +1507,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (result.itemType === 'icon') ownedIconIds.add(item.id);
                     else if (result.itemType === 'background') ownedBackgroundIds.add(item.backgroundId);
                     else if (result.itemType === 'color') ownedColorIds.add(item.id);
+                    else if (result.itemType === 'accent-color') ownedAccentColorIds.add(item.id); // NEU
                     loadShopItems(); 
                     
                     awardClientSideAchievement(21);
@@ -1327,17 +1521,24 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
     
-    function displayReaction(playerId, reaction) {
-        const playerCard = document.querySelector(
-            `.player-card[data-player-id="${playerId}"], .game-player-card[data-player-id="${playerId}"]`
-        );
-        if (playerCard) {
-            const popup = document.createElement('div');
-            popup.className = 'player-reaction-popup';
-            popup.textContent = reaction;
-            playerCard.appendChild(popup);
-            setTimeout(() => popup.remove(), 1500);
-        }
+    // NEU: Clean Reaction Popup
+    function displayReaction(playerId, nickname, iconId, reaction) {
+        const icon = iconsList.find(i => i.id === iconId) || iconsList[0];
+        const iconClass = icon ? icon.iconClass : 'fa-user';
+
+        const toast = document.createElement('div');
+        toast.className = 'reaction-toast';
+        toast.innerHTML = `
+            <i class="icon fa-solid ${iconClass}"></i>
+            <span class="name">${nickname}</span>
+            <span class="reaction">${reaction}</span>
+        `;
+        
+        elements.popups.container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.remove();
+        }, 2000);
     }
     
     function showCountdown(number) { 
@@ -1690,8 +1891,8 @@ document.addEventListener('DOMContentLoaded', () => {
         popup.innerHTML = `
             <p><span id="invite-sender-name">${from}</span> lädt dich ein!</p>
             <div class="invite-actions">
-                <button id="accept-invite-button" class="button-primary button-small">Annehmen</button>
-                <button id="decline-invite-button" class="button-secondary button-small">Ablehnen</button>
+                <button class="accept-invite-button button-primary button-small">Annehmen</button>
+                <button class="decline-invite-button button-secondary button-small">Ablehnen</button>
             </div>`;
             
         elements.popups.container.appendChild(popup);
@@ -1699,19 +1900,23 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const closePopup = () => {
             popup.remove();
-            delete pendingGameInvites[fromUserId];
             activePopups.invite = null;
+            // "Beitreten"-Button in Freundesliste anzeigen
             renderFriendsList(onlineFriends);
         };
         
-        popup.querySelector('#accept-invite-button').onclick = () => {
+        popup.querySelector('.accept-invite-button').onclick = () => {
             if(!currentUser){ showToast("Anmelden/Gast zuerst.", true); return; } 
             if(!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } 
             setLoading(true, "Trete Lobby bei..."); 
             ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pin, user: currentUser } })); 
+            delete pendingGameInvites[fromUserId];
             closePopup();
         };
-        popup.querySelector('#decline-invite-button').onclick = closePopup;
+        popup.querySelector('.decline-invite-button').onclick = () => {
+            delete pendingGameInvites[fromUserId];
+            closePopup();
+        };
         
         setTimeout(closePopup, 10000);
     }
@@ -1726,8 +1931,8 @@ document.addEventListener('DOMContentLoaded', () => {
         popup.innerHTML = `
             <p><span>${from}</span> hat dir eine Freundschaftsanfrage gesendet!</p>
             <div class="invite-actions">
-                <button class="button-primary button-small">Annehmen</button>
-                <button class="button-secondary button-small">Ablehnen</button>
+                <button class="button-primary button-small accept-friend-request">Annehmen</button>
+                <button class="button-secondary button-small decline-friend-request">Ablehnen</button>
             </div>`;
             
         elements.popups.container.appendChild(popup);
@@ -1738,13 +1943,13 @@ document.addEventListener('DOMContentLoaded', () => {
             activePopups.friendRequest = null;
         };
         
-        popup.querySelector('.button-primary').onclick = () => {
+        popup.querySelector('.accept-friend-request').onclick = () => {
             if (ws.socket?.readyState === WebSocket.OPEN) {
                 ws.socket.send(JSON.stringify({ type: 'accept-friend-request', payload: { senderId: senderId } }));
             }
             closePopup();
         };
-        popup.querySelector('.button-secondary').onclick = () => {
+        popup.querySelector('.decline-friend-request').onclick = () => {
             if (ws.socket?.readyState === WebSocket.OPEN) {
                 ws.socket.send(JSON.stringify({ type: 'decline-friend-request', payload: { friendId: senderId } }));
             }
@@ -1752,16 +1957,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         
         setTimeout(closePopup, 10000);
-    }
-    
-    function createPopupContainers() {
-        if (document.getElementById('popup-overlay-container')) return;
-        
-        const container = document.createElement('div');
-        container.className = 'popup-overlay';
-        container.id = 'popup-overlay-container';
-        document.body.appendChild(container);
-        elements.popups.container = container;
     }
     
     function handlePresetClick(e, groupId) { 
@@ -1778,6 +1973,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (value === 'custom') {
             if (type === 'song-count') openCustomValueModal('song-count', 'Anzahl Songs', 1, 999);
             else if (type === 'guess-time') openCustomValueModal('guess-time', 'Ratezeit (Sek.)', 10, 120);
+            else if (type === 'lives') openCustomValueModal('lives', 'Leben (1-10)', 1, 10);
             return;
         }
 
@@ -1816,15 +2012,31 @@ document.addEventListener('DOMContentLoaded', () => {
         try { 
             console.log("Adding all application event listeners...");
             
-            createPopupContainers();
-
             document.body.addEventListener('click', (e) => {
                 const btn = e.target.closest('.reaction-btn');
-                if (btn && ws.socket?.readyState === WebSocket.OPEN) {
+                if (btn && ws.socket?.readyState === WebSocket.OPEN && !reactionCooldown) {
+                    
+                    reactionCooldown = true;
+                    elements.game.reactionButtons.classList.add('cooldown');
+                    
                     ws.socket.send(JSON.stringify({
                         type: 'send-reaction',
                         payload: { reaction: btn.dataset.reaction }
                     }));
+                    
+                    setTimeout(() => {
+                        reactionCooldown = false;
+                        if (elements.game.reactionButtons) {
+                            elements.game.reactionButtons.classList.remove('cooldown');
+                        }
+                    }, 2000); // 2 Sekunden Cooldown
+                }
+                
+                // NEU: Hilfe-Icon Klicks
+                const helpIcon = e.target.closest('.help-icon');
+                if (helpIcon && helpIcon.title) {
+                    e.preventDefault();
+                    showToast(helpIcon.title, false);
                 }
             });
             
@@ -1861,7 +2073,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectedGameMode=mb.dataset.mode; 
                     console.log(`Mode: ${selectedGameMode}`); 
                     
-                    gameCreationSettings = { gameType: null, lives: 3, guessTypes: ['title', 'artist'], answerType: 'freestyle' };
+                    gameCreationSettings = { gameType: null, lives: 3, guessTypes: [], answerType: 'freestyle' };
                     
                     if (elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=true; 
                     if (elements.gameTypeScreen.pointsBtn) elements.gameTypeScreen.pointsBtn.classList.remove('active'); 
@@ -2006,18 +2218,22 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.customize.titlesList?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { equipTitle(parseInt(card.dataset.titleId), true); } });
             elements.customize.iconsList?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipIcon(parseInt(card.dataset.iconId), true); } });
             elements.customize.colorsList?.addEventListener('click', (e) => { const card = e.target.closest('.color-card:not(.locked)'); if (card) { const colorId = card.dataset.colorId === '' ? null : parseInt(card.dataset.colorId); equipColor(colorId, true); } });
+            
+            // NEU: Listener für Akzentfarben
+            elements.customize.accentColorsList?.addEventListener('click', (e) => { 
+                const card = e.target.closest('.color-card:not(.locked)'); 
+                if (card) { 
+                    const colorId = card.dataset.colorId === '' ? null : parseInt(card.dataset.colorId); 
+                    equipAccentColor(colorId, true); 
+                } 
+            });
+            
             elements.customize.backgroundsList?.addEventListener('click', (e) => {
                 const li = e.target.closest('li[data-bg-id]');
-                if (li) {
+                const btn = e.target.closest('button:not(.locked)');
+                if (li && btn) {
                     const bgId = li.dataset.bgId;
-                    applyLobbyBackground(bgId); 
-                    
-                    if (ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) {
-                        ws.socket.send(JSON.stringify({ type: 'update-settings', payload: { chosenBackgroundId: bgId === 'default' ? null : bgId } }));
-                        showToast("Lobby-Hintergrund geändert!", false);
-                    } else if (currentGame.isHost) {
-                        showToast("Keine Serververbindung.", true);
-                    }
+                    equipBackground(bgId, true); // NEU: Speichert den persönlichen Hintergrund
                 }
             });
 
@@ -2083,6 +2299,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         delete pendingGameInvites[friendId];
                     } else {
                         showToast("Einladung ist abgelaufen oder ungültig.", true);
+                        delete pendingGameInvites[friendId];
+                        renderFriendsList(onlineFriends);
                     }
                 }
             });
@@ -2102,9 +2320,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     
                     setTimeout(() => {
                         delete inviteCooldowns[friendId];
-                        btn.disabled = false;
-                        btn.innerHTML = onlineFriends.find(f => f.id === friendId)?.username || 'Freund';
-                    }, 10000);
+                        const friend = onlineFriends.find(f => f.id === friendId);
+                        if (btn) { // Sicherstellen, dass der Button noch existiert
+                            btn.disabled = false;
+                            btn.innerHTML = friend ? friend.username : 'Freund';
+                        }
+                    }, 10000); // 10 Sekunden Cooldown
                 }
             });
             
@@ -2220,7 +2441,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log(`Supabase Auth Event: ${event}`, session ? `User: ${session.user.id}` : 'No session');
                 if (event === 'SIGNED_OUT') { 
                     currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
-                    ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {};
+                    ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); ownedAccentColorIds.clear(); inventory = {};
                     if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
                     if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                     localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); 
@@ -2240,7 +2461,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      console.log(`No active session or invalid (Event: ${event}). Showing auth.`);
                      if (currentUser) { 
                          currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
-                         ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); inventory = {};
+                         ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); ownedAccentColorIds.clear(); inventory = {};
                          if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
                          if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                          localStorage.removeItem('fakesterGame'); 

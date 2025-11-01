@@ -150,11 +150,11 @@
                     <label>Was soll geraten werden?</label>
                     <div class="guess-types-container">
                         <label class="checkbox-label">
-                            <input type="checkbox" name="guess-type" value="title" checked>
+                            <input type="checkbox" name="guess-type" value="title">
                             <span class="checkbox-custom"></span> Titel
                         </label>
                         <label class="checkbox-label">
-                            <input type="checkbox" name="guess-type" value="artist" checked>
+                            <input type="checkbox" name="guess-type" value="artist">
                             <span class="checkbox-custom"></span> Künstler
                         </label>
                         <label class="checkbox-label">
@@ -348,6 +348,7 @@
                 <button class="tab-button" data-tab="tab-customize-icons">Icons</button>
                 <button class="tab-button" data-tab="tab-customize-colors">Farben</button>
                 <button class="tab-button" data-tab="tab-customize-backgrounds">Hintergründe</button>
+                <button class="tab-button" data-tab="tab-customize-accent-colors">Akzente</button>
             </div>
             
             <div id="tab-customize-titles" class="tab-content active" style="margin-top: 20px;">
@@ -373,6 +374,12 @@
                  <ul id="owned-backgrounds-list" class="selection-list" style="margin-top: 15px;">
                     <p>Lade Hintergründe...</p>
                 </ul>
+            </div>
+            
+            <div id="tab-customize-accent-colors" class="tab-content" style="margin-top: 20px;">
+                 <div id="customize-accent-color-list" class="color-grid">
+                    <p>Lade Akzentfarben...</p>
+                </div>
             </div>
         </div>
     </main>
@@ -553,13 +560,8 @@
         </div>
     </div>
     
-    <div id="invite-popup" class="invite-popup hidden">
-        <p><span id="invite-sender-name">Ein Freund</span> lädt dich ein!</p>
-        <div class="invite-actions">
-            <button id="accept-invite-button" class="button-primary button-small">Annehmen</button>
-            <button id="decline-invite-button" class="button-secondary button-small">Ablehnen</button>
+    <div class="popup-overlay" id="popup-overlay-container">
         </div>
-    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     

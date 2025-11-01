@@ -2,9 +2,12 @@
 // KORREKTUR (FINAL): Alle 'googleusercontent.com'-Platzhalter-URLs wurden durch die
 //                    echten 'api.spotify.com' & 'accounts.spotify.com' Endpunkte ersetzt.
 // KORREKTUR: spotifyApiCall sendet 'data' nur, wenn es nicht null ist, um PUT-Fehler zu beheben.
-// KORREKTUR: joinGame lädt jetzt auch equipped_title_id und equipped_background_id.
-// NEU: Host-Disconnect-Logik vergibt 10% Trostpreis-Spots.
+// NEU: Host-Disconnect-Logik vergibt 10% Trostpreis-Spots + "Überlebender"-Achievement + Pausiert Musik.
 // NEU: endGame-Logik überarbeitet für 20% Score-Spots + Platzierungs-Bonus.
+// NEU: Server-Logik für 'submit-guess' und 'player-ready' hinzugefügt.
+// NEU: Reaktionen sind kostenlos und senden mehr Spieler-Daten für Pop-up.
+// NEU: Persönliche Hintergründe (Host ändert sie nicht mehr für alle).
+// NEU: Vorbereitet für Akzentfarben (lädt equipped_accent_color_id).
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -97,10 +100,10 @@ const shopItems = [
     { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 500, unlockType: 'spots', description: 'Still und leise.' },
     { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Feurig!' },
 
-    // Hintergründe
-    { id: 301, type: 'background', name: 'Synthwave', imageUrl: '/assets/img/bg_synthwave.jpg', cost: 500, unlockType: 'spots', description: 'Retro-Vibes.', backgroundId: '301' },
-    { id: 302, type: 'background', name: 'Konzertbühne', imageUrl: '/assets/img/bg_stage.jpg', cost: 600, unlockType: 'spots', description: 'Fühl dich wie ein Star.', backgroundId: '302' },
-    { id: 303, type: 'background', name: 'Plattenladen', imageUrl: '/assets/img/bg_vinyl.jpg', cost: 700, unlockType: 'spots', description: 'Klassisches Stöbern.', backgroundId: '303' },
+    // Hintergründe (NEU: mit cssClass statt imageUrl)
+    { id: 301, type: 'background', name: 'Synthwave', cssClass: 'bg-synthwave', cost: 500, unlockType: 'spots', description: 'Retro-Vibes.', backgroundId: '301' },
+    { id: 302, type: 'background', name: 'Konzertbühne', cssClass: 'bg-concert', cost: 600, unlockType: 'spots', description: 'Fühl dich wie ein Star.', backgroundId: '302' },
+    { id: 303, type: 'background', name: 'Plattenladen', cssClass: 'bg-vinyl', cost: 700, unlockType: 'spots', description: 'Klassisches Stöbern.', backgroundId: '303' },
     
     // Farben
     { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' },
@@ -112,6 +115,35 @@ const shopItems = [
 
 // --- Helper Functions ---
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// --- NEU: Levenshtein-Distanz-Funktion für Tippfehler ---
+function getLevenshteinDistance(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = Array(a.length + 1).fill(null).map(() => Array(b.length + 1).fill(null));
+    for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+    for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1,      // Deletion
+                matrix[i][j - 1] + 1,      // Insertion
+                matrix[i - 1][j - 1] + cost // Substitution
+            );
+        }
+    }
+    return matrix[a.length][b.length];
+}
+
+// --- NEU: Normalisierungsfunktion für Antworten ---
+function normalizeAnswer(str) {
+    return str
+        .toLowerCase()
+        .replace(/[^a-z0-9äöüß]/g, '') // Entfernt alles außer Buchstaben, Zahlen und Umlaute
+        .replace(/\(.*\)/g, '')         // Entfernt Klammern (z.B. "Radio Mix")
+        .trim();
+}
 
 function getScores(pin) { 
     const game = games[pin]; 
@@ -127,7 +159,9 @@ function getScores(pin) {
             iconId: p.iconId || 1,
             colorId: p.colorId || null,
             titleId: p.titleId || 1,
-            backgroundId: p.backgroundId || null
+            backgroundId: p.backgroundId || null,
+            accentColorId: p.accentColorId || null, // NEU: Akzentfarbe
+            isReady: p.isReady || false
         }))
         .filter(p => p.id)
         .sort((a, b) => b.score - a.score); 
@@ -185,7 +219,7 @@ function broadcastLobbyUpdate(pin) {
      const payload = { 
          pin, 
          hostId: game.hostId, 
-         players: getScores(pin),
+         players: getScores(pin), // Sendet jetzt 'isReady' & 'accentColorId' mit
          gameMode: game.gameMode,
          settings: {
              songCount: game.settings.songCount, 
@@ -194,7 +228,7 @@ function broadcastLobbyUpdate(pin) {
              lives: game.settings.lives, 
              gameType: game.settings.gameType,
              guessTypes: game.settings.guessTypes,
-             chosenBackgroundId: game.settings.chosenBackgroundId,
+             // chosenBackgroundId: ist jetzt entfernt
              deviceName: game.settings.deviceName, 
              playlistName: game.settings.playlistName,
              deviceId: game.settings.deviceId,
@@ -414,7 +448,6 @@ async function handleWebSocketMessage(ws, data) {
         }
         if (type === 'reconnect') { /* ... handle reconnect ... */ return; }
 
-        // --- NEU: Freunde-System Nachrichten ---
         if (type === 'load-friends') {
             await handleLoadFriends(ws, playerId);
             return;
@@ -435,28 +468,26 @@ async function handleWebSocketMessage(ws, data) {
             await handleInviteFriend(ws, playerId, payload);
             return;
         }
-        // --- Ende Freunde-System ---
 
+        // --- NEU: Reaktionen sind kostenlos ---
         if (type === 'send-reaction') { 
             if (!game || !game.players[playerId]) return; 
-            const reactionCost = 1; 
             const reactionType = payload.reaction; 
-            const senderNickname = game.players[playerId].nickname; 
-            if (reactionCost > 0 && !playerId.startsWith('guest-')) { 
-                supabase.rpc('deduct_spots', { p_user_id: playerId, p_amount: reactionCost }).then(({ data: success, error }) => { 
-                    if (error || !success) { 
-                        console.error(`Failed to deduct spots for reaction from ${playerId}:`, error || 'RPC failed'); 
-                        showToastToPlayer(ws, "Reaktion fehlgeschlagen (Spots?).", true); 
-                    } else { 
-                        broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); 
-                        showToastToPlayer(ws, `-${reactionCost} Spot für Reaktion.`); 
-                    } 
-                }); 
-            } else { 
-                broadcastToLobby(pin, { type: 'player-reacted', payload: { playerId, nickname: senderNickname, reaction: reactionType } }); 
-            } 
+            const sender = game.players[playerId];
+            
+            // Sende volle Info für das neue Pop-up
+            broadcastToLobby(pin, { 
+                type: 'player-reacted', 
+                payload: { 
+                    playerId: sender.id, 
+                    nickname: sender.nickname, 
+                    iconId: sender.iconId,
+                    reaction: reactionType 
+                } 
+            }); 
             return; 
         }
+        // --- ENDE NEU ---
 
         if (!game && !['create-game', 'join-game'].includes(type)) { console.warn(`Action ${type} requires game (Pin: ${pin}).`); return; }
         if (game && !game.players[playerId] && !['create-game', 'join-game'].includes(type)) { console.warn(`Player ${playerId} not in game ${pin} for action ${type}.`); return; }
@@ -478,11 +509,11 @@ async function handleWebSocketMessage(ws, data) {
                         settings: {
                             songCount: 10,
                             guessTime: 30,
-                            answerType: payload.answerType || 'freestyle', // NEU
+                            answerType: payload.answerType || 'freestyle',
                             lives: payload.lives || 3,
                             gameType: payload.gameType || 'points',
-                            guessTypes: payload.guessTypes || ['title', 'artist'], // NEU
-                            chosenBackgroundId: null,
+                            guessTypes: payload.guessTypes || ['title', 'artist'],
+                            // chosenBackgroundId: entfernt
                             deviceName: null,
                             playlistName: null,
                             playlistId: null,
@@ -530,12 +561,16 @@ async function handleWebSocketMessage(ws, data) {
                     return showToastToPlayer(ws, "Nur der Host kann Einstellungen ändern.", true);
                 }
                 
+                // NEU: Verhindere, dass chosenBackgroundId gesetzt wird
+                if (payload.chosenBackgroundId) {
+                    delete payload.chosenBackgroundId;
+                }
+                
                 console.log(`Host updated settings for ${pin}:`, payload);
                 Object.assign(game.settings, payload);
                 broadcastLobbyUpdate(pin);
                 break;
 
-            // --- NEU: Spielstart-Logik ---
             case 'start-game':
                 if (!game || ws.playerId !== game.hostId) {
                     return showToastToPlayer(ws, "Nur der Host kann das Spiel starten.", true);
@@ -544,23 +579,35 @@ async function handleWebSocketMessage(ws, data) {
                      return showToastToPlayer(ws, "Wähle zuerst Playlist und Wiedergabegerät.", true);
                 }
                 if (game.gameState !== 'LOBBY') {
-                    // Verhindert doppeltes Starten
                     showToastToPlayer(ws, "Spiel startet bereits...", true);
                     return;
                 }
                 
-                // Starte den Spielstart-Prozess (asynchron, blockiert nicht den Handler)
                 startGameLogic(pin).catch(err => {
                     console.error(`Fehler beim Starten von Spiel ${pin}:`, err);
                     showToastToPlayer(ws, `Spielstart fehlgeschlagen: ${err.message}`, true);
-                    game.gameState = 'LOBBY'; // Zurücksetzen, damit man es erneut versuchen kann
+                    game.gameState = 'LOBBY'; 
                 });
                 break;
-            // --- ENDE Spielstart-Logik ---
 
-            case 'live-guess-update': /* ... logic ... */ break;
-            case 'submit-guess': /* ... logic ... */ break;
-            case 'player-ready': /* ... logic ... */ break;
+            case 'submit-guess':
+                if (game && game.players[playerId] && game.gameState === 'PLAYING') {
+                    game.players[playerId].currentGuess = payload.guess;
+                }
+                break;
+            
+            case 'player-ready':
+                if (game && game.players[playerId] && game.gameState === 'PLAYING') {
+                    game.players[playerId].isReady = true;
+                    broadcastLobbyUpdate(pin); 
+                    
+                    const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
+                    if (allReady) {
+                        console.log(`Alle Spieler in ${pin} sind bereit. Beende Runde früher.`);
+                        endRound(pin); 
+                    }
+                }
+                break;
             
             case 'leave-game':
                 handlePlayerDisconnect(ws);
@@ -599,12 +646,17 @@ async function handlePlayerDisconnect(ws) {
     if (playerId === game.hostId && game.gameState !== 'FINISHED') {
         console.log(`Host ${playerId} disconnected from game ${pin}. Ending game.`);
         
+        // --- NEU: Musik stoppen! ---
+        if (game.gameState === 'PLAYING' || game.gameState === 'RESULTS') {
+            await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+        }
+        
         const finalScores = getScores(pin);
         broadcastToLobby(pin, { 
             type: 'game-over', 
             payload: { 
                 scores: finalScores,
-                message: "Der Host hat das Spiel verlassen." // Extra-Info für den Client
+                message: "Der Host hat das Spiel verlassen." 
             } 
         });
 
@@ -613,15 +665,13 @@ async function handlePlayerDisconnect(ws) {
         const gamePlayers = Object.values(game.players);
         
         for (const p of gamePlayers) {
-            // Nur verbundene Spieler, die nicht der Host und keine Gäste sind
             if (p.isGuest || !p.id || p.id === game.hostId || !p.isConnected) continue;
             
             const score = p.score || 0;
-            const spotBonus = Math.max(1, Math.floor(score * 0.10)); // 10% Trostpreis-Spots
-            const xpBonus = Math.max(5, Math.floor(score / 20)); // Kleiner Trostpreis-XP (1/20)
+            const spotBonus = Math.max(1, Math.floor(score * 0.10)); 
+            const xpBonus = Math.max(5, Math.floor(score / 20)); 
             
             try {
-                // Update-Aufruf (ohne games_played/wins)
                 const { error } = await supabase
                     .from('profiles')
                     .update({
@@ -634,34 +684,40 @@ async function handlePlayerDisconnect(ws) {
                 
                 console.log(`Awarded ${xpBonus} XP and ${spotBonus} Spots to ${p.id} (consolation).`);
                 showToastToPlayer(p.ws, `Spiel abgebrochen. +${xpBonus} XP & +${spotBonus} 🎵 (Trostpreis)`, false);
+                
+                // NEU: Host-Flucht-Achievement (ID 26)
+                awardAchievement(p.ws, p.id, 26);
 
             } catch (e) {
                 console.error(`Exception awarding consolation stats for ${p.id}:`, e);
             }
         }
-        // --- ENDE NEU ---
         
-        // Spiel-Instanz aufräumen
         Object.values(game.players).forEach(p => {
             if (p.ws && p.ws.readyState === WebSocket.OPEN) {
-                p.ws.pin = null; // Verknüpfung für alle verbleibenden Spieler entfernen
+                p.ws.pin = null; 
             }
         });
         delete games[pin];
         console.log(`Game ${pin} deleted because host left.`);
-        return; // Keine weiteren Updates für diese Lobby senden
+        return; 
     }
-    // --- ENDE NEU ---
+    
+    if (game.gameState === 'PLAYING') {
+        const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
+        if (allReady) {
+            console.log(`Ein Spieler hat ${pin} verlassen. Alle verbleibenden sind bereit. Beende Runde.`);
+            endRound(pin);
+        }
+    }
     
     broadcastLobbyUpdate(pin);
     
-    // --- NEU: Leere Spiele aufräumen ---
     const connectedPlayers = Object.values(game.players).filter(p => p.isConnected).length;
-    if (connectedPlayers === 0 && game.gameState === 'LOBBY') { // Nur leere Lobbys aufräumen
+    if (connectedPlayers === 0 && game.gameState === 'LOBBY') { 
         console.log(`Game ${pin} is empty. Deleting.`);
         delete games[pin];
     }
-    // --- ENDE NEU ---
 }
 
 // --- joinGame Logic ---
@@ -673,25 +729,25 @@ async function joinGame(ws, user, pin) {
     let player = game.players[playerId];
 
     if (player) {
-        // --- Spieler ist bereits im Spiel (Reconnect) ---
         console.log(`Player ${user.username} (${playerId}) reconnected to ${pin}.`);
         player.isConnected = true;
         player.ws = ws;
         player.nickname = user.username;
     } else {
-        // --- Neuer Spieler tritt bei ---
         console.log(`Player ${user.username} (${playerId}) joining ${pin}.`);
         
         let iconId = 1;
         let colorId = null;
         let titleId = 1;
         let backgroundId = null;
+        let accentColorId = null; // NEU
 
         if (!user.isGuest) {
             try {
                 const { data: profile, error } = await supabase
                     .from('profiles')
-                    .select('equipped_icon_id, equipped_color_id, equipped_title_id, equipped_background_id')
+                    // NEU: 'equipped_accent_color_id' hinzugefügt
+                    .select('equipped_icon_id, equipped_color_id, equipped_title_id, equipped_background_id, equipped_accent_color_id')
                     .eq('id', playerId)
                     .single();
                 if (error) throw error;
@@ -700,6 +756,7 @@ async function joinGame(ws, user, pin) {
                     colorId = profile.equipped_color_id || null;
                     titleId = profile.equipped_title_id || 1;
                     backgroundId = profile.equipped_background_id || null;
+                    accentColorId = profile.equipped_accent_color_id || null; // NEU
                 }
             } catch (e) {
                 console.error(`Could not fetch profile items for player ${playerId}:`, e.message);
@@ -719,7 +776,10 @@ async function joinGame(ws, user, pin) {
             iconId: iconId,
             colorId: colorId,
             titleId: titleId,
-            backgroundId: backgroundId
+            backgroundId: backgroundId,
+            accentColorId: accentColorId, // NEU
+            isReady: false, 
+            currentGuess: {} 
         };
         game.players[playerId] = player;
     }
@@ -755,20 +815,15 @@ async function startGameLogic(pin) {
     game.tracks = shuffleArray(tracks).slice(0, songCount);
     game.currentRound = 0;
     
-    // Pause Spotify, bevor es losgeht
-    // --- KORREKTE URL ---
     await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
-    // --- ENDE KORREKTUR ---
-    await sleep(500); // Kurze Pause
+    await sleep(500); 
 
-    // Countdown
     console.log(`Spiel ${pin}: Starte Countdown...`);
     for (let i = 3; i > 0; i--) {
         broadcastToLobby(pin, { type: 'countdown', payload: { number: i } });
         await sleep(1000);
     }
 
-    // Erste Runde starten
     await startNewRound(pin);
 }
 
@@ -787,52 +842,152 @@ async function startNewRound(pin) {
     game.currentRound++;
     const track = game.tracks[game.currentRound - 1];
     game.currentTrack = track;
+
+    Object.values(game.players).forEach(p => {
+        p.isReady = false;
+        p.currentGuess = { title: '', artist: '', year: '' }; 
+        p.lastPointsBreakdown = null; 
+    });
     
     console.log(`Spiel ${pin}, Runde ${game.currentRound}: Song ${track.title}`);
 
-    // Starte Spotify-Wiedergabe
-    // --- KORREKTE URL ---
     const success = await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
         uris: [`spotify:track:${track.spotifyId}`] 
     });
-    // --- ENDE KORREKTUR ---
 
     if (!success) {
         broadcastToLobby(pin, { type: 'toast', payload: { message: "Fehler bei Spotify-Wiedergabe.", isError: true } });
         await sleep(2000);
-        await startNewRound(pin); // Versuche nächste Runde
+        await startNewRound(pin); 
         return;
     }
 
-    // Runde an Clients senden
+    let mcOptions = {
+        title: [],
+        artist: [],
+        year: []
+    };
+    
+    if (game.settings.answerType === 'multiple') {
+        const guessTypes = game.settings.guessTypes;
+        
+        const falseTracks = game.tracks
+            .filter(t => t.spotifyId !== track.spotifyId) 
+            .sort(() => 0.5 - Math.random()) 
+            .slice(0, 3); 
+            
+        if (guessTypes.includes('title')) {
+            mcOptions.title = shuffleArray([
+                track.title, 
+                ...falseTracks.map(t => t.title)
+            ]);
+        }
+        if (guessTypes.includes('artist')) {
+            mcOptions.artist = shuffleArray([
+                track.artist, 
+                ...falseTracks.map(t => t.artist)
+            ]);
+        }
+        if (guessTypes.includes('year')) {
+            const falseYear1 = track.year + (Math.floor(Math.random() * 5) + 1) * (Math.random() < 0.5 ? 1 : -1);
+            const falseYear2 = track.year + (Math.floor(Math.random() * 10) + 6) * (Math.random() < 0.5 ? 1 : -1);
+            const falseYear3 = track.year - (Math.floor(Math.random() * 10) + 1) * (Math.random() < 0.5 ? 1 : -1);
+            mcOptions.year = shuffleArray([track.year, falseYear1, falseYear2, falseYear3]);
+        }
+    }
+
     broadcastToLobby(pin, { 
         type: 'new-round', 
         payload: { 
             round: game.currentRound, 
-            totalRounds: game.tracks.length
+            totalRounds: game.tracks.length,
+            mcOptions: mcOptions 
         } 
     });
+    
+    broadcastLobbyUpdate(pin);
 
-    // Timer für Rundenende starten
     game.roundTimer = setTimeout(() => {
+        console.log(`Timer für Runde ${game.currentRound} in Spiel ${pin} abgelaufen.`);
         endRound(pin);
     }, game.settings.guessTime * 1000);
 }
 
 async function endRound(pin) {
     const game = games[pin];
-    if (!game || game.gameState !== 'PLAYING') return;
+    if (!game || game.gameState !== 'PLAYING') return; 
 
-    console.log(`Spiel ${pin}, Runde ${game.currentRound} beendet.`);
+    console.log(`Spiel ${pin}, Runde ${game.currentRound} wird berechnet.`);
     game.gameState = 'RESULTS';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTE URL ---
     await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
-    // --- ENDE KORREKTUR ---
 
-    // TODO: Ergebnisse berechnen
-    const scores = getScores(pin); // Platzhalter
+    const correctTrack = game.currentTrack;
+    const guessTypes = game.settings.guessTypes;
+    
+    Object.values(game.players).forEach(player => {
+        if (!player.isConnected || player.isGuest) return; 
+
+        const guess = player.currentGuess;
+        let roundScore = 0;
+        let breakdown = {};
+
+        if (guessTypes.includes('title')) {
+            const normalizedGuess = normalizeAnswer(guess.title || '');
+            const normalizedAnswer = normalizeAnswer(correctTrack.title);
+            const distance = getLevenshteinDistance(normalizedGuess, normalizedAnswer);
+
+            if (distance === 0) { 
+                roundScore += 100;
+                breakdown.title = { points: 100, text: "Titel (Perfekt!)" };
+            } else if (distance <= 2) { 
+                roundScore += 75;
+                breakdown.title = { points: 75, text: "Titel (Fast...)" };
+            } else {
+                breakdown.title = { points: 0, text: "Titel (Falsch)" };
+            }
+        }
+        
+        if (guessTypes.includes('artist')) {
+            const normalizedGuess = normalizeAnswer(guess.artist || '');
+            const normalizedAnswer = normalizeAnswer(correctTrack.artist);
+            const distance = getLevenshteinDistance(normalizedGuess, normalizedAnswer);
+
+            if (distance === 0) {
+                roundScore += 50;
+                breakdown.artist = { points: 50, text: "Künstler (Perfekt!)" };
+            } else if (distance <= 2) {
+                roundScore += 25;
+                breakdown.artist = { points: 25, text: "Künstler (Fast...)" };
+            } else {
+                breakdown.artist = { points: 0, text: "Künstler (Falsch)" };
+            }
+        }
+        
+        if (guessTypes.includes('year')) {
+            const guessYear = parseInt(guess.year, 10);
+            const correctYear = correctTrack.year;
+            
+            if (guessYear === correctYear) { 
+                roundScore += 75;
+                breakdown.year = { points: 75, text: "Jahr (Exakt!)" };
+            } else if (Math.abs(guessYear - correctYear) <= 2) { 
+                roundScore += 30;
+                breakdown.year = { points: 30, text: "Jahr (Nah dran)" };
+            } else if (Math.abs(guessYear - correctYear) <= 5) { 
+                roundScore += 10;
+                breakdown.year = { points: 10, text: "Jahr (OK)" };
+            } else {
+                breakdown.year = { points: 0, text: "Jahr (Falsch)" };
+            }
+        }
+        
+        player.score += roundScore; 
+        player.lastPointsBreakdown = { total: roundScore, breakdown };
+    });
+
+    const scores = getScores(pin); 
 
     broadcastToLobby(pin, { 
         type: 'round-result', 
@@ -843,11 +998,13 @@ async function endRound(pin) {
     });
     
     setTimeout(() => {
-        startNewRound(pin);
-    }, 8000); // 8 Sekunden Pause
+        if (games[pin]) { 
+            startNewRound(pin);
+        }
+    }, 8000); 
 }
 
-async function endGame(pin, cleanup = true) {
+async function endGame(pin) {
     const game = games[pin];
     if (!game) return;
 
@@ -855,9 +1012,7 @@ async function endGame(pin, cleanup = true) {
     game.gameState = 'FINISHED';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTE URL ---
     await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
-    // --- ENDE KORREKTUR ---
     
     const finalScores = getScores(pin);
     broadcastToLobby(pin, { 
@@ -867,7 +1022,6 @@ async function endGame(pin, cleanup = true) {
         } 
     });
 
-    // --- NEU: Überarbeitete Spot/XP Vergabe (für normales Spielende) ---
     console.log(`Awarding stats for game ${pin}...`);
     const gamePlayers = Object.values(game.players);
     
@@ -891,7 +1045,6 @@ async function endGame(pin, cleanup = true) {
         const totalXpBonus = scoreXp + winnerXpBonus;
         
         try {
-            // Fetch current stats first
             const { data: profile, error: fetchError } = await supabase
                 .from('profiles')
                 .select('xp, spots, games_played, wins, highscore')
@@ -920,18 +1073,16 @@ async function endGame(pin, cleanup = true) {
             console.error(`Exception awarding stats for ${player.id}:`, e);
         }
     }
-    // --- ENDE NEU ---
 
-    // Spiel-Instanz löschen
     setTimeout(() => {
-        console.log(`Deleting finished game ${pin}.`);
-        delete games[pin];
-    }, 10000); // Delete game after 10 seconds
+        if (games[pin]) {
+            console.log(`Deleting finished game ${pin}.`);
+            delete games[pin];
+        }
+    }, 10000); 
 }
-// --- Ende Game Logic ---
 
 
-// --- NEU: Friend Handlers (Implementiert) ---
 async function handleLoadFriends(ws, userId) {
     if (!userId) return;
     try {
@@ -962,7 +1113,6 @@ async function handleLoadFriends(ws, userId) {
             if (friendship.status === 'accepted') {
                 friendsList.push(friendData);
             } else if (friendship.status === 'pending' && friendship.requested_by !== userId) {
-                // Nur Anfragen anzeigen, die an mich gerichtet sind
                 requestsList.push(friendData);
             }
         });
@@ -1032,15 +1182,22 @@ async function handleAddFriend(ws, senderId, payload) {
     
     const friendWs = onlineUsers.get(friend.id);
     if (friendWs) {
-        showToastToPlayer(friendWs, `Du hast eine Freundschaftsanfrage von ${ws.nickname}!`);
-        handleLoadFriends(friendWs, friend.id); // Freundesliste des Empfängers aktualisieren
+        // NEU: Sende Pop-up-Nachricht statt Toast
+        friendWs.send(JSON.stringify({
+            type: 'friend-request-received',
+            payload: {
+                from: ws.nickname,
+                senderId: senderId
+            }
+        }));
+        handleLoadFriends(friendWs, friend.id); 
     }
     
     awardAchievement(ws, senderId, 14);
 }
 
 async function handleAcceptFriendRequest(ws, receiverId, payload) {
-    const { senderId } = payload; // ID der Person, die die ANFRAGE GESENDET hat
+    const { senderId } = payload; 
 
     const { error } = await supabase
         .from('friends')
@@ -1054,17 +1211,17 @@ async function handleAcceptFriendRequest(ws, receiverId, payload) {
     }
     
     showToastToPlayer(ws, "Freundschaft angenommen!");
-    handleLoadFriends(ws, receiverId); // Eigene Liste aktualisieren
+    handleLoadFriends(ws, receiverId); 
 
     const senderWs = onlineUsers.get(senderId);
     if (senderWs) {
         showToastToPlayer(senderWs, `${ws.nickname} hat deine Anfrage angenommen!`);
-        handleLoadFriends(senderWs, senderId); // Liste des Senders aktualisieren
+        handleLoadFriends(senderWs, senderId); 
     }
 }
 
 async function handleRemoveFriend(ws, currentUserId, payload) {
-    const { friendId } = payload; // ID der Person, die entfernt/abgelehnt wird
+    const { friendId } = payload; 
 
     const { error } = await supabase
         .from('friends')
@@ -1077,12 +1234,12 @@ async function handleRemoveFriend(ws, currentUserId, payload) {
     }
     
     showToastToPlayer(ws, "Freund entfernt/abgelehnt.");
-    handleLoadFriends(ws, currentUserId); // Eigene Liste aktualisieren
+    handleLoadFriends(ws, currentUserId); 
 
     const friendWs = onlineUsers.get(friendId);
     if (friendWs) {
         showToastToPlayer(friendWs, `${ws.nickname} hat dich als Freund entfernt.`);
-        handleLoadFriends(friendWs, friendId); // Liste des anderen aktualisieren
+        handleLoadFriends(friendWs, friendId); 
     }
 }
 
@@ -1103,13 +1260,13 @@ async function handleInviteFriend(ws, senderId, payload) {
         type: 'invite-received',
         payload: {
             from: ws.nickname,
+            fromUserId: senderId, // NEU: Sender-ID mitschicken
             pin: game.pin
         }
     }));
     
     showToastToPlayer(ws, "Einladung gesendet!");
 }
-// --- Ende Friend Handlers ---
 
 
 // --- Utility-Funktionen ---
