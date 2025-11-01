@@ -9,6 +9,7 @@
   "author": "Taubey",
   "license": "ISC",
   "dependencies": {
+    "@supabase/supabase-js": "^2.44.4",
     "axios": "^1.7.2",
     "cookie-parser": "^1.4.6",
     "dotenv": "^16.4.5",
