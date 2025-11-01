@@ -1,13 +1,15 @@
-// server.js - FINAL VERSION (Mit Spielstart-Logik & Freunde-System-Backend)
+// server.js - FINAL VERSION
 // KORREKTUR (FINAL): Alle 'googleusercontent.com'-Platzhalter-URLs wurden durch die
 //                    echten 'api.spotify.com' & 'accounts.spotify.com' Endpunkte ersetzt.
-// KORREKTUR: spotifyApiCall sendet 'data' nur, wenn es nicht null ist, um PUT-Fehler zu beheben.
+// NEU: 'shopItems' massiv erweitert mit neuen Farben, Verläufen und CSS-Hintergründen.
+// NEU: 'endRound' prüft jetzt auf 'multiple' vs 'freestyle' für die Punktevergabe (keine Tippfehler-Punkte bei MC).
 // NEU: Host-Disconnect-Logik vergibt 10% Trostpreis-Spots + "Überlebender"-Achievement + Pausiert Musik.
 // NEU: endGame-Logik überarbeitet für 20% Score-Spots + Platzierungs-Bonus.
 // NEU: Server-Logik für 'submit-guess' und 'player-ready' hinzugefügt.
 // NEU: Reaktionen sind kostenlos und senden mehr Spieler-Daten für Pop-up.
 // NEU: Persönliche Hintergründe (Host ändert sie nicht mehr für alle).
-// NEU: Vorbereitet für Akzentfarben (lädt equipped_accent_color_id).
+// NEU: Akzentfarben-Logik hinzugefügt (lädt equipped_accent_color_id).
+// NEU: Timeline-Modus-Logik (startNewTimelineRound, submitTimelineGuess) hinzugefügt.
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -84,39 +86,71 @@ const HEARTBEAT_INTERVAL = 30000;
 
 // --- Shop Data (ERWEITERT) ---
 const shopItems = [
-    // Titel
+    // Titel (10+ Items)
     { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Zeige allen dein Wissen!' },
     { id: 102, type: 'title', name: 'Playlist-Meister', cost: 150, unlockType: 'spots', description: 'Für echte Kenner.' },
     { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Für Rhythmus-Fanatiker.' },
     { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Synth-Pop-Liebhaber.' },
     { id: 105, type: 'title', name: 'Gold-Kehlchen', cost: 300, unlockType: 'spots', description: 'Für die Gesangs-Profis.' },
     { id: 106, type: 'title', name: 'Platin', cost: 1000, unlockType: 'spots', description: 'Mehr Platin als die Wand.' },
+    { id: 107, type: 'title', name: 'Rockstar', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 108, type: 'title', name: 'Pop-Prinzessin', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 109, type: 'title', name: 'Hip-Hop-Head', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 110, type: 'title', name: 'DJ', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
     
-    // Icons
+    // Icons (10+ Items)
     { id: 201, type: 'icon', name: 'Diamant', iconClass: 'fa-diamond', cost: 250, unlockType: 'spots', description: 'Ein glänzendes Icon.' },
     { id: 202, type: 'icon', name: 'Zauberhut', iconClass: 'fa-hat-wizard', cost: 300, unlockType: 'spots', description: 'Magisch!' },
     { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Zum Mond!' },
     { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Explosiv.' },
     { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 500, unlockType: 'spots', description: 'Still und leise.' },
     { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Feurig!' },
+    { id: 207, type: 'icon', name: 'Anker', iconClass: 'fa-anchor', cost: 200, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 208, type: 'icon', name: 'Kaffeetasse', iconClass: 'fa-coffee', cost: 150, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 209, type: 'icon', name: 'Mond', iconClass: 'fa-moon', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 210, type: 'icon', name: 'Sonne', iconClass: 'fa-sun', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
 
-    // Hintergründe (NEU: mit cssClass statt imageUrl)
+    // Hintergründe (10 Items)
     { id: 301, type: 'background', name: 'Synthwave', cssClass: 'bg-synthwave', cost: 500, unlockType: 'spots', description: 'Retro-Vibes.', backgroundId: '301' },
     { id: 302, type: 'background', name: 'Konzertbühne', cssClass: 'bg-concert', cost: 600, unlockType: 'spots', description: 'Fühl dich wie ein Star.', backgroundId: '302' },
-    { id: 303, type: 'background', name: 'Plattenladen', cssClass: 'bg-vinyl', cost: 700, unlockType: 'spots', description: 'Klassisches Stöbern.', backgroundId: '303' },
+    { id: 303, type: 'background', name: 'Plattenladen', cssClass: 'bg-vinyl', cost: 700, unlockType: 'spots', description: 'Klassisches Stöbern.', backgroundId: '303'},
+    { id: 304, type: 'background', name: 'Sonnenuntergang', cssClass: 'bg-sunset', cost: 500, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '304'},
+    { id: 305, type: 'background', name: 'Ozean', cssClass: 'bg-ocean', cost: 500, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '305'},
+    { id: 306, type: 'background', name: 'Wald', cssClass: 'bg-forest', cost: 500, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '306'},
+    { id: 307, type: 'background', name: 'Sternenhimmel', cssClass: 'bg-stars', cost: 750, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '307'},
+    { id: 308, type: 'background', name: 'Retro-Rot', cssClass: 'bg-retro', cost: 500, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '308'},
+    { id: 309, type: 'background', name: 'Studio', cssClass: 'bg-studio', cost: 600, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '309'},
+    { id: 310, type: 'background', name: 'Party', cssClass: 'bg-party', cost: 1000, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '310'},
     
-    // Farben
-    { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' },
-    { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' },
-    { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' },
-    { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' }
+    // Namensfarben (20+ Items)
+    { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' }, 
+    { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' }, 
+    { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }, 
+    { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' },
+    { id: 505, name: 'Blutrot', type: 'color', colorHex: '#DC143C', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 506, name: 'Sonnengelb', type: 'color', colorHex: '#FFC700', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 507, name: 'Himmelblau', type: 'color', colorHex: '#87CEEB', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 508, name: 'Lavendel', type: 'color', colorHex: '#E6E6FA', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 509, name: 'Königs-Lila', type: 'color', colorHex: '#8a2be2', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 510, name: 'Schneeweiß', type: 'color', colorHex: '#FFFFFF', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+    // Verläufe (als 'color', da sie nur für Namen sind)
+    { id: 550, name: 'Regenbogen', type: 'color', colorHex: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)', cost: 5000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 551, name: 'Synthwave-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff00ff, #00ffff)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 552, name: 'Sonnen-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 553, name: 'Ozean-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #005c97, #363795)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 554, name: 'Wald-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #136a8a, #267871)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 555, name: 'Feuer-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff4500, #ffd700)', cost: 3000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 556, name: 'Kaugummi', type: 'color', colorHex: 'linear-gradient(90deg, #ff7eb9, #a0c2ff)', cost: 2000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 557, name: 'Gift-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #00ff00, #8a2be2)', cost: 3000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 558, name: 'Dunkel-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #434343, #000000)', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 559, name: 'Heller Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #e0e0e0, #ffffff)', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 560, name: 'Metallisch', type: 'color', colorHex: 'linear-gradient(90deg, #808080, #c0c0c0, #808080)', cost: 4000, unlockType: 'spots', description: 'Nur im Shop' }
 ];
 
 
 // --- Helper Functions ---
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- NEU: Levenshtein-Distanz-Funktion für Tippfehler ---
 function getLevenshteinDistance(a, b) {
     if (a.length === 0) return b.length;
     if (b.length === 0) return a.length;
@@ -127,21 +161,20 @@ function getLevenshteinDistance(a, b) {
         for (let j = 1; j <= b.length; j++) {
             const cost = a[i - 1] === b[j - 1] ? 0 : 1;
             matrix[i][j] = Math.min(
-                matrix[i - 1][j] + 1,      // Deletion
-                matrix[i][j - 1] + 1,      // Insertion
-                matrix[i - 1][j - 1] + cost // Substitution
+                matrix[i - 1][j] + 1,      
+                matrix[i][j - 1] + 1,      
+                matrix[i - 1][j - 1] + cost 
             );
         }
     }
     return matrix[a.length][b.length];
 }
 
-// --- NEU: Normalisierungsfunktion für Antworten ---
 function normalizeAnswer(str) {
     return str
         .toLowerCase()
-        .replace(/[^a-z0-9äöüß]/g, '') // Entfernt alles außer Buchstaben, Zahlen und Umlaute
-        .replace(/\(.*\)/g, '')         // Entfernt Klammern (z.B. "Radio Mix")
+        .replace(/[^a-z0-9äöüß]/g, '') 
+        .replace(/\(.*\)/g, '')         
         .trim();
 }
 
@@ -160,7 +193,7 @@ function getScores(pin) {
             colorId: p.colorId || null,
             titleId: p.titleId || 1,
             backgroundId: p.backgroundId || null,
-            accentColorId: p.accentColorId || null, // NEU: Akzentfarbe
+            accentColorId: p.accentColorId || null, 
             isReady: p.isReady || false
         }))
         .filter(p => p.id)
@@ -219,7 +252,7 @@ function broadcastLobbyUpdate(pin) {
      const payload = { 
          pin, 
          hostId: game.hostId, 
-         players: getScores(pin), // Sendet jetzt 'isReady' & 'accentColorId' mit
+         players: getScores(pin), 
          gameMode: game.gameMode,
          settings: {
              songCount: game.settings.songCount, 
@@ -228,7 +261,6 @@ function broadcastLobbyUpdate(pin) {
              lives: game.settings.lives, 
              gameType: game.settings.gameType,
              guessTypes: game.settings.guessTypes,
-             // chosenBackgroundId: ist jetzt entfernt
              deviceName: game.settings.deviceName, 
              playlistName: game.settings.playlistName,
              deviceId: game.settings.deviceId,
@@ -239,7 +271,6 @@ function broadcastLobbyUpdate(pin) {
 }
 function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]); return pin; }
 
-// Award Achievement (Modified to add Spots)
 async function awardAchievement(ws, userId, achievementId) {
     if (!userId || userId.startsWith('guest-')) return;
     const alreadyHas = await hasAchievement(userId, achievementId);
@@ -522,7 +553,8 @@ async function handleWebSocketMessage(ws, data) {
                         tracks: [],
                         currentTrack: null,
                         currentRound: 0,
-                        roundTimer: null
+                        roundTimer: null,
+                        timeline: [] // NEU: Für Timeline-Modus
                     };
                     
                     await joinGame(ws, payload.user, pin);
@@ -561,7 +593,6 @@ async function handleWebSocketMessage(ws, data) {
                     return showToastToPlayer(ws, "Nur der Host kann Einstellungen ändern.", true);
                 }
                 
-                // NEU: Verhindere, dass chosenBackgroundId gesetzt wird
                 if (payload.chosenBackgroundId) {
                     delete payload.chosenBackgroundId;
                 }
@@ -592,7 +623,11 @@ async function handleWebSocketMessage(ws, data) {
 
             case 'submit-guess':
                 if (game && game.players[playerId] && game.gameState === 'PLAYING') {
-                    game.players[playerId].currentGuess = payload.guess;
+                    if (game.gameMode === 'quiz') {
+                        game.players[playerId].currentGuess = payload.guess;
+                    } else if (game.gameMode === 'timeline') {
+                        submitTimelineGuess(game, player, payload.guess.index);
+                    }
                 }
                 break;
             
@@ -604,7 +639,13 @@ async function handleWebSocketMessage(ws, data) {
                     const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
                     if (allReady) {
                         console.log(`Alle Spieler in ${pin} sind bereit. Beende Runde früher.`);
-                        endRound(pin); 
+                        if (game.gameMode === 'quiz') {
+                            endRound(pin);
+                        } else if (game.gameMode === 'timeline') {
+                            // Im Timeline-Modus gibt es kein "Ready", da der Klick sofort wertet.
+                            // Aber falls doch, können wir die Timer-Logik hier anwenden
+                            endTimelineRound(pin);
+                        }
                     }
                 }
                 break;
@@ -647,7 +688,7 @@ async function handlePlayerDisconnect(ws) {
         console.log(`Host ${playerId} disconnected from game ${pin}. Ending game.`);
         
         // --- NEU: Musik stoppen! ---
-        if (game.gameState === 'PLAYING' || game.gameState === 'RESULTS') {
+        if ((game.gameState === 'PLAYING' || game.gameState === 'RESULTS') && game.settings.deviceId) {
             await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
         }
         
@@ -707,7 +748,11 @@ async function handlePlayerDisconnect(ws) {
         const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
         if (allReady) {
             console.log(`Ein Spieler hat ${pin} verlassen. Alle verbleibenden sind bereit. Beende Runde.`);
-            endRound(pin);
+            if (game.gameMode === 'quiz') {
+                endRound(pin);
+            } else if (game.gameMode === 'timeline') {
+                endTimelineRound(pin);
+            }
         }
     }
     
@@ -823,10 +868,16 @@ async function startGameLogic(pin) {
         broadcastToLobby(pin, { type: 'countdown', payload: { number: i } });
         await sleep(1000);
     }
-
-    await startNewRound(pin);
+    
+    // NEU: Spielmodus-Weiche
+    if (game.gameMode === 'timeline') {
+        await startNewTimelineRound(pin, true); // Erster Aufruf
+    } else {
+        await startNewRound(pin); // Quiz-Modus
+    }
 }
 
+// --- QUIZ MODUS ---
 async function startNewRound(pin) {
     const game = games[pin];
     if (!game) return;
@@ -913,6 +964,7 @@ async function startNewRound(pin) {
     }, game.settings.guessTime * 1000);
 }
 
+// --- QUIZ MODUS ---
 async function endRound(pin) {
     const game = games[pin];
     if (!game || game.gameState !== 'PLAYING') return; 
@@ -925,6 +977,7 @@ async function endRound(pin) {
 
     const correctTrack = game.currentTrack;
     const guessTypes = game.settings.guessTypes;
+    const isFreestyle = game.settings.answerType === 'freestyle'; 
     
     Object.values(game.players).forEach(player => {
         if (!player.isConnected || player.isGuest) return; 
@@ -941,7 +994,7 @@ async function endRound(pin) {
             if (distance === 0) { 
                 roundScore += 100;
                 breakdown.title = { points: 100, text: "Titel (Perfekt!)" };
-            } else if (distance <= 2) { 
+            } else if (distance <= 2 && isFreestyle) { 
                 roundScore += 75;
                 breakdown.title = { points: 75, text: "Titel (Fast...)" };
             } else {
@@ -957,7 +1010,7 @@ async function endRound(pin) {
             if (distance === 0) {
                 roundScore += 50;
                 breakdown.artist = { points: 50, text: "Künstler (Perfekt!)" };
-            } else if (distance <= 2) {
+            } else if (distance <= 2 && isFreestyle) { 
                 roundScore += 25;
                 breakdown.artist = { points: 25, text: "Künstler (Fast...)" };
             } else {
@@ -972,10 +1025,10 @@ async function endRound(pin) {
             if (guessYear === correctYear) { 
                 roundScore += 75;
                 breakdown.year = { points: 75, text: "Jahr (Exakt!)" };
-            } else if (Math.abs(guessYear - correctYear) <= 2) { 
+            } else if (Math.abs(guessYear - correctYear) <= 2 && isFreestyle) { 
                 roundScore += 30;
                 breakdown.year = { points: 30, text: "Jahr (Nah dran)" };
-            } else if (Math.abs(guessYear - correctYear) <= 5) { 
+            } else if (Math.abs(guessYear - correctYear) <= 5 && isFreestyle) { 
                 roundScore += 10;
                 breakdown.year = { points: 10, text: "Jahr (OK)" };
             } else {
@@ -1003,6 +1056,169 @@ async function endRound(pin) {
         }
     }, 8000); 
 }
+
+// --- NEU: TIMELINE-MODUS LOGIK ---
+async function startNewTimelineRound(pin, isFirstRound = false) {
+    const game = games[pin];
+    if (!game) return;
+    if (game.roundTimer) clearTimeout(game.roundTimer);
+
+    if (game.currentRound >= game.tracks.length) {
+        await endGame(pin);
+        return;
+    }
+    
+    game.gameState = 'PLAYING';
+    game.currentRound++;
+    const track = game.tracks[game.currentRound - 1];
+    game.currentTrack = track; // Der Song, der platziert werden muss
+
+    Object.values(game.players).forEach(p => {
+        p.isReady = false; // Wird für "Antwort erhalten" genutzt
+        p.currentGuess = { index: -1 }; 
+        p.lastPointsBreakdown = null; 
+    });
+    
+    console.log(`Spiel ${pin}, Timeline Runde ${game.currentRound}: Song ${track.title}`);
+
+    // Musik starten
+    const success = await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
+        uris: [`spotify:track:${track.spotifyId}`] 
+    });
+
+    if (!success) {
+        broadcastToLobby(pin, { type: 'toast', payload: { message: "Fehler bei Spotify-Wiedergabe.", isError: true } });
+        await sleep(2000);
+        await startNewTimelineRound(pin); // Nächste Runde
+        return;
+    }
+
+    // Wenn es die ERSTE Runde ist, fügen wir den Song direkt zur Timeline hinzu
+    if (isFirstRound) {
+        game.timeline.push(track);
+        console.log(`Spiel ${pin}: Erster Song ${track.title} (${track.year}) zur Timeline hinzugefügt.`);
+        
+        // Sende Runden-Info, aber starte sofort die nächste Runde
+        broadcastToLobby(pin, { 
+            type: 'new-timeline-round', 
+            payload: { 
+                round: game.currentRound, 
+                totalRounds: game.tracks.length,
+                newTrack: track, // Der neue Song
+                timeline: [], // Leere Timeline, da es der erste Song ist
+                isFirstRound: true
+            } 
+        });
+        
+        await sleep(game.settings.guessTime * 1000); // Warte, während der erste Song spielt
+        await startNewTimelineRound(pin, false); // Starte die ZWEITE Runde
+        return;
+    }
+
+    // Für alle folgenden Runden:
+    broadcastToLobby(pin, { 
+        type: 'new-timeline-round', 
+        payload: { 
+            round: game.currentRound, 
+            totalRounds: game.tracks.length,
+            newTrack: track, // Der neue Song zum Platzieren
+            timeline: game.timeline, // Die bereits liegenden Karten
+            isFirstRound: false
+        } 
+    });
+    
+    broadcastLobbyUpdate(pin);
+
+    // Timer für Rundenende starten
+    game.roundTimer = setTimeout(() => {
+        console.log(`Timer für Timeline-Runde ${game.currentRound} in Spiel ${pin} abgelaufen.`);
+        endTimelineRound(pin);
+    }, game.settings.guessTime * 1000);
+}
+
+// Spieler hat einen Platzierungs-Index gesendet
+function submitTimelineGuess(game, player, guessedIndex) {
+    if (!game || !player || game.gameState !== 'PLAYING') return;
+
+    player.isReady = true; // Markiere Spieler als "fertig"
+    player.currentGuess.index = guessedIndex;
+    
+    const correctTrack = game.currentTrack;
+    
+    // Finde den korrekten Index
+    let correctIndex = 0;
+    while (correctIndex < game.timeline.length && game.timeline[correctIndex].year < correctTrack.year) {
+        correctIndex++;
+    }
+    
+    let roundScore = 0;
+    let breakdown = {};
+    
+    if (guessedIndex === correctIndex) {
+        roundScore = 150; // Feste Punktzahl für richtige Platzierung
+        breakdown.placement = { points: 150, text: "Korrekt platziert!" };
+    } else {
+        // 0 Punkte, aber Hitster-Regel: Karte wird trotzdem hinzugefügt
+        breakdown.placement = { points: 0, text: "Falsch platziert." };
+    }
+    
+    player.score += roundScore; 
+    player.lastPointsBreakdown = { total: roundScore, breakdown, correctIndex: correctIndex };
+
+    broadcastLobbyUpdate(game.pin); // Sende Ready-Status
+
+    // Prüfen, ob alle bereit sind
+    const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
+    if (allReady) {
+        console.log(`Alle Spieler in ${game.pin} (Timeline) sind bereit. Beende Runde früher.`);
+        endTimelineRound(game.pin);
+    }
+}
+
+async function endTimelineRound(pin) {
+    const game = games[pin];
+    if (!game || game.gameState !== 'PLAYING') return; 
+
+    console.log(`Spiel ${pin}, Timeline Runde ${game.currentRound} wird berechnet.`);
+    game.gameState = 'RESULTS';
+    if (game.roundTimer) clearTimeout(game.roundTimer);
+
+    await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+
+    const correctTrack = game.currentTrack;
+    
+    // Füge den Song an der KORREKTEN Stelle zur Timeline hinzu (Hitster-Regel)
+    let correctIndex = 0;
+    while (correctIndex < game.timeline.length && game.timeline[correctIndex].year < correctTrack.year) {
+        correctIndex++;
+    }
+    game.timeline.splice(correctIndex, 0, correctTrack);
+
+    // Berechne Punkte für Spieler, die nicht "Ready" waren (Timer abgelaufen)
+    Object.values(game.players).forEach(player => {
+        if (!player.isReady && player.isConnected) {
+            player.lastPointsBreakdown = { total: 0, breakdown: { placement: { points: 0, text: "Keine Antwort." } }, correctIndex: correctIndex };
+        }
+    });
+
+    const scores = getScores(pin); 
+
+    broadcastToLobby(pin, { 
+        type: 'round-result', 
+        payload: { 
+            correctTrack: game.currentTrack,
+            scores: scores,
+            timeline: game.timeline // Sende die NEUE, korrekte Timeline
+        } 
+    });
+    
+    setTimeout(() => {
+        if (games[pin]) { 
+            startNewTimelineRound(pin, false); // Nächste Runde (nie "first round")
+        }
+    }, 8000); // 8 Sekunden Pause
+}
+// --- ENDE TIMELINE ---
 
 async function endGame(pin) {
     const game = games[pin];
@@ -1182,7 +1398,6 @@ async function handleAddFriend(ws, senderId, payload) {
     
     const friendWs = onlineUsers.get(friend.id);
     if (friendWs) {
-        // NEU: Sende Pop-up-Nachricht statt Toast
         friendWs.send(JSON.stringify({
             type: 'friend-request-received',
             payload: {
@@ -1260,7 +1475,7 @@ async function handleInviteFriend(ws, senderId, payload) {
         type: 'invite-received',
         payload: {
             from: ws.nickname,
-            fromUserId: senderId, // NEU: Sender-ID mitschicken
+            fromUserId: senderId, 
             pin: game.pin
         }
     }));

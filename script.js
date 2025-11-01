@@ -1,2489 +1,1499 @@
-// script.js - FINAL VERSION (Mit allen Features & Bugfixes)
-// NEU: Gameplay (Raten, Ready, Leaderboard), Freundes-Popups, Akzentfarben,
-// CSS-Hintergründe, Cooldowns, Level-Spots & alle Bugfixes.
+// server.js - FINAL VERSION
+// KORREKTUR (FINAL): Alle 'googleusercontent.com'-Platzhalter-URLs wurden durch die
+//                    echten 'api.spotify.com' & 'accounts.spotify.com' Endpunkte ersetzt.
+// NEU: 'shopItems' massiv erweitert mit neuen Farben, Verläufen und CSS-Hintergründen.
+// NEU: 'endRound' prüft jetzt auf 'multiple' vs 'freestyle' für die Punktevergabe (keine Tippfehler-Punkte bei MC).
+// NEU: Host-Disconnect-Logik vergibt 10% Trostpreis-Spots + "Überlebender"-Achievement + Pausiert Musik.
+// NEU: endGame-Logik überarbeitet für 20% Score-Spots + Platzierungs-Bonus.
+// NEU: Server-Logik für 'submit-guess' und 'player-ready' hinzugefügt.
+// NEU: Reaktionen sind kostenlos und senden mehr Spieler-Daten für Pop-up.
+// NEU: Persönliche Hintergründe (Host ändert sie nicht mehr für alle).
+// NEU: Akzentfarben-Logik hinzugefügt (lädt equipped_accent_color_id).
+// NEU: Timeline-Modus-Logik (startNewTimelineRound, submitTimelineGuess) hinzugefügt.
 
-document.addEventListener('DOMContentLoaded', () => {
-    let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
-    let pinInput = "", customValueInput = "", currentCustomType = null;
-    let currentConfirmAction = null;
+const WebSocket = require('ws');
+const http = require('http');
+const express = require('express');
+const path = require('path');
+const axios = require('axios');
+const cookieParser = require('cookie-parser');
+require('dotenv').config();
 
-    // Globale Speicher für DB-Daten
-    let userProfile = {};
-    let userUnlockedAchievementIds = [];
-    let onlineFriends = []; 
-    let ownedTitleIds = new Set();
-    let ownedIconIds = new Set();
-    let ownedBackgroundIds = new Set();
-    let ownedColorIds = new Set();
-    let ownedAccentColorIds = new Set(); // NEU
-    let inventory = {};
-
-    let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [], players: [] };
-    let screenHistory = ['auth-screen'];
-
-    let selectedGameMode = null;
-    let gameCreationSettings = {
-        gameType: null,
-        lives: 3,
-        guessTypes: [], // KORREKTUR: Standardmäßig leer
-        answerType: 'freestyle'
-    };
-
-    let allPlaylists = [], availableDevices = [], currentPage = 1, itemsPerPage = 10;
-    let wsPingInterval = null;
-    let guessDebounceTimer = null; 
-    let reactionCooldown = false; // NEU
-    
-    // NEU: Für Freundes-Invites
-    let pendingGameInvites = {};
-    let inviteCooldowns = {};
-    let activePopups = {
-        invite: null,
-        friendRequest: null
-    };
-
-    // --- On-Page Konsole Setup ---
-    const consoleOutput = document.getElementById('console-output');
-    const onPageConsole = document.getElementById('on-page-console');
-    const toggleConsoleBtn = document.getElementById('toggle-console-btn');
-    const closeConsoleBtn = document.getElementById('close-console-btn');
-    const clearConsoleBtn = document.getElementById('clear-console-btn');
-    const copyConsoleBtn = document.getElementById('copy-console-btn');
-    const originalConsole = { ...console };
-    const formatArg = (arg) => { if (arg instanceof Error) { return `❌ Error: ${arg.message}\nStack:\n${arg.stack || 'No stack trace available'}`; } if (typeof arg === 'object' && arg !== null) { try { return JSON.stringify(arg, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2); } catch (e) { return '[Object (circular structure or stringify failed)]'; } } return String(arg); };
-    const logToPage = (type, args) => { if (!consoleOutput) return; try { const message = args.map(formatArg).join(' '); const logEntry = document.createElement('div'); logEntry.classList.add(`log-${type}`); logEntry.dataset.rawText = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: ${message}`; logEntry.innerHTML = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: <pre>${message}</pre>`; consoleOutput.appendChild(logEntry); consoleOutput.scrollTop = consoleOutput.scrollHeight; } catch (e) { originalConsole.error("Error logging to page console:", e); } };
-    console.log = (...args) => { originalConsole.log(...args); logToPage('log', args); };
-    console.warn = (...args) => { originalConsole.warn(...args); logToPage('warn', args); };
-    console.error = (...args) => { originalConsole.error(...args); logToPage('error', args); };
-    console.info = (...args) => { originalConsole.info(...args); logToPage('info', args); };
-    window.onerror = (message, source, lineno, colno, error) => { const errorArgs = error ? [error] : [message, `at ${source}:${lineno}:${colno}`]; originalConsole.error('Uncaught Error:', ...errorArgs); logToPage('error', ['🚨 Uncaught Error:', ...errorArgs]); return true; };
-    window.onunhandledrejection = (event) => { const reason = event.reason instanceof Error ? event.reason : new Error(JSON.stringify(event.reason)); originalConsole.error('Unhandled Promise Rejection:', reason); logToPage('error', ['🚧 Unhandled Promise Rejection:', reason]); };
-    // --- Ende On-Page Konsole ---
-
-    // --- ERWEITERTE DATENBANKEN (MEHR CONTENT) ---
-    const achievementsList = [ 
-        { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, 
-        { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' }, 
-        { id: 3, name: 'Seriensieger', description: 'Gewinne 10 Spiele.' }, 
-        { id: 4, name: 'Historiker', description: 'Gewinne eine Timeline-Runde.' }, 
-        { id: 5, name: 'Trendsetter', description: 'Gewinne eine Fame-Runde.' }, 
-        { id: 6, name: 'Musik-Lexikon', description: 'Beantworte 500 Fragen richtig (gesamt).' }, 
-        { id: 7, name: 'Unbesiegbar', description: 'Gewinne 5 Spiele in Folge.' }, 
-        { id: 8, name: 'Jahrhundert-Genie', description: 'Errate das Jahr 25 Mal exakt (gesamt).' }, 
-        { id: 9, name: 'Spotify-Junkie', description: 'Verbinde dein Spotify-Konto.' }, 
-        { id: 10, name: 'Gastgeber', description: 'Hoste dein erstes Spiel.' }, 
-        { id: 11, name: 'Party-Löwe', description: 'Spiele mit 3+ Freunden (in einer Lobby).' }, 
-        { id: 12, name: 'Knapp Daneben', description: 'Antworte 5 Mal falsch in einem Spiel.' }, 
-        { id: 13, name: 'Präzisionsarbeit', description: 'Errate Titel, Künstler UND Jahr exakt in einer Runde (Quiz).'}, 
-        { id: 14, name: 'Sozial Vernetzt', description: 'Füge deinen ersten Freund hinzu.' }, 
-        { id: 15, name: 'Sammler', description: 'Schalte 5 Titel frei.' }, 
-        { id: 16, name: 'Icon-Liebhaber', description: 'Schalte 5 Icons frei.' }, 
-        { id: 17, name: 'Aufwärmrunde', description: 'Spiele 3 Spiele.' }, 
-        { id: 18, name: 'Highscorer', description: 'Erreiche über 1000 Punkte in einem Spiel.' }, 
-        { id: 19, name: 'Perfektionist', description: 'Beantworte alle Fragen in einem Spiel richtig (min. 5 Runden).'}, 
-        { id: 20, name: 'Dabei sein ist alles', description: 'Verliere 3 Spiele.'},
-        { id: 21, name: 'Shopaholic', description: 'Kaufe deinen ersten Gegenstand im Shop.' },
-        { id: 22, name: 'Millionär', description: 'Besitze 1000 Spots auf einmal.' },
-        { id: 23, name: 'Level 10', description: 'Erreiche Level 10.' },
-        { id: 24, name: 'Anpassungs-Künstler', description: 'Ändere dein Icon, Titel und Farbe.' },
-        { id: 25, name: 'Willkommen!', description: 'Registriere dein Konto.' },
-        { id: 26, name: 'Host-Flucht', description: 'Überlebe ein Spiel, das der Host abgebrochen hat.' },
-        // --- NEUE ERFOLGE (Beispiele) ---
-        { id: 27, name: 'Schnell-Rater', description: 'Sei der Erste, der in einer Runde auf "Bereit" klickt.' },
-        { id: 28, name: 'Bling-Bling', description: 'Rüste eine Gold-Namensfarbe aus.' },
-        { id: 29, name: '???', description: '???', hidden: true }, // Versteckter Erfolg
-        { id: 30, name: 'Loyal', description: 'Spiele 50 Spiele.' }
-    ];
-    const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100));
-    const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
-    const titlesList = [ 
-        { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1, type:'title' }, 
-        { id: 10, name: 'Kenner', unlockType: 'level', unlockValue: 5, type:'title' }, 
-        { id: 11, name: 'Experte', unlockType: 'level', unlockValue: 10, type:'title' }, 
-        { id: 12, name: 'Meister', unlockType: 'level', unlockValue: 15, type:'title' }, 
-        { id: 13, name: 'Virtuose', unlockType: 'level', unlockValue: 20, type:'title' }, 
-        { id: 14, name: 'Maestro', unlockType: 'level', unlockValue: 25, type:'title' }, 
-        { id: 15, name: 'Großmeister', unlockType: 'level', unlockValue: 30, type:'title' }, 
-        { id: 16, name: 'Orakel', unlockType: 'level', unlockValue: 40, type:'title' }, 
-        { id: 17, name: 'Musikgott', unlockType: 'level', unlockValue: 50, type:'title' },
-        { id: 2, name: 'Besserwisser', unlockType: 'achievement', unlockValue: 2, type:'title' }, 
-        { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3, type:'title' }, 
-        { id: 4, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4, type:'title' }, 
-        { id: 5, name: 'Star-Experte', unlockType: 'achievement', unlockValue: 5, type:'title' }, 
-        { id: 6, name: 'Pechvogel', unlockType: 'achievement', unlockValue: 12, type:'title' }, 
-        { id: 7, name: 'Präzise', unlockType: 'achievement', unlockValue: 13, type:'title' }, 
-        { id: 8, name: 'Gesellig', unlockType: 'achievement', unlockValue: 14, type:'title' }, 
-        { id: 9, name: 'Sammler', unlockType: 'achievement', unlockValue: 15, type:'title' }, 
-        { id: 18, name: 'Perfektionist', unlockType: 'achievement', unlockValue: 19, type:'title' }, 
-        { id: 19, name: 'Highscorer', unlockType: 'achievement', unlockValue: 18, type:'title' }, 
-        { id: 20, name: 'Dauerbrenner', unlockType: 'achievement', unlockValue: 17, type:'title' },
-        { id: 21, name: 'Shopper', unlockType: 'achievement', unlockValue: 21, type:'title' },
-        { id: 25, name: 'Neuzugang', unlockType: 'achievement', unlockValue: 25, type:'title', description: 'Erfolg: Willkommen!' },
-        { id: 26, name: 'Überlebender', unlockType: 'achievement', unlockValue: 26, type:'title', description: 'Erfolg: Host-Flucht' },
-        { id: 101, name: 'Musik-Guru', unlockType: 'spots', cost: 100, unlockValue: 100, description: 'Nur im Shop', type:'title' }, 
-        { id: 102, name: 'Playlist-Meister', unlockType: 'spots', cost: 150, unlockValue: 150, description: 'Nur im Shop', type:'title' }, 
-        { id: 103, name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
-        { id: 104, name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
-        { id: 105, name: 'Gold-Kehlchen', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
-        { id: 106, name: 'Platin', cost: 1000, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
-        { id: 99, name: 'Entwickler', iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Titel', type:'title' } 
-    ];
-    const iconsList = [ 
-        { id: 1, iconClass: 'fa-user', unlockType: 'level', unlockValue: 1, description: 'Standard-Icon', type:'icon' }, 
-        { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5', type:'icon' }, 
-        { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10', type:'icon' }, 
-        { id: 7, iconClass: 'fa-guitar', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15', type:'icon' }, 
-        { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20', type:'icon' }, 
-        { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 25, description: 'Erreiche Level 25', type:'icon' }, 
-        { id: 9, iconClass: 'fa-record-vinyl', unlockType: 'level', unlockValue: 30, description: 'Erreiche Level 30', type:'icon' }, 
-        { id: 10, name: 'Feuer', iconClass: 'fa-fire', unlockType: 'level', unlockValue: 40, description: 'Erreiche Level 40', type:'icon' }, 
-        { id: 11, name: 'Geist', iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45', type:'icon' }, 
-        { id: 12, name: 'Meteor', iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50', type:'icon' },
-        { id: 4, iconClass: 'fa-trophy', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger', type:'icon' }, 
-        { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser', type:'icon' }, 
-        { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber', type:'icon'},
-        { id: 201, name: 'Diamant', iconClass: 'fa-diamond', unlockType: 'spots', cost: 250, unlockValue: 250, description: 'Nur im Shop', type:'icon' }, 
-        { id: 202, name: 'Zauberhut', iconClass: 'fa-hat-wizard', unlockType: 'spots', cost: 300, unlockValue: 300, description: 'Nur im Shop', type:'icon' }, 
-        { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, 
-        { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, 
-        { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 500, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, 
-        { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
-        { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' } 
-    ];
-    // NEU: CSS-Hintergründe statt Bilder
-    const backgroundsList = [ 
-        { id: 'default', name: 'Standard', cssClass: 'radial-only', cost: 0, unlockType: 'free', type: 'background', backgroundId: 'default'}, 
-        { id: '301', name: 'Synthwave', cssClass: 'bg-synthwave', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '301'}, 
-        { id: '302', name: 'Konzertbühne', cssClass: 'bg-concert', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '302'}, 
-        { id: '303', name: 'Plattenladen', cssClass: 'bg-vinyl', cost: 700, unlockType: 'spots', unlockValue: 700, type: 'background', backgroundId: '303'},
-        { id: '304', name: 'Sonnenuntergang', cssClass: 'bg-sunset', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '304'},
-        { id: '305', name: 'Ozean', cssClass: 'bg-ocean', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '305'},
-        { id: '306', name: 'Wald', cssClass: 'bg-forest', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '306'},
-        { id: '307', name: 'Sternenhimmel', cssClass: 'bg-stars', cost: 750, unlockType: 'spots', unlockValue: 750, type: 'background', backgroundId: '307'},
-        { id: '308', name: 'Retro-Rot', cssClass: 'bg-retro', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '308'},
-        { id: '309', name: 'Studio', cssClass: 'bg-studio', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '309'},
-        { id: '310', name: 'Party', cssClass: 'bg-party', cost: 1000, unlockType: 'spots', unlockValue: 1000, type: 'background', backgroundId: '310'}
-    ];
-    const nameColorsList = [ 
-        { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' }, 
-        { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' }, 
-        { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }, 
-        { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' } 
-    ];
-    // NEU: Akzentfarben-Liste
-    const accentColorsList = [
-        { id: 1, name: 'Fakester Grün', type: 'accent-color', colorHex: '#1DB954', unlockType: 'free', description: 'Standardfarbe' },
-        { id: 2, name: 'Spotify Grün', type: 'accent-color', colorHex: '#1ED760', unlockType: 'achievement', unlockValue: 9, description: 'Erfolg: Spotify-Junkie' },
-        { id: 3, name: 'Ozeanblau', type: 'accent-color', colorHex: '#0077be', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5' },
-        { id: 4, name: 'Königs-Lila', type: 'accent-color', colorHex: '#8a2be2', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10' },
-        { id: 5, name: 'Rubinrot', type: 'accent-color', colorHex: '#e01e5a', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15' },
-        { id: 6, name: 'Sonnengelb', type: 'accent-color', colorHex: '#ffc700', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20' },
-        { id: 7, name: 'Platin', type: 'accent-color', colorHex: '#e5e4e2', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50' },
-        { id: 601, name: 'Dynamisches Pink', type: 'accent-color', colorHex: '#FF00FF', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
-        { id: 602, name: 'Dynamisches Blau', type: 'accent-color', colorHex: '#00FFFF', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
-        { id: 603, name: 'Feuriges Orange', type: 'accent-color', colorHex: '#ff4500', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
-        { id: 604, name: 'Reines Gold', type: 'accent-color', colorHex: '#FFD700', cost: 2000, unlockType: 'spots', description: 'Nur im Shop' },
-        { id: 605, name: 'Regenbogen', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)', cost: 5000, unlockType: 'spots', description: 'Nur im Shop' },
-        { id: 606, name: 'Synthwave-Verlauf', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff00ff, #00ffff)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
-        { id: 607, name: 'Sonnen-Verlauf', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' }
-    ];
-    
-    const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList, ...accentColorsList];
-    window.titlesList = titlesList; window.iconsList = iconsList; window.backgroundsList = backgroundsList; window.nameColorsList = nameColorsList; window.accentColorsList = accentColorsList; window.allItems = allItems;
-    const PLACEHOLDER_ICON = `<div class="placeholder-icon"><i class="fa-solid fa-question"></i></div>`;
-
-    const elements = { 
-        screens: document.querySelectorAll('.screen'), 
-        leaveGameButton: document.getElementById('leave-game-button'), 
-        loadingOverlay: document.getElementById('loading-overlay'), 
-        loadingOverlayMessage: document.getElementById('loading-overlay-message'),
-        countdownOverlay: document.getElementById('countdown-overlay'), 
-        appBackground: document.querySelector('.app-background'), // NEU
-        auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form') }, 
-        home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), profilePictureBtn: document.getElementById('profile-picture-button'), profileIcon: document.getElementById('profile-icon'), profileLevel: document.getElementById('profile-level'), profileXpFill: document.getElementById('profile-xp-fill'), levelProgressBtn: document.getElementById('level-progress-button'), profileXpText: document.getElementById('profile-xp-text'), spotsBalance: document.getElementById('header-spots-balance'), shopButton: document.getElementById('shop-button'), spotifyConnectBtn: document.getElementById('spotify-connect-button'), customizationBtn: document.getElementById('customization-button') }, 
-        modeSelection: { container: document.getElementById('mode-selection-screen')?.querySelector('.mode-selection-container') }, 
-        lobby: { 
-            pinDisplay: document.getElementById('lobby-pin'), 
-            playerList: document.getElementById('player-list'), 
-            hostSettings: document.getElementById('host-settings'), 
-            guestWaitingMessage: document.getElementById('guest-waiting-message'), 
-            deviceSelectBtn: document.getElementById('device-select-button'), 
-            playlistSelectBtn: document.getElementById('playlist-select-button'), 
-            startGameBtn: document.getElementById('start-game-button'), 
-            inviteFriendsBtn: document.getElementById('invite-friends-button'), 
-            songCountPresets: document.getElementById('song-count-presets'), 
-            guessTimePresets: document.getElementById('guess-time-presets'), 
-            backgroundSelectButton: null, 
-        }, 
-        game: { 
-            round: document.getElementById('current-round'), 
-            totalRounds: document.getElementById('total-rounds'), 
-            timerBar: document.getElementById('timer-bar'), 
-            gameContentArea: document.getElementById('game-content-area'), 
-            playerList: document.getElementById('game-player-list'),
-            reactionButtons: document.getElementById('reaction-buttons') // NEU
-        }, 
-        guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), input: document.getElementById('guest-nickname-input') }, 
-        joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), }, 
-        friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), tabsContainer: document.querySelector('.friends-modal .tabs'), tabs: document.querySelectorAll('.friends-modal .tab-button'), tabContents: document.querySelectorAll('.friends-modal .tab-content') }, 
-        inviteFriendsModal: { overlay: document.getElementById('invite-friends-modal-overlay'), closeBtn: document.getElementById('close-invite-modal-button'), list: document.getElementById('online-friends-list') }, 
-        customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')}, 
-        achievements: { grid: document.getElementById('achievement-grid'), screen: document.getElementById('achievements-screen') }, 
-        levelProgress: { list: document.getElementById('level-progress-list'), screen: document.getElementById('level-progress-screen') }, 
-        titles: { list: document.getElementById('title-list'), screen: document.getElementById('title-selection-screen') }, 
-        icons: { list: document.getElementById('icon-list'), screen: document.getElementById('icon-selection-screen') }, 
-        gameTypeScreen: { 
-            screen: document.getElementById('game-type-selection-screen'), 
-            pointsBtn: document.getElementById('game-type-points'), 
-            livesBtn: document.getElementById('game-type-lives'), 
-            livesSettings: document.getElementById('lives-settings-container'), 
-            livesPresets: document.getElementById('lives-count-presets'), 
-            createLobbyBtn: document.getElementById('create-lobby-button'),
-            quizSettingsContainer: document.getElementById('quiz-settings-container'), 
-            guessTypesCheckboxes: document.querySelectorAll('#guess-types-setting input[type="checkbox"]'), 
-            guessTypesError: document.getElementById('guess-types-error'), 
-            answerTypePresets: document.getElementById('answer-type-presets') 
-        }, 
-        changeNameModal: { overlay: document.getElementById('change-name-modal-overlay'), closeBtn: document.getElementById('close-change-name-modal-button'), submitBtn: document.getElementById('change-name-submit'), input: document.getElementById('change-name-input'), }, 
-        deviceSelectModal: { overlay: document.getElementById('device-select-modal-overlay'), closeBtn: document.getElementById('close-device-select-modal'), list: document.getElementById('device-list'), refreshBtn: document.getElementById('refresh-devices-button-modal'), }, 
-        playlistSelectModal: { overlay: document.getElementById('playlist-select-modal-overlay'), closeBtn: document.getElementById('close-playlist-select-modal'), list: document.getElementById('playlist-list'), search: document.getElementById('playlist-search'), pagination: document.getElementById('playlist-pagination'), }, 
-        leaveConfirmModal: { overlay: document.getElementById('leave-confirm-modal-overlay'), confirmBtn: document.getElementById('confirm-leave-button'), cancelBtn: document.getElementById('cancel-leave-button'), }, 
-        confirmActionModal: { overlay: document.getElementById('confirm-action-modal-overlay'), title: document.getElementById('confirm-action-title'), text: document.getElementById('confirm-action-text'), confirmBtn: document.getElementById('confirm-action-confirm-button'), cancelBtn: document.getElementById('confirm-action-cancel-button'), }, 
-        stats: { screen: document.getElementById('stats-screen'), gamesPlayed: document.getElementById('stat-games-played'), wins: document.getElementById('stat-wins'), winrate: document.getElementById('stat-winrate'), highscore: document.getElementById('stat-highscore'), correctAnswers: document.getElementById('stat-correct-answers'), avgScore: document.getElementById('stat-avg-score'), gamesPlayedPreview: document.getElementById('stat-games-played-preview'), winsPreview: document.getElementById('stat-wins-preview'), correctAnswersPreview: document.getElementById('stat-correct-answers-preview'), }, 
-        shop: { screen: document.getElementById('shop-screen'), titlesList: document.getElementById('shop-titles-list'), iconsList: document.getElementById('shop-icons-list'), backgroundsList: document.getElementById('shop-backgrounds-list'), colorsList: document.getElementById('shop-colors-list'), spotsBalance: document.getElementById('shop-spots-balance'), }, 
-        customize: { 
-            screen: document.getElementById('customization-screen'), 
-            tabsContainer: document.getElementById('customization-tabs'), 
-            tabContents: document.querySelectorAll('#customization-screen .tab-content'), 
-            titlesList: document.getElementById('customize-title-list'), 
-            iconsList: document.getElementById('customize-icon-list'), 
-            colorsList: document.getElementById('customize-color-list'),
-            backgroundsList: document.getElementById('owned-backgrounds-list'),
-            accentColorsList: document.getElementById('customize-accent-color-list') // NEU
-        }, 
-        popups: {
-            container: document.getElementById('popup-overlay-container'),
-            invite: null,
-            friendRequest: null
-        }
-    };
-
-
-    const showToast = (message, isError = false) => {
-        if (typeof iziToast === 'undefined') {
-            console.error("iziToast ist nicht geladen!");
-            alert(`[${isError ? 'FEHLER' : 'INFO'}]\n${message}`);
-            return;
-        }
-        
-        console.log(`Toast: ${message} (Error: ${isError})`);
-        
-        iziToast.show({
-            message: message,
-            position: 'topCenter', 
-            timeout: 3000,
-            progressBarColor: isError ? 'var(--danger-color)' : 'var(--accent-color)',
-            theme: 'dark',
-            layout: 1,
-            displayMode: 'replace',
-            backgroundColor: 'var(--dark-grey)',
-            messageColor: 'var(--text-color)',
-            icon: isError ? 'fa-solid fa-circle-xmark' : 'fa-solid fa-circle-check',
-            iconColor: isError ? 'var(--danger-color)' : 'var(--accent-color)',
-        });
+const { createClient } = require('@supabase/supabase-js');
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false
     }
+});
 
-    const showScreen = (screenId) => { console.log(`Navigating to screen: ${screenId}`); const targetScreen = document.getElementById(screenId); if (!targetScreen) { console.error(`Screen with ID "${screenId}" not found!`); return; } const currentScreenId = screenHistory[screenHistory.length - 1]; if (screenId !== currentScreenId) screenHistory.push(screenId); elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); };
-    const goBack = () => { if (screenHistory.length > 1) { const currentScreenId = screenHistory.pop(); const previousScreenId = screenHistory[screenHistory.length - 1]; console.log(`Navigating back to screen: ${previousScreenId}`); if (['game-screen', 'lobby-screen'].includes(currentScreenId)) { elements.leaveConfirmModal.overlay.classList.remove('hidden'); screenHistory.push(currentScreenId); return; } const targetScreen = document.getElementById(previousScreenId); if (!targetScreen) { console.error(`Back navigation failed: Screen "${previousScreenId}" not found!`); screenHistory = ['auth-screen']; window.location.reload(); return; } elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(previousScreenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); } };
-    
-    const setLoading = (isLoading, message = null) => {
-        console.log(`Setting loading overlay: ${isLoading}, Message: ${message}`);
-        const overlay = elements.loadingOverlay;
-        const overlayMessage = elements.loadingOverlayMessage;
-
-        if (isLoading) {
-            if (overlayMessage) {
-                overlayMessage.textContent = message || '';
-            }
-            if (overlay) {
-                overlay.classList.remove('hidden');
-            }
-            elements.countdownOverlay?.classList.add('hidden');
-        } else {
-            if (overlay) {
-                overlay.classList.add('hidden');
-            }
-            elements.countdownOverlay?.classList.add('hidden');
-            if (overlayMessage) {
-                overlayMessage.textContent = '';
-            }
-        }
-    }
-
-    const showConfirmModal = (title, text, onConfirm) => { elements.confirmActionModal.title.textContent = title; elements.confirmActionModal.text.textContent = text; currentConfirmAction = onConfirm; elements.confirmActionModal.overlay.classList.remove('hidden'); };
-
-    function isItemUnlocked(item, currentLevel) { 
-        if (!item || !currentUser ) return false; 
-        if (!currentUser.isGuest && currentUser.username.toLowerCase() === 'taubey') return true; 
-        
-        if (item.unlockType === 'spots') { 
-            if (currentUser.isGuest) return false; 
-            if (item.type === 'title') return ownedTitleIds.has(item.id); 
-            if (item.type === 'icon') return ownedIconIds.has(item.id); 
-            if (item.type === 'background') return ownedBackgroundIds.has(item.backgroundId); 
-            if (item.type === 'color') return ownedColorIds.has(item.id);
-            if (item.type === 'accent-color') return ownedAccentColorIds.has(item.id); // NEU
-        } 
-        
-        switch (item.unlockType) { 
-            case 'level': return currentLevel >= item.unlockValue; 
-            case 'achievement': return userUnlockedAchievementIds.includes(item.unlockValue); 
-            case 'special': return !currentUser.isGuest && currentUser.username.toLowerCase() === item.unlockValue.toLowerCase(); 
-            case 'free': return true; 
-            default: return false; 
-        } 
-    }
-    function getUnlockDescription(item) { if (!item) return ''; if (item.unlockType === 'spots') return `Kosten: ${item.cost} 🎵`; switch (item.unlockType) { case 'level': return `Erreiche Level ${item.unlockValue}`; case 'achievement': const ach = achievementsList.find(a => a.id === item.unlockValue); return `Erfolg: ${ach ? ach.name : 'Unbekannt'}`; case 'special': return 'Spezial'; case 'free': return 'Standard'; default: return ''; } }
-    function updateSpotsDisplay() { const spots = userProfile?.spots ?? 0; if (elements.home.spotsBalance) elements.home.spotsBalance.textContent = spots; if (elements.shop.spotsBalance) elements.shop.spotsBalance.textContent = spots; }
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 
-    const initializeApp = (user, isGuest = false) => { 
-        console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`); 
-        localStorage.removeItem('fakesterGame'); 
-        const fallbackUsername = isGuest ? user.username : user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt'; 
-        
-        const fallbackProfile = { id: user.id, username: fallbackUsername, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, spots: 0, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null, equipped_background_id: 'default', equipped_accent_color_id: 1 }; 
-        
-        if (isGuest) { 
-            currentUser = { id: 'guest-' + Date.now(), username: user.username, isGuest }; 
-            userProfile = { ...fallbackProfile, id: currentUser.id, username: currentUser.username }; 
-            userUnlockedAchievementIds = []; 
-            ownedTitleIds.clear(); 
-            ownedIconIds.clear(); 
-            ownedBackgroundIds.clear(); 
-            ownedColorIds.clear();
-            ownedAccentColorIds.clear();
-            inventory = {}; 
-        } else { 
-            currentUser = { id: user.id, username: fallbackUsername, isGuest }; 
-            userProfile = { ...fallbackProfile, id: user.id, username: currentUser.username }; 
-            userUnlockedAchievementIds = []; 
-            ownedTitleIds.clear(); 
-            ownedIconIds.clear(); 
-            ownedBackgroundIds.clear(); 
-            ownedColorIds.clear();
-            ownedAccentColorIds.clear();
-            inventory = {}; 
-        } 
-        
-        console.log("Setting up initial UI with fallback data..."); 
-        document.body.classList.toggle('is-guest', isGuest); 
-        if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; 
-        if(document.getElementById('profile-title')) equipTitle(userProfile.equipped_title_id || 1, false); 
-        if(elements.home.profileIcon) equipIcon(userProfile.equipped_icon_id || 1, false);
-        equipColor(userProfile.equipped_color_id, false);
-        equipAccentColor(userProfile.equipped_accent_color_id || 1, false);
-        applyBackground(userProfile.equipped_background_id || 'default');
-        if(elements.home.profileLevel) updatePlayerProgressDisplay(); 
-        if(elements.stats.gamesPlayed) updateStatsDisplay(); 
-        updateSpotsDisplay(); 
-        if(elements.achievements.grid) renderAchievements(); 
-        if(elements.titles.list) renderTitles(); 
-        if(elements.icons.list) renderIcons(); 
-        if(elements.levelProgress.list) renderLevelProgress(); 
-        console.log("Showing home screen (non-blocking)..."); 
-        showScreen('home-screen'); 
-        setLoading(false); 
-        
-        if (!isGuest && supabase) { 
-            console.log("Fetching profile, owned items, achievements, and Spotify status in background..."); 
-            Promise.all([ 
-                supabase.from('profiles').select('*').eq('id', user.id).single(), 
-                supabase.from('user_owned_titles').select('title_id').eq('user_id', user.id), 
-                supabase.from('user_owned_icons').select('icon_id').eq('user_id', user.id), 
-                supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', user.id),
-                supabase.from('user_owned_colors').select('color_id').eq('user_id', user.id),
-                supabase.from('user_owned_accent_colors').select('accent_color_id').eq('user_id', user.id), // NEU
-                supabase.from('user_inventory').select('item_id, quantity').eq('user_id', user.id) 
-            ]).then((results) => { 
-                const [profileResult, titlesResult, iconsResult, backgroundsResult, colorsResult, accentColorsResult, inventoryResult] = results; // NEU
-                if (profileResult.error || !profileResult.data) { 
-                    console.error("BG Profile Error:", profileResult.error || "No data"); 
-                    if (!profileResult.error?.details?.includes("0 rows")) showToast("Fehler beim Laden des Profils.", true); 
-                    document.getElementById('welcome-nickname').textContent = currentUser.username; 
-                    updatePlayerProgressDisplay(); 
-                    updateStatsDisplay(); 
-                    updateSpotsDisplay(); 
-                } else { 
-                    userProfile = profileResult.data; 
-                    currentUser.username = profileResult.data.username; 
-                    console.log("BG Profile fetched:", userProfile); 
-                    document.getElementById('welcome-nickname').textContent = currentUser.username; 
-                    equipTitle(userProfile.equipped_title_id || 1, false); 
-                    equipIcon(userProfile.equipped_icon_id || 1, false); 
-                    equipColor(userProfile.equipped_color_id, false);
-                    equipAccentColor(userProfile.equipped_accent_color_id || 1, false);
-                    applyBackground(userProfile.equipped_background_id || 'default');
-                    updatePlayerProgressDisplay(); 
-                    updateStatsDisplay(); 
-                    updateSpotsDisplay(); 
-                } 
-                ownedTitleIds = new Set(titlesResult.data?.map(t => t.title_id) || []); 
-                ownedIconIds = new Set(iconsResult.data?.map(i => i.icon_id) || []); 
-                ownedBackgroundIds = new Set(backgroundsResult.data?.map(b => b.background_id) || []);
-                ownedColorIds = new Set(colorsResult.data?.map(c => c.color_id) || []);
-                ownedAccentColorIds = new Set(accentColorsResult.data?.map(a => a.accent_color_id) || []); // NEU
-                inventory = {}; 
-                inventoryResult.data?.forEach(item => inventory[item.item_id] = item.quantity); 
-                console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, B: ownedBackgroundIds.size, C: ownedColorIds.size, A: ownedAccentColorIds.size, Inv: Object.keys(inventory).length }); 
-                if(elements.titles.list) renderTitles(); 
-                if(elements.icons.list) renderIcons(); 
-                if(elements.levelProgress.list) renderLevelProgress(); 
-                return supabase.from('user_achievements').select('achievement_id').eq('user_id', user.id); 
-            }).then(({ data: achievements, error: achError }) => { 
-                if (achError) { console.error("BG Achievement Error:", achError); userUnlockedAchievementIds = []; } 
-                else { userUnlockedAchievementIds = achievements.map(a => parseInt(a.achievement_id, 10)).filter(id => !isNaN(id)); console.log("BG Achievements fetched:", userUnlockedAchievementIds); } 
-                if(elements.achievements.grid) renderAchievements(); 
-                if(elements.titles.list) renderTitles(); 
-                if(elements.icons.list) renderIcons(); 
-                console.log("Checking Spotify status after achievements (async)..."); 
-                return checkSpotifyStatus(); 
-            }).then(() => { 
-                console.log("Spotify status checked after achievements (async)."); 
-                if (spotifyToken && !userUnlockedAchievementIds.includes(9)) { awardClientSideAchievement(9); } 
-                console.log("Connecting WebSocket for logged-in user (after async loads)..."); 
-                connectWebSocket(); 
-            }).catch(error => { 
-                console.error("Error during background data loading chain:", error); 
-                showToast("Fehler beim Laden einiger Daten.", true); 
-                console.log("Connecting WebSocket despite background load error..."); 
-                connectWebSocket(); 
-            }); 
-        } else { 
-            console.log("Connecting WebSocket for guest..."); 
-            checkSpotifyStatus(); 
-            connectWebSocket(); 
-        } 
-        console.log("initializeApp finished (non-blocking setup complete)."); 
-    };
-    const checkSpotifyStatus = async () => { if (currentUser && currentUser.isGuest) { console.log("Guest mode, hiding Spotify connect button."); elements.home.spotifyConnectBtn?.classList.add('guest-hidden'); elements.home.createRoomBtn?.classList.add('hidden'); return; } try { const response = await fetch('/api/status'); const data = await response.json(); if (data.loggedIn && data.token) { console.log("Spotify is connected."); spotifyToken = data.token; elements.home.spotifyConnectBtn?.classList.add('hidden'); elements.home.createRoomBtn?.classList.remove('hidden'); if (currentUser && !currentUser.isGuest && !userUnlockedAchievementIds.includes(9)) { awardClientSideAchievement(9); } } else { console.log("Spotify is NOT connected."); spotifyToken = null; elements.home.spotifyConnectBtn?.classList.remove('hidden'); elements.home.createRoomBtn?.classList.add('hidden'); } } catch (error) { console.error("Error checking Spotify status:", error); spotifyToken = null; elements.home.spotifyConnectBtn?.classList.remove('hidden'); elements.home.createRoomBtn?.classList.add('hidden'); } };
-    
-    const handleAuthAction = async (action, form, isRegister = false) => { 
-        if (!supabase) { showToast("Verbindung wird aufgebaut, bitte warte...", true); return; } 
-        setLoading(true, "Authentifiziere..."); 
-        const formData = new FormData(form); 
-        const credentials = {}; 
-        let username; 
-        if (isRegister) { 
-            username = formData.get('username'); 
-            credentials.email = `${username}@fakester.app`; 
-            credentials.password = formData.get('password'); 
-            credentials.options = { data: { 
-                username: username, 
-                xp: 0, 
-                spots: 100, 
-                equipped_title_id: 25, 
-                equipped_icon_id: 1, 
-                equipped_color_id: null,
-                equipped_background_id: 'default',
-                equipped_accent_color_id: 1
-            } }; 
-        } else { 
-            username = formData.get('username'); 
-            credentials.email = `${username}@fakester.app`; 
-            credentials.password = formData.get('password'); 
-        } 
-        const { data, error } = await action(credentials); 
-        setLoading(false); 
-        if (error) { 
-            console.error(`Auth Error (${isRegister ? 'Register' : 'Login'}):`, error); 
-            showToast(error.message, true); 
-        } 
-        else if (data.user) { 
-            console.log(`Auth Success (${isRegister ? 'Register' : 'Login'}):`, data.user.id); 
-            if (isRegister) {
-                setTimeout(() => awardClientSideAchievement(25), 500); 
-            }
-        } 
-        else { 
-            console.warn("Auth: Kein Fehler, aber auch keine User-Daten."); 
-        } 
-    };
+process.on('uncaughtException', (err, origin) => {
+    console.error(`SERVER Uncaught Exception: ${err?.stack || err}`);
+    console.error(`Origin: ${origin}`);
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('SERVER Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
-    const handleLogout = async () => { if (!supabase) return; showConfirmModal("Abmelden", "Möchtest du dich wirklich abmelden?", async () => { setLoading(true, "Melde ab..."); console.log("Logging out..."); const { error: signOutError } = await supabase.auth.signOut(); try { await fetch('/logout', { method: 'POST' }); console.log("Spotify cookie cleared."); } catch (fetchError) { console.error("Error clearing Spotify cookie:", fetchError); } setLoading(false); if (signOutError) { console.error("SignOut Error:", signOutError); showToast(signOutError.message, true); } else { console.log("Logout successful."); } }); };
-    const awardClientSideAchievement = (achievementId) => { if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) { if(userUnlockedAchievementIds.includes(achievementId)) { console.log(`Achievement ${achievementId} already in list, not awarding again.`); } return; } console.log(`Awarding client-side achievement: ${achievementId}`); userUnlockedAchievementIds.push(achievementId); const achievement = achievementsList.find(a => a.id === achievementId); showToast(`Erfolg freigeschaltet: ${achievement?.name || `ID ${achievementId}`}!`); if(elements.achievements.grid) renderAchievements(); if(elements.titles.list) renderTitles(); if(elements.icons.list) renderIcons(); supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: achievementId }).then(({ error }) => { if (error) { console.error(`Fehler beim Speichern von Client-Achievement ${achievementId} im Hintergrund:`, error); } else { console.log(`Client-Achievement ${achievementId} erfolgreich im Hintergrund gespeichert.`); } }); };
+const app = express();
+const server = http.createServer(app);
+const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
+const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
+const REDIRECT_URI = process.env.REDIRECT_URI;
 
-    const connectWebSocket = () => {
-        const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host;
-        const wsUrl = `${proto}//${host}`;
-        console.log(`Connecting WebSocket to ${wsUrl}...`);
+app.use(express.static(__dirname));
+app.use(cookieParser());
+app.use(express.json());
 
-        if (ws.socket && (ws.socket.readyState === WebSocket.OPEN || ws.socket.readyState === WebSocket.CONNECTING)) {
-            console.log("WebSocket is already open or connecting.");
-            return;
-        }
-
+// --- Authentication Middleware ---
+const authenticateUser = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    let userId = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const jwt = authHeader.substring(7);
         try {
-            ws.socket = new WebSocket(wsUrl);
+            const { data: { user }, error } = await supabaseAnon.auth.getUser(jwt);
+            if (error) {
+                console.warn('Auth Middleware: Invalid JWT:', error.message);
+            } else if (user) {
+                req.user = user;
+                userId = user.id;
+            } else {
+                 console.warn('Auth Middleware: Token valid but no user found?');
+            }
         } catch (e) {
-            console.error("Failed to create WebSocket:", e);
-            showToast("WebSocket-Erstellung fehlgeschlagen.", true);
+            console.error('Auth Middleware: Error validating JWT:', e);
+        }
+    }
+    req.userId = userId;
+    next();
+};
+
+const apiRouter = express.Router();
+apiRouter.use(authenticateUser);
+app.use('/api', apiRouter);
+
+
+let games = {};
+const onlineUsers = new Map(); // Speichert { userId: ws }
+const HEARTBEAT_INTERVAL = 30000;
+
+// --- Shop Data (ERWEITERT) ---
+const shopItems = [
+    // Titel (10+ Items)
+    { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Zeige allen dein Wissen!' },
+    { id: 102, type: 'title', name: 'Playlist-Meister', cost: 150, unlockType: 'spots', description: 'Für echte Kenner.' },
+    { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Für Rhythmus-Fanatiker.' },
+    { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Synth-Pop-Liebhaber.' },
+    { id: 105, type: 'title', name: 'Gold-Kehlchen', cost: 300, unlockType: 'spots', description: 'Für die Gesangs-Profis.' },
+    { id: 106, type: 'title', name: 'Platin', cost: 1000, unlockType: 'spots', description: 'Mehr Platin als die Wand.' },
+    { id: 107, type: 'title', name: 'Rockstar', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 108, type: 'title', name: 'Pop-Prinzessin', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 109, type: 'title', name: 'Hip-Hop-Head', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 110, type: 'title', name: 'DJ', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
+    
+    // Icons (10+ Items)
+    { id: 201, type: 'icon', name: 'Diamant', iconClass: 'fa-diamond', cost: 250, unlockType: 'spots', description: 'Ein glänzendes Icon.' },
+    { id: 202, type: 'icon', name: 'Zauberhut', iconClass: 'fa-hat-wizard', cost: 300, unlockType: 'spots', description: 'Magisch!' },
+    { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Zum Mond!' },
+    { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Explosiv.' },
+    { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 500, unlockType: 'spots', description: 'Still und leise.' },
+    { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Feurig!' },
+    { id: 207, type: 'icon', name: 'Anker', iconClass: 'fa-anchor', cost: 200, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 208, type: 'icon', name: 'Kaffeetasse', iconClass: 'fa-coffee', cost: 150, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 209, type: 'icon', name: 'Mond', iconClass: 'fa-moon', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 210, type: 'icon', name: 'Sonne', iconClass: 'fa-sun', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
+
+    // Hintergründe (10 Items)
+    { id: 301, type: 'background', name: 'Synthwave', cssClass: 'bg-synthwave', cost: 500, unlockType: 'spots', description: 'Retro-Vibes.', backgroundId: '301' },
+    { id: 302, type: 'background', name: 'Konzertbühne', cssClass: 'bg-concert', cost: 600, unlockType: 'spots', description: 'Fühl dich wie ein Star.', backgroundId: '302' },
+    { id: 303, type: 'background', name: 'Plattenladen', cssClass: 'bg-vinyl', cost: 700, unlockType: 'spots', description: 'Klassisches Stöbern.', backgroundId: '303'},
+    { id: 304, type: 'background', name: 'Sonnenuntergang', cssClass: 'bg-sunset', cost: 500, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '304'},
+    { id: 305, type: 'background', name: 'Ozean', cssClass: 'bg-ocean', cost: 500, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '305'},
+    { id: 306, type: 'background', name: 'Wald', cssClass: 'bg-forest', cost: 500, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '306'},
+    { id: 307, type: 'background', name: 'Sternenhimmel', cssClass: 'bg-stars', cost: 750, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '307'},
+    { id: 308, type: 'background', name: 'Retro-Rot', cssClass: 'bg-retro', cost: 500, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '308'},
+    { id: 309, type: 'background', name: 'Studio', cssClass: 'bg-studio', cost: 600, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '309'},
+    { id: 310, type: 'background', name: 'Party', cssClass: 'bg-party', cost: 1000, unlockType: 'spots', description: 'Nur im Shop', backgroundId: '310'},
+    
+    // Namensfarben (20+ Items)
+    { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' }, 
+    { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' }, 
+    { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }, 
+    { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' },
+    { id: 505, name: 'Blutrot', type: 'color', colorHex: '#DC143C', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 506, name: 'Sonnengelb', type: 'color', colorHex: '#FFC700', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 507, name: 'Himmelblau', type: 'color', colorHex: '#87CEEB', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 508, name: 'Lavendel', type: 'color', colorHex: '#E6E6FA', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 509, name: 'Königs-Lila', type: 'color', colorHex: '#8a2be2', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 510, name: 'Schneeweiß', type: 'color', colorHex: '#FFFFFF', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+    // Verläufe (als 'color', da sie nur für Namen sind)
+    { id: 550, name: 'Regenbogen', type: 'color', colorHex: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)', cost: 5000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 551, name: 'Synthwave-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff00ff, #00ffff)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 552, name: 'Sonnen-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 553, name: 'Ozean-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #005c97, #363795)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 554, name: 'Wald-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #136a8a, #267871)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 555, name: 'Feuer-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff4500, #ffd700)', cost: 3000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 556, name: 'Kaugummi', type: 'color', colorHex: 'linear-gradient(90deg, #ff7eb9, #a0c2ff)', cost: 2000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 557, name: 'Gift-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #00ff00, #8a2be2)', cost: 3000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 558, name: 'Dunkel-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #434343, #000000)', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 559, name: 'Heller Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #e0e0e0, #ffffff)', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 560, name: 'Metallisch', type: 'color', colorHex: 'linear-gradient(90deg, #808080, #c0c0c0, #808080)', cost: 4000, unlockType: 'spots', description: 'Nur im Shop' }
+];
+
+
+// --- Helper Functions ---
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+function getLevenshteinDistance(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const matrix = Array(a.length + 1).fill(null).map(() => Array(b.length + 1).fill(null));
+    for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+    for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1,      
+                matrix[i][j - 1] + 1,      
+                matrix[i - 1][j - 1] + cost 
+            );
+        }
+    }
+    return matrix[a.length][b.length];
+}
+
+function normalizeAnswer(str) {
+    return str
+        .toLowerCase()
+        .replace(/[^a-z0-9äöüß]/g, '') 
+        .replace(/\(.*\)/g, '')         
+        .trim();
+}
+
+function getScores(pin) { 
+    const game = games[pin]; 
+    if (!game) return []; 
+    return Object.values(game.players)
+        .map(p => ({ 
+            id: p.id,
+            nickname: p.nickname, 
+            score: p.score, 
+            lives: p.lives, 
+            isConnected: p.isConnected, 
+            lastPointsBreakdown: p.lastPointsBreakdown,
+            iconId: p.iconId || 1,
+            colorId: p.colorId || null,
+            titleId: p.titleId || 1,
+            backgroundId: p.backgroundId || null,
+            accentColorId: p.accentColorId || null, 
+            isReady: p.isReady || false
+        }))
+        .filter(p => p.id)
+        .sort((a, b) => b.score - a.score); 
+}
+function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readyState === WebSocket.OPEN) { try { ws.send(JSON.stringify({ type: 'toast', payload: { message, isError } })); } catch (e) { console.error(`Failed to send toast to player ${ws.playerId}:`, e); } } }
+
+async function getPlaylistTracks(playlistId, token) { 
+    try {
+        const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,artists(name),album(release_date,images),popularity))`, { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        
+        return response.data.items
+            .map(item => item.track)
+            .filter(track => track && track.id && track.album?.release_date)
+            .map(track => ({ 
+                spotifyId: track.id, 
+                title: track.name, 
+                artist: track.artists[0]?.name || 'Unbekannt', 
+                year: parseInt(track.album.release_date.substring(0, 4)), 
+                popularity: track.popularity || 0, 
+                albumArtUrl: track.album.images[0]?.url 
+            }));
+    } catch (error) { 
+        console.error("Fehler beim Abrufen der Playlist-Tracks:", error.response?.data || error.message); 
+        return null; 
+    } 
+}
+
+async function spotifyApiCall(method, url, token, data = null) {
+    try {
+        const config = {
+            method,
+            url,
+            headers: { 'Authorization': `Bearer ${token}` }
+        };
+        
+        if (data) {
+            config.data = data;
+        }
+        
+        await axios(config); 
+        
+        return true;
+    } catch (e) { 
+        console.error(`Spotify API Fehler bei ${method.toUpperCase()} ${url}:`, e.response?.data || e.message); 
+        return false; 
+    } 
+}
+
+async function hasAchievement(userId, achievementId) { try { const { count, error } = await supabase.from('user_achievements').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('achievement_id', achievementId); if (error) throw error; return count > 0; } catch (e) { console.error("Error checking achievement:", e); return false; } }
+function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws && player.ws.readyState === WebSocket.OPEN && player.isConnected) { try { player.ws.send(messageString); } catch (e) { console.error(`Failed to send message to player ${player.ws.playerId}:`, e); } } }); }
+function broadcastLobbyUpdate(pin) {
+     const game = games[pin]; if (!game) return;
+     const payload = { 
+         pin, 
+         hostId: game.hostId, 
+         players: getScores(pin), 
+         gameMode: game.gameMode,
+         settings: {
+             songCount: game.settings.songCount, 
+             guessTime: game.settings.guessTime,
+             answerType: game.settings.answerType, 
+             lives: game.settings.lives, 
+             gameType: game.settings.gameType,
+             guessTypes: game.settings.guessTypes,
+             deviceName: game.settings.deviceName, 
+             playlistName: game.settings.playlistName,
+             deviceId: game.settings.deviceId,
+             playlistId: game.settings.playlistId
+         }
+     };
+     broadcastToLobby(pin, { type: 'lobby-update', payload });
+}
+function generatePin() { let pin; do { pin = Math.floor(1000 + Math.random() * 9000).toString(); } while (games[pin]); return pin; }
+
+async function awardAchievement(ws, userId, achievementId) {
+    if (!userId || userId.startsWith('guest-')) return;
+    const alreadyHas = await hasAchievement(userId, achievementId);
+    if (alreadyHas) return;
+
+    const { error: insertError } = await supabase.from('user_achievements').insert({ user_id: userId, achievement_id: achievementId });
+    if (insertError) { console.error(`Fehler beim Speichern von Server-Achievement ${achievementId} für User ${userId}:`, insertError); return; }
+
+    console.log(`Server-Achievement ${achievementId} verliehen an User ${userId}.`);
+    showToastToPlayer(ws, `Neuer Erfolg freigeschaltet! (ID: ${achievementId})`);
+
+    const achievementSpotBonus = 50;
+    const { error: spotError } = await supabase.from('profiles').update({ spots: supabase.sql(`spots + ${achievementSpotBonus}`) }).eq('id', userId);
+    if (spotError) { console.error(`Fehler beim Vergeben von Bonus-Spots für Achievement ${achievementId} an User ${userId}:`, spotError); }
+    else { showToastToPlayer(ws, `+${achievementSpotBonus} Spots für neuen Erfolg!`); }
+}
+
+
+// --- Express Routes ---
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/api/config', (req, res) => res.json({ supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY }));
+
+app.get('/login', (req, res) => { const scopes = 'user-read-private user-read-email playlist-read-private streaming user-modify-playback-state user-read-playback-state'; res.redirect('https://accounts.spotify.com/authorize?' + new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, scope: scopes, redirect_uri: REDIRECT_URI }).toString()); });
+
+app.get('/callback', async (req, res) => {
+    const code = req.query.code || null;
+    const error = req.query.error || null;
+    console.log(`Spotify Callback received. Code: ${code ? 'Present' : 'MISSING'}, Error: ${error || 'None'}`);
+
+    if (error) { console.error("Spotify Callback Error Parameter:", error); return res.redirect(`/#error=spotify_auth_failed&details=${encodeURIComponent(error)}`); }
+    if (!code) { console.error("Spotify Callback: No code received."); return res.redirect('/#error=spotify_auth_failed&details=no_code'); }
+
+    try {
+        console.log("Attempting to exchange Spotify code for token...");
+        const response = await axios({
+            method: 'post',
+            url: 'https://accounts.spotify.com/api/token',
+            data: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }).toString(),
+            headers: { 'Authorization': 'Basic ' + (Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')), 'Content-Type': 'application/x-www-form-urlencoded' }
+        });
+        console.log("Spotify Token exchange successful:", response.data ? "Token received" : "No data in response?");
+
+        const { access_token } = response.data;
+        if (!access_token) { console.error("Spotify Callback: No access_token in response data:", response.data); throw new Error("Kein Zugriffstoken von Spotify erhalten."); }
+
+        const cookieOptions = { httpOnly: true, maxAge: 3600000, secure: !req.headers.host.includes('localhost'), path: '/', sameSite: 'Lax' };
+        console.log("Setting Spotify cookie...");
+        res.cookie('spotify_access_token', access_token, cookieOptions);
+
+        console.log("Redirecting back to / ...");
+        res.redirect('/');
+
+    } catch (error) {
+        console.error("!!! Spotify Callback Exchange Error:", error.response?.data || error.message);
+        const errorDetails = error.response?.data || { message: error.message };
+        res.status(500).send(`<h1>Spotify Login Fehler</h1><p>Token-Tausch fehlgeschlagen. Grund:</p><pre>${JSON.stringify(errorDetails, null, 2)}</pre><p><a href="/">Zurück zur App</a></p>`);
+    }
+});
+
+app.post('/logout', (req, res) => { res.clearCookie('spotify_access_token', { path: '/' }); res.status(200).json({ message: 'Erfolgreich ausgeloggt' }); });
+app.get('/api/status', (req, res) => { const token = req.cookies.spotify_access_token; res.json({ loggedIn: !!token, token: token || null }); });
+
+app.get('/api/playlists', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
+    const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
+    res.json(d.data); } catch (e) { console.error("Playlist API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Playlists" }); } });
+
+app.get('/api/devices', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
+    const d = await axios.get('https://api.spotify.com/v1/me/player/devices', { headers: { 'Authorization': `Bearer ${token}` } });
+    res.json(d.data); } catch (e) { console.error("Device API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Geräte" }); } });
+
+// --- SHOP API Routes ---
+apiRouter.get('/shop/items', async (req, res) => {
+    const userId = req.userId;
+    let ownedItems = { titles: new Set(), icons: new Set(), backgrounds: new Set(), colors: new Set() };
+    if (userId) {
+        try {
+            const [titles, icons, backgrounds, colors] = await Promise.all([
+                supabase.from('user_owned_titles').select('title_id').eq('user_id', userId),
+                supabase.from('user_owned_icons').select('icon_id').eq('user_id', userId),
+                supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', userId),
+                supabase.from('user_owned_colors').select('color_id').eq('user_id', userId)
+            ]);
+            titles.data?.forEach(t => ownedItems.titles.add(t.title_id));
+            icons.data?.forEach(i => ownedItems.icons.add(i.icon_id));
+            backgrounds.data?.forEach(b => ownedItems.backgrounds.add(b.background_id));
+            colors.data?.forEach(c => ownedItems.colors.add(c.color_id));
+        } catch (e) {
+            console.error("Error fetching owned items for shop:", e);
+        }
+    }
+    const itemsWithOwnership = shopItems.map(item => {
+        let isOwned = false;
+        if (item.type === 'title') isOwned = ownedItems.titles.has(item.id);
+        else if (item.type === 'icon') isOwned = ownedItems.icons.has(item.id);
+        else if (item.type === 'background') isOwned = ownedItems.backgrounds.has(item.backgroundId);
+        else if (item.type === 'color') isOwned = ownedItems.colors.has(item.id);
+        return { ...item, isOwned };
+    });
+    res.json({ items: itemsWithOwnership });
+});
+
+
+apiRouter.post('/shop/buy', async (req, res) => {
+    const { itemId } = req.body;
+    const userId = req.userId;
+    if (!userId) {
+        return res.status(401).json({ success: false, message: "Nicht eingeloggt (Server)" });
+    }
+    const itemToBuy = shopItems.find(item => item.id == itemId);
+    if (!itemToBuy || itemToBuy.unlockType !== 'spots') {
+        return res.status(400).json({ success: false, message: "Item nicht kaufbar." });
+    }
+    try {
+        const { data, error } = await supabase.rpc('purchase_item', {
+            p_user_id: userId,
+            p_item_id: itemToBuy.id.toString(),
+            p_item_type: itemToBuy.type,
+            p_item_cost: itemToBuy.cost,
+            p_storage_id: itemToBuy.itemId || itemToBuy.id.toString()
+        });
+        if (error) {
+            console.error(`Supabase RPC 'purchase_item' Error:`, error.message);
+            return res.status(400).json({ success: false, message: error.message });
+        }
+        res.json({
+            success: true,
+            message: `"${itemToBuy.name}" erfolgreich gekauft!`,
+            newSpots: data,
+            itemType: itemToBuy.type
+        });
+    } catch (err) {
+        console.error('Server-Fehler in /api/shop/buy:', err);
+        res.status(500).json({ success: false, message: 'Interner Serverfehler.' });
+    }
+});
+
+
+// --- WebSocket Server ---
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', ws => {
+    console.log('WS: Client connected.');
+
+    ws.on('message', async (message) => {
+        let data;
+        try {
+            const messageString = message.toString();
+            if (messageString === '{"type":"ping"}') {
+                ws.send(JSON.stringify({ type: 'pong' }));
+                return;
+            }
+            data = JSON.parse(messageString);
+        } catch (e) {
+            console.error("WS: Failed to parse message:", e);
+            return;
+        }
+        await handleWebSocketMessage(ws, data);
+    });
+
+    ws.on('close', () => {
+        console.log('WS: Client disconnected.');
+        handlePlayerDisconnect(ws);
+    });
+
+    ws.on('error', (error) => {
+        console.error('WS: WebSocket error:', error);
+    });
+});
+
+const interval = setInterval(function ping() {
+    wss.clients.forEach(function each(ws) {
+        if (ws.readyState === WebSocket.OPEN) {
+             ws.ping();
+        }
+    });
+}, HEARTBEAT_INTERVAL);
+
+wss.on('close', function close() { clearInterval(interval); });
+
+
+// --- WebSocket Message Handler ---
+async function handleWebSocketMessage(ws, data) {
+    try {
+        const { type, payload } = data;
+        let { pin, playerId } = ws;
+        let game = games[pin];
+
+        if (type === 'register-online') { 
+            playerId = payload.userId; 
+            ws.playerId = playerId; 
+            ws.nickname = payload.username; 
+            onlineUsers.set(playerId, ws); 
+            console.log(`User ${playerId} (${ws.nickname || 'N/A'}) registered.`); 
+            return; 
+        }
+        if (type === 'create-game') { 
+            playerId = payload.user?.id; 
+            ws.playerId = playerId; 
+            ws.nickname = payload.user?.username; 
+        }
+        if (type === 'join-game') { 
+            playerId = payload.user?.id; 
+            ws.playerId = playerId; 
+            ws.nickname = payload.user?.username; 
+            ws.pin = payload.pin; 
+        }
+        if (type === 'reconnect') { /* ... handle reconnect ... */ return; }
+
+        if (type === 'load-friends') {
+            await handleLoadFriends(ws, playerId);
+            return;
+        }
+        if (type === 'add-friend') { 
+            await handleAddFriend(ws, playerId, payload); 
+            return; 
+        }
+        if (type === 'accept-friend-request') { 
+            await handleAcceptFriendRequest(ws, playerId, payload); 
+            return; 
+        }
+        if (type === 'decline-friend-request' || type === 'remove-friend') { 
+            await handleRemoveFriend(ws, playerId, payload); 
+            return; 
+        }
+        if (type === 'invite-friend') {
+            await handleInviteFriend(ws, playerId, payload);
             return;
         }
 
-        ws.socket.onopen = () => {
-            console.log("WebSocket connected successfully.");
+        // --- NEU: Reaktionen sind kostenlos ---
+        if (type === 'send-reaction') { 
+            if (!game || !game.players[playerId]) return; 
+            const reactionType = payload.reaction; 
+            const sender = game.players[playerId];
             
-            showToast("Server verbunden!", false); 
+            // Sende volle Info für das neue Pop-up
+            broadcastToLobby(pin, { 
+                type: 'player-reacted', 
+                payload: { 
+                    playerId: sender.id, 
+                    nickname: sender.nickname, 
+                    iconId: sender.iconId,
+                    reaction: reactionType 
+                } 
+            }); 
+            return; 
+        }
+        // --- ENDE NEU ---
 
-            if (currentUser && !currentUser.isGuest) {
-                ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id, username: currentUser.username } }));
-            }
-
-            if (wsPingInterval) clearInterval(wsPingInterval);
-            wsPingInterval = setInterval(() => {
-                if (ws.socket && ws.socket.readyState === WebSocket.OPEN) {
-                    ws.socket.send(JSON.stringify({ type: 'ping' }));
-                }
-            }, 30000); 
-        };
-
-        ws.socket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                handleWebSocketMessage(data);
-            } catch (e) {
-                console.error("Error parsing WS message:", e);
-            }
-        };
-
-        ws.socket.onerror = (error) => {
-            console.error("WebSocket Error:", error);
-        };
-
-        ws.socket.onclose = (event) => {
-            console.warn(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
-            if (wsPingInterval) clearInterval(wsPingInterval);
-            wsPingInterval = null;
-            ws.socket = null;
-            
-            if (event.code !== 1000 && event.code !== 1005) {
-                 showToast("Serververbindung verloren. Lade neu...", true);
-            }
-        };
-    }
-
-    const handleWebSocketMessage = ({ type, payload }) => {
-        console.log(`WS Message Received: ${type}`, payload || '');
+        if (!game && !['create-game', 'join-game'].includes(type)) { console.warn(`Action ${type} requires game (Pin: ${pin}).`); return; }
+        if (game && !game.players[playerId] && !['create-game', 'join-game'].includes(type)) { console.warn(`Player ${playerId} not in game ${pin} for action ${type}.`); return; }
 
         switch (type) {
-            case 'lobby-update':
-                handleLobbyUpdate(payload);
-                setLoading(false); 
-                elements.joinModal.overlay.classList.add('hidden'); 
-                if (screenHistory[screenHistory.length - 1] !== 'game-screen') {
-                    showScreen('lobby-screen');
+            case 'create-game':
+                try {
+                    const pin = generatePin();
+                    ws.pin = pin;
+                    console.log(`User ${playerId} creating new game with PIN: ${pin}`);
+                    
+                    games[pin] = {
+                        pin: pin,
+                        hostId: playerId,
+                        players: {},
+                        gameMode: payload.gameMode || 'quiz',
+                        gameState: 'LOBBY',
+                        spotifyToken: payload.token,
+                        settings: {
+                            songCount: 10,
+                            guessTime: 30,
+                            answerType: payload.answerType || 'freestyle',
+                            lives: payload.lives || 3,
+                            gameType: payload.gameType || 'points',
+                            guessTypes: payload.guessTypes || ['title', 'artist'],
+                            // chosenBackgroundId: entfernt
+                            deviceName: null,
+                            playlistName: null,
+                            playlistId: null,
+                            deviceId: null
+                        },
+                        tracks: [],
+                        currentTrack: null,
+                        currentRound: 0,
+                        roundTimer: null,
+                        timeline: [] // NEU: Für Timeline-Modus
+                    };
+                    
+                    await joinGame(ws, payload.user, pin);
+                    awardAchievement(ws, playerId, 10);
+                    
+                } catch (e) {
+                    console.error("Error creating game:", e);
+                    showToastToPlayer(ws, `Lobby-Erstellung fehlgeschlagen: ${e.message}`, true);
                 }
                 break;
-            case 'toast':
-                showToast(payload.message, payload.isError);
-                setLoading(false); 
-                break;
-            case 'friends-update': 
-                renderFriendsList(payload.friends);
-                renderRequestsList(payload.requests);
-                break;
-            case 'game-starting':
-                setLoading(true, "Spiel startet...");
-                break;
-            case 'countdown':
-                showCountdown(payload.number); 
-                break;
-            case 'new-round':
-                setLoading(false);
-                setupNewRound(payload); 
-                showScreen('game-screen');
-                break;
-            case 'round-result':
-                showRoundResult(payload); 
-                break;
-            case 'game-over':
-                setLoading(false);
-                pendingGameInvites = {};
-                showGameOver(payload);
-                updatePlayerProgress(); 
-                break;
-            case 'player-reacted':
-                displayReaction(payload.playerId, payload.nickname, payload.iconId, payload.reaction);
-                break;
-            case 'invite-received':
-                pendingGameInvites[payload.fromUserId] = payload.pin;
-                showInvitePopup(payload.from, payload.pin, payload.fromUserId);
-                break;
-            case 'friend-request-received':
-                showFriendRequestPopup(payload.from, payload.senderId);
+
+            case 'join-game':
+                try {
+                    const { pin: joinPin, user } = payload;
+                    const gameToJoin = games[joinPin];
+                    
+                    if (!gameToJoin) {
+                        showToastToPlayer(ws, "Spiel nicht gefunden. PIN überprüft?", true);
+                        return;
+                    }
+                    if (gameToJoin.gameState !== 'LOBBY') {
+                         showToastToPlayer(ws, "Spiel läuft bereits. Beitreten nicht möglich.", true);
+                         return;
+                    }
+                    
+                    await joinGame(ws, user, joinPin);
+                    
+                } catch (e) {
+                    console.error("Error joining game:", e);
+                    showToastToPlayer(ws, `Beitritt fehlgeschlagen: ${e.message}`, true);
+                }
                 break;
 
+            case 'update-settings':
+                if (!game || ws.playerId !== game.hostId) {
+                    return showToastToPlayer(ws, "Nur der Host kann Einstellungen ändern.", true);
+                }
+                
+                if (payload.chosenBackgroundId) {
+                    delete payload.chosenBackgroundId;
+                }
+                
+                console.log(`Host updated settings for ${pin}:`, payload);
+                Object.assign(game.settings, payload);
+                broadcastLobbyUpdate(pin);
+                break;
+
+            case 'start-game':
+                if (!game || ws.playerId !== game.hostId) {
+                    return showToastToPlayer(ws, "Nur der Host kann das Spiel starten.", true);
+                }
+                if (!game.settings.playlistId || !game.settings.deviceId) {
+                     return showToastToPlayer(ws, "Wähle zuerst Playlist und Wiedergabegerät.", true);
+                }
+                if (game.gameState !== 'LOBBY') {
+                    showToastToPlayer(ws, "Spiel startet bereits...", true);
+                    return;
+                }
+                
+                startGameLogic(pin).catch(err => {
+                    console.error(`Fehler beim Starten von Spiel ${pin}:`, err);
+                    showToastToPlayer(ws, `Spielstart fehlgeschlagen: ${err.message}`, true);
+                    game.gameState = 'LOBBY'; 
+                });
+                break;
+
+            case 'submit-guess':
+                if (game && game.players[playerId] && game.gameState === 'PLAYING') {
+                    if (game.gameMode === 'quiz') {
+                        game.players[playerId].currentGuess = payload.guess;
+                    } else if (game.gameMode === 'timeline') {
+                        submitTimelineGuess(game, player, payload.guess.index);
+                    }
+                }
+                break;
+            
+            case 'player-ready':
+                if (game && game.players[playerId] && game.gameState === 'PLAYING') {
+                    game.players[playerId].isReady = true;
+                    broadcastLobbyUpdate(pin); 
+                    
+                    const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
+                    if (allReady) {
+                        console.log(`Alle Spieler in ${pin} sind bereit. Beende Runde früher.`);
+                        if (game.gameMode === 'quiz') {
+                            endRound(pin);
+                        } else if (game.gameMode === 'timeline') {
+                            // Im Timeline-Modus gibt es kein "Ready", da der Klick sofort wertet.
+                            // Aber falls doch, können wir die Timer-Logik hier anwenden
+                            endTimelineRound(pin);
+                        }
+                    }
+                }
+                break;
+            
+            case 'leave-game':
+                handlePlayerDisconnect(ws);
+                break;
+                
             default:
-                console.warn(`Unhandled WS message type: ${type}`);
+                console.warn(`Unhandled WebSocket message type: ${type}`);
         }
+    } catch(e) { console.error("Error processing WebSocket message:", e); showToastToPlayer(ws, "Ein interner Serverfehler.", true); }
+}
+
+
+// --- Player Disconnect Logic ---
+async function handlePlayerDisconnect(ws) {
+    const { pin, playerId } = ws;
+    if (playerId) {
+        onlineUsers.delete(playerId);
+        console.log(`User ${playerId} disconnected from online list.`);
+    }
+    
+    const game = games[pin];
+    if (!game) {
+        return;
+    }
+    
+    const player = game.players[playerId];
+    if (!player) {
+        return;
+    }
+    
+    console.log(`Player ${player.nickname} (${playerId}) disconnected from ${pin}.`);
+    player.isConnected = false;
+    player.ws = null;
+    
+    // --- NEU: Host-Disconnect-Logik ---
+    if (playerId === game.hostId && game.gameState !== 'FINISHED') {
+        console.log(`Host ${playerId} disconnected from game ${pin}. Ending game.`);
+        
+        // --- NEU: Musik stoppen! ---
+        if ((game.gameState === 'PLAYING' || game.gameState === 'RESULTS') && game.settings.deviceId) {
+            await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+        }
+        
+        const finalScores = getScores(pin);
+        broadcastToLobby(pin, { 
+            type: 'game-over', 
+            payload: { 
+                scores: finalScores,
+                message: "Der Host hat das Spiel verlassen." 
+            } 
+        });
+
+        // --- NEU: 10% Trostpreis-Logik ---
+        console.log(`Awarding consolation stats for game ${pin} (host left).`);
+        const gamePlayers = Object.values(game.players);
+        
+        for (const p of gamePlayers) {
+            if (p.isGuest || !p.id || p.id === game.hostId || !p.isConnected) continue;
+            
+            const score = p.score || 0;
+            const spotBonus = Math.max(1, Math.floor(score * 0.10)); 
+            const xpBonus = Math.max(5, Math.floor(score / 20)); 
+            
+            try {
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({
+                        xp: supabase.sql(`xp + ${xpBonus}`),
+                        spots: supabase.sql(`spots + ${spotBonus}`)
+                    })
+                    .eq('id', p.id);
+                
+                if (error) throw error;
+                
+                console.log(`Awarded ${xpBonus} XP and ${spotBonus} Spots to ${p.id} (consolation).`);
+                showToastToPlayer(p.ws, `Spiel abgebrochen. +${xpBonus} XP & +${spotBonus} 🎵 (Trostpreis)`, false);
+                
+                // NEU: Host-Flucht-Achievement (ID 26)
+                awardAchievement(p.ws, p.id, 26);
+
+            } catch (e) {
+                console.error(`Exception awarding consolation stats for ${p.id}:`, e);
+            }
+        }
+        
+        Object.values(game.players).forEach(p => {
+            if (p.ws && p.ws.readyState === WebSocket.OPEN) {
+                p.ws.pin = null; 
+            }
+        });
+        delete games[pin];
+        console.log(`Game ${pin} deleted because host left.`);
+        return; 
+    }
+    
+    if (game.gameState === 'PLAYING') {
+        const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
+        if (allReady) {
+            console.log(`Ein Spieler hat ${pin} verlassen. Alle verbleibenden sind bereit. Beende Runde.`);
+            if (game.gameMode === 'quiz') {
+                endRound(pin);
+            } else if (game.gameMode === 'timeline') {
+                endTimelineRound(pin);
+            }
+        }
+    }
+    
+    broadcastToLobby(pin);
+    
+    const connectedPlayers = Object.values(game.players).filter(p => p.isConnected).length;
+    if (connectedPlayers === 0 && game.gameState === 'LOBBY') { 
+        console.log(`Game ${pin} is empty. Deleting.`);
+        delete games[pin];
+    }
+}
+
+// --- joinGame Logic ---
+async function joinGame(ws, user, pin) {
+    const game = games[pin];
+    if (!game) throw new Error("Spiel nicht gefunden.");
+
+    const playerId = user.id;
+    let player = game.players[playerId];
+
+    if (player) {
+        console.log(`Player ${user.username} (${playerId}) reconnected to ${pin}.`);
+        player.isConnected = true;
+        player.ws = ws;
+        player.nickname = user.username;
+    } else {
+        console.log(`Player ${user.username} (${playerId}) joining ${pin}.`);
+        
+        let iconId = 1;
+        let colorId = null;
+        let titleId = 1;
+        let backgroundId = null;
+        let accentColorId = null; // NEU
+
+        if (!user.isGuest) {
+            try {
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    // NEU: 'equipped_accent_color_id' hinzugefügt
+                    .select('equipped_icon_id, equipped_color_id, equipped_title_id, equipped_background_id, equipped_accent_color_id')
+                    .eq('id', playerId)
+                    .single();
+                if (error) throw error;
+                if (profile) {
+                    iconId = profile.equipped_icon_id || 1;
+                    colorId = profile.equipped_color_id || null;
+                    titleId = profile.equipped_title_id || 1;
+                    backgroundId = profile.equipped_background_id || null;
+                    accentColorId = profile.equipped_accent_color_id || null; // NEU
+                }
+            } catch (e) {
+                console.error(`Could not fetch profile items for player ${playerId}:`, e.message);
+            }
+        }
+        
+        player = {
+            id: playerId,
+            nickname: user.username,
+            isGuest: user.isGuest,
+            ws: ws,
+            isConnected: true,
+            score: 0,
+            lives: game.settings.lives,
+            activeEffects: {},
+            lastPointsBreakdown: null,
+            iconId: iconId,
+            colorId: colorId,
+            titleId: titleId,
+            backgroundId: backgroundId,
+            accentColorId: accentColorId, // NEU
+            isReady: false, 
+            currentGuess: {} 
+        };
+        game.players[playerId] = player;
+    }
+    
+    ws.pin = pin;
+    ws.playerId = playerId;
+    
+    broadcastLobbyUpdate(pin);
+}
+
+
+// --- NEU: Game Logic (mit Bugfix) ---
+async function startGameLogic(pin) {
+    const game = games[pin];
+    if (!game) return;
+
+    game.gameState = 'STARTING';
+    broadcastToLobby(pin, { type: 'game-starting' });
+    
+    console.log(`Spiel ${pin} startet. Lade Tracks...`);
+    const tracks = await getPlaylistTracks(game.settings.playlistId, game.spotifyToken);
+
+    if (!tracks || tracks.length === 0) {
+        throw new Error("Playlist konnte nicht geladen werden oder ist leer.");
+    }
+
+    console.log(`Spiel ${pin}: ${tracks.length} Tracks geladen. Mische...`);
+    let songCount = game.settings.songCount;
+    if (songCount <= 0 || songCount > tracks.length) {
+        songCount = tracks.length;
+    }
+
+    game.tracks = shuffleArray(tracks).slice(0, songCount);
+    game.currentRound = 0;
+    
+    await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+    await sleep(500); 
+
+    console.log(`Spiel ${pin}: Starte Countdown...`);
+    for (let i = 3; i > 0; i--) {
+        broadcastToLobby(pin, { type: 'countdown', payload: { number: i } });
+        await sleep(1000);
+    }
+    
+    // NEU: Spielmodus-Weiche
+    if (game.gameMode === 'timeline') {
+        await startNewTimelineRound(pin, true); // Erster Aufruf
+    } else {
+        await startNewRound(pin); // Quiz-Modus
+    }
+}
+
+// --- QUIZ MODUS ---
+async function startNewRound(pin) {
+    const game = games[pin];
+    if (!game) return;
+
+    if (game.roundTimer) clearTimeout(game.roundTimer);
+
+    if (game.currentRound >= game.tracks.length) {
+        await endGame(pin);
+        return;
+    }
+    
+    game.gameState = 'PLAYING';
+    game.currentRound++;
+    const track = game.tracks[game.currentRound - 1];
+    game.currentTrack = track;
+
+    Object.values(game.players).forEach(p => {
+        p.isReady = false;
+        p.currentGuess = { title: '', artist: '', year: '' }; 
+        p.lastPointsBreakdown = null; 
+    });
+    
+    console.log(`Spiel ${pin}, Runde ${game.currentRound}: Song ${track.title}`);
+
+    const success = await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
+        uris: [`spotify:track:${track.spotifyId}`] 
+    });
+
+    if (!success) {
+        broadcastToLobby(pin, { type: 'toast', payload: { message: "Fehler bei Spotify-Wiedergabe.", isError: true } });
+        await sleep(2000);
+        await startNewRound(pin); 
+        return;
+    }
+
+    let mcOptions = {
+        title: [],
+        artist: [],
+        year: []
     };
     
-    function handleLobbyUpdate(data) {
-        console.log("Handling lobby update", data);
-        const { pin, hostId, players, settings, gameMode } = data;
+    if (game.settings.answerType === 'multiple') {
+        const guessTypes = game.settings.guessTypes;
         
-        currentGame.pin = pin;
-        currentGame.playerId = currentUser.id;
-        currentGame.isHost = hostId === currentUser.id;
-        currentGame.gameMode = gameMode;
-        currentGame.players = players; 
-        
-        gameCreationSettings.guessTypes = settings.guessTypes || ['title', 'artist'];
-        gameCreationSettings.answerType = settings.answerType || 'freestyle';
-
-        if (elements.lobby.pinDisplay) {
-            elements.lobby.pinDisplay.textContent = pin;
-        }
-
-        renderPlayerList(players, hostId);
-        renderGamePlayerList(players); 
-
-        elements.lobby.hostSettings?.classList.toggle('hidden', !currentGame.isHost);
-        elements.lobby.guestWaitingMessage?.classList.toggle('hidden', currentGame.isHost);
-
-        updateHostSettings(settings, currentGame.isHost);
-        
-        // Lösche Invites, wenn man einer Lobby beitritt (auch per Reconnect)
-        pendingGameInvites = {};
-    }
-    
-    function showGameOver(payload) {
-        console.log("STUB: showGameOver", payload);
-        if (payload.message) {
-            showToast(payload.message, true);
-        } else {
-            showToast("Spiel beendet!", false);
-        }
-        showScreen('home-screen'); 
-        if(elements.game.playerList) elements.game.playerList.innerHTML = '';
-    }
-
-    function renderPlayerList(players, hostId) {
-        if (!elements.lobby.playerList) return;
-        elements.lobby.playerList.innerHTML = ''; 
-        
-        const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
-
-        sortedPlayers.forEach(player => {
-            const isHost = player.id === hostId;
-            const playerCard = document.createElement('div');
-            playerCard.className = 'player-card';
-            playerCard.dataset.playerId = player.id;
+        const falseTracks = game.tracks
+            .filter(t => t.spotifyId !== track.spotifyId) 
+            .sort(() => 0.5 - Math.random()) 
+            .slice(0, 3); 
             
-            const icon = iconsList.find(i => i.id === player.iconId) || iconsList[0];
-            const iconClass = icon ? icon.iconClass : 'fa-user'; 
-            
-            const color = nameColorsList.find(c => c.id === player.colorId); 
-            const colorStyle = color ? `style="color: ${color.colorHex}"` : '';
-
-            const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
-            const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = background ? `bg-${background.cssClass}` : 'radial-only';
-            
-            const displayIconClass = isHost ? 'fa-crown' : iconClass;
-            const hostClass = isHost ? 'host' : '';
-
-            playerCard.innerHTML = `
-                <div class="player-card-background ${backgroundStyle}"></div>
-                <div class="player-card-content ${hostClass}">
-                    <i class="player-icon fa-solid ${displayIconClass}"></i>
-                    <div class="player-info">
-                        <span class="player-title">${title.name}</span>
-                        <span class="player-name" ${colorStyle}>${player.nickname || 'Unbekannt'}</span>
-                    </div>
-                </div>
-            `;
-            elements.lobby.playerList.appendChild(playerCard);
-        });
-    }
-
-    function renderGamePlayerList(players) {
-        if (!elements.game.playerList) return;
-        elements.game.playerList.innerHTML = ''; 
-        
-        const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
-        
-        sortedPlayers.forEach(player => {
-            const playerCard = document.createElement('div');
-            playerCard.className = 'game-player-card';
-            playerCard.classList.toggle('is-ready', player.isReady); 
-            playerCard.dataset.playerId = player.id;
-            
-            const icon = iconsList.find(i => i.id === player.iconId) || iconsList[0];
-            const iconClass = icon ? icon.iconClass : 'fa-user';
-            
-            const color = nameColorsList.find(c => c.id === player.colorId); 
-            const colorStyle = color ? `style="color: ${color.colorHex}"` : '';
-
-            const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
-            const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = background ? `bg-${background.cssClass}` : 'radial-only';
-
-            playerCard.innerHTML = `
-                <div class="player-card-background ${backgroundStyle}"></div>
-                <div class="player-card-content">
-                    <i class="player-icon fa-solid ${iconClass}" ${colorStyle}></i>
-                    <div class="player-info">
-                        <span class="player-title">${title.name}</span>
-                        <span class="player-name" ${colorStyle}>${player.nickname || 'Unbekannt'}</span>
-                    </div>
-                    <span class="player-score">${player.score}</span>
-                    ${player.isReady ? '<i class="player-ready-icon fa-solid fa-check-circle"></i>' : ''}
-                </div>
-            `;
-            elements.game.playerList.appendChild(playerCard);
-        });
-    }
-
-    function updateHostSettings(settings, isHost) {
-        console.log("Updating host settings display", settings);
-
-        const updatePresets = (presetContainer, value, customValueType) => {
-            if (!presetContainer) return;
-            let valueFound = false;
-            presetContainer.querySelectorAll('.preset-button').forEach(btn => {
-                if (btn.dataset.value === String(value)) {
-                    btn.classList.add('active');
-                    valueFound = true;
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-            
-            const customBtn = presetContainer.querySelector(`[data-value="custom"][data-type="${customValueType}"]`);
-            if (!valueFound && customBtn && value) {
-                customBtn.classList.add('active');
-                
-                let textContent = `${value}`;
-                if (customValueType === 'guess-time') textContent = `${value}s`;
-                else if (customValueType === 'lives') textContent = `${value} ❤️`;
-                customBtn.textContent = textContent;
-        
-            } else if (customBtn) {
-                if (customValueType === 'guess-time') customBtn.textContent = 'Custom';
-                else if (customValueType === 'lives') customBtn.textContent = 'Custom';
-                else customBtn.textContent = 'Custom';
-                if (valueFound) {
-                    customBtn.classList.remove('active');
-                }
-            }
-        };
-
-        if (elements.lobby.deviceSelectBtn) {
-            elements.lobby.deviceSelectBtn.textContent = settings.deviceName || 'Gerät auswählen';
-        }
-        if (elements.lobby.playlistSelectBtn) {
-            elements.lobby.playlistSelectBtn.textContent = settings.playlistName || 'Playlist auswählen';
-        }
-        
-        // Persönlicher Hintergrund wird jetzt in initializeApp/equipBackground geladen
-
-        updatePresets(elements.lobby.songCountPresets, settings.songCount, 'song-count');
-        updatePresets(elements.lobby.guessTimePresets, settings.guessTime, 'guess-time');
-        
-        if (isHost && elements.lobby.startGameBtn) {
-            const canStart = settings.deviceName && settings.playlistName;
-            elements.lobby.startGameBtn.disabled = !canStart;
-            if (!canStart) {
-                elements.lobby.startGameBtn.title = "Wähle zuerst Gerät und Playlist.";
-            } else {
-                elements.lobby.startGameBtn.title = "";
-            }
-        }
-    }
-
-    
-    function renderAchievements() {
-        if (!elements.achievements.grid || currentUser.isGuest) return;
-        elements.achievements.grid.innerHTML = '';
-        
-        const sortedAchievements = [...achievementsList].sort((a, b) => {
-            const aUnlocked = userUnlockedAchievementIds.includes(a.id);
-            const bUnlocked = userUnlockedAchievementIds.includes(b.id);
-            if (aUnlocked && !bUnlocked) return -1;
-            if (!aUnlocked && bUnlocked) return 1;
-            return a.id - b.id; 
-        });
-        
-        sortedAchievements.forEach(ach => { 
-            const isUnlocked = userUnlockedAchievementIds.includes(ach.id);
-            const isHidden = ach.hidden && !isUnlocked;
-            
-            const card = document.createElement('div');
-            card.className = 'achievement-card';
-            card.classList.toggle('unlocked', isUnlocked);
-            card.classList.toggle('hidden-achievement', isHidden);
-            
-            const reward = allItems.find(item => item.unlockType === 'achievement' && item.unlockValue === ach.id);
-            let rewardText = '<span class="reward">+50 🎵</span>'; 
-            if (reward) {
-                rewardText += ` & ${reward.type === 'title' ? 'Titel' : 'Icon'}: ${reward.name || reward.iconClass}`;
-            }
-
-            card.innerHTML = `
-                <h3>${isHidden ? '???' : ach.name}</h3>
-                <p>${isHidden ? '???' : ach.description}</p>
-                ${isUnlocked ? `<span class="reward">Freigeschaltet!</span>` : (isHidden ? '' : rewardText)}
-            `;
-            elements.achievements.grid.appendChild(card);
-        });
-    }
-
-    async function equipTitle(titleId, saveToDb = true) {
-        if (currentUser.isGuest) return;
-        const title = titlesList.find(t => t.id === titleId);
-        if (!title) return;
-        
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        if (!isItemUnlocked(title, currentLevel)) {
-            showToast("Du hast diesen Titel noch nicht freigeschaltet.", true);
-            return;
-        }
-
-        userProfile.equipped_title_id = titleId;
-        if (elements.home.profileTitleBtn) {
-            elements.home.profileTitleBtn.querySelector('span').textContent = title.name;
-        }
-        renderTitles(); 
-        renderCustomTitles(); 
-
-        if (saveToDb && supabase) {
-            const { error } = await supabase.from('profiles').update({ equipped_title_id: titleId }).eq('id', currentUser.id);
-            if (error) {
-                showToast("Fehler beim Speichern des Titels.", true);
-            } else {
-                showToast(`Titel "${title.name}" ausgerüstet!`, false);
-            }
-        }
-    }
-
-    function renderTitles() {
-        if (!elements.titles.list || currentUser.isGuest) return;
-        elements.titles.list.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        
-        const sortedTitles = [...titlesList].sort((a, b) => {
-            const aUnlocked = isItemUnlocked(a, currentLevel);
-            const bUnlocked = isItemUnlocked(b, currentLevel);
-            if (aUnlocked && !bUnlocked) return -1;
-            if (!aUnlocked && bUnlocked) return 1;
-            return a.id - b.id;
-        });
-        
-        sortedTitles.forEach(title => { 
-            const isUnlocked = isItemUnlocked(title, currentLevel);
-            const isEquipped = userProfile.equipped_title_id === title.id;
-
-            const card = document.createElement('div');
-            card.className = 'title-card';
-            card.classList.toggle('locked', !isUnlocked);
-            card.classList.toggle('equipped', isEquipped);
-            card.dataset.titleId = title.id;
-
-            card.innerHTML = `
-                <span class="title-name">${title.name}</span>
-                <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : getUnlockDescription(title)}</span>
-            `;
-            elements.titles.list.appendChild(card);
-        });
-    }
-
-    async function equipIcon(iconId, saveToDb = true) {
-        if (currentUser.isGuest) return;
-        const icon = iconsList.find(i => i.id === iconId);
-        if (!icon) return;
-
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        if (!isItemUnlocked(icon, currentLevel)) {
-            showToast("Du hast dieses Icon noch nicht freigeschaltet.", true);
-            return;
-        }
-
-        userProfile.equipped_icon_id = iconId;
-        if (elements.home.profileIcon) {
-            elements.home.profileIcon.className = `fa-solid ${icon.iconClass}`;
-        }
-        renderIcons(); 
-        renderCustomIcons(); 
-
-        if (saveToDb && supabase) {
-            const { error } = await supabase.from('profiles').update({ equipped_icon_id: iconId }).eq('id', currentUser.id);
-            if (error) {
-                showToast("Fehler beim Speichern des Icons.", true);
-            } else {
-                showToast(`Icon ausgerüstet!`, false);
-            }
-        }
-    }
-
-    function renderIcons() {
-        if (!elements.icons.list || currentUser.isGuest) return;
-        elements.icons.list.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-
-        const sortedIcons = [...iconsList].sort((a, b) => {
-            const aUnlocked = isItemUnlocked(a, currentLevel);
-            const bUnlocked = isItemUnlocked(b, currentLevel);
-            if (aUnlocked && !bUnlocked) return -1;
-            if (!aUnlocked && bUnlocked) return 1;
-            return a.id - b.id;
-        });
-
-        sortedIcons.forEach(icon => { 
-            const isUnlocked = isItemUnlocked(icon, currentLevel);
-            const isEquipped = userProfile.equipped_icon_id === icon.id;
-
-            const card = document.createElement('div');
-            card.className = 'icon-card';
-            card.classList.toggle('locked', !isUnlocked);
-            card.classList.toggle('equipped', isEquipped);
-            card.dataset.iconId = icon.id;
-
-            card.innerHTML = `
-                <div class="icon-preview"><i class="fa-solid ${icon.iconClass}"></i></div>
-                <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : (icon.description || getUnlockDescription(icon))}</span>
-            `;
-            elements.icons.list.appendChild(card);
-        });
-    }
-    
-    function renderCustomizationMenu() {
-        if (!elements.customize.screen || currentUser.isGuest) return;
-        renderCustomTitles();
-        renderCustomIcons();
-        renderCustomColors();
-        renderCustomBackgrounds();
-        renderCustomAccentColors(); // NEU
-    }
-    
-    function renderCustomTitles() {
-        const container = elements.customize.titlesList;
-        if (!container) return;
-        container.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        
-        const sortedTitles = [...titlesList].sort((a, b) => {
-            const aUnlocked = isItemUnlocked(a, currentLevel);
-            const bUnlocked = isItemUnlocked(b, currentLevel);
-            if (aUnlocked && !bUnlocked) return -1;
-            if (!aUnlocked && bUnlocked) return 1;
-            return a.id - b.id;
-        });
-        
-        sortedTitles.forEach(title => {
-            const isUnlocked = isItemUnlocked(title, currentLevel);
-            const isEquipped = userProfile.equipped_title_id === title.id;
-
-            const card = document.createElement('div');
-            card.className = 'title-card';
-            card.classList.toggle('locked', !isUnlocked);
-            card.classList.toggle('equipped', isEquipped);
-            card.dataset.titleId = title.id;
-            card.innerHTML = `
-                <span class="title-name">${title.name}</span>
-                <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : getUnlockDescription(title)}</span>
-            `;
-            container.appendChild(card);
-        });
-    }
-
-    function renderCustomIcons() {
-        const container = elements.customize.iconsList;
-        if (!container) return;
-        container.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        
-        const sortedIcons = [...iconsList].sort((a, b) => {
-            const aUnlocked = isItemUnlocked(a, currentLevel);
-            const bUnlocked = isItemUnlocked(b, currentLevel);
-            if (aUnlocked && !bUnlocked) return -1;
-            if (!aUnlocked && bUnlocked) return 1;
-            return a.id - b.id;
-        });
-
-        sortedIcons.forEach(icon => {
-            const isUnlocked = isItemUnlocked(icon, currentLevel);
-            const isEquipped = userProfile.equipped_icon_id === icon.id;
-
-            const card = document.createElement('div');
-            card.className = 'icon-card';
-            card.classList.toggle('locked', !isUnlocked);
-            card.classList.toggle('equipped', isEquipped);
-            card.dataset.iconId = icon.id;
-            card.innerHTML = `
-                <div class="icon-preview"><i class="fa-solid ${icon.iconClass}"></i></div>
-                <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : (icon.description || getUnlockDescription(icon))}</span>
-            `;
-            container.appendChild(card);
-        });
-    }
-
-    async function equipColor(colorId, saveToDb = true) {
-        if (currentUser.isGuest) return;
-        
-        if (!colorId) {
-            userProfile.equipped_color_id = null;
-            if(elements.home.usernameContainer) elements.home.usernameContainer.style.color = ''; 
-            renderCustomColors();
-            if (saveToDb && supabase) {
-                const { error } = await supabase.from('profiles').update({ equipped_color_id: null }).eq('id', currentUser.id);
-                if (error) {
-                    console.error("Fehler beim Abwählen der Farbe:", error);
-                    showToast("Fehler beim Speichern der Farbe.", true);
-                }
-            }
-            return;
-        }
-
-        const color = nameColorsList.find(c => c.id === colorId);
-        if (!color) return;
-
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        if (!isItemUnlocked(color, currentLevel)) {
-            showToast("Du hast diese Farbe noch nicht freigeschaltet.", true);
-            return;
-        }
-
-        userProfile.equipped_color_id = colorId;
-        if (elements.home.usernameContainer) {
-            elements.home.usernameContainer.style.color = color.colorHex;
-        }
-        renderCustomColors(); 
-
-        if (saveToDb && supabase) {
-            const { error } = await supabase.from('profiles').update({ equipped_color_id: colorId }).eq('id', currentUser.id);
-            if (error) {
-                console.error("Fehler beim Speichern der Farbe:", error);
-                showToast("Fehler beim Speichern der Farbe.", true);
-            } else {
-                showToast(`Farbe "${color.name}" ausgerüstet!`, false);
-            }
-        }
-    }
-
-    function renderCustomColors() {
-        const container = elements.customize.colorsList;
-        if (!container || currentUser.isGuest) return;
-        container.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-
-        const sortedColors = [...nameColorsList].sort((a, b) => {
-            const aUnlocked = isItemUnlocked(a, currentLevel);
-            const bUnlocked = isItemUnlocked(b, currentLevel);
-            if (aUnlocked && !bUnlocked) return -1;
-            if (!aUnlocked && bUnlocked) return 1;
-            return a.id - b.id;
-        });
-
-        const noneCard = document.createElement('div');
-        noneCard.className = 'color-card';
-        noneCard.classList.toggle('equipped', !userProfile.equipped_color_id);
-        noneCard.dataset.colorId = ''; 
-        noneCard.innerHTML = `
-            <div class="color-preview" style="background-color: var(--dark-grey); border: 2px dashed var(--medium-grey);">
-                <i class="fa-solid fa-ban"></i>
-            </div>
-            <span class="color-name">Standard</span>
-            <span class="color-desc">${!userProfile.equipped_color_id ? 'Ausgerüstet' : 'Keine Farbe'}</span>
-        `;
-        container.appendChild(noneCard);
-
-        sortedColors.forEach(color => {
-            const isUnlocked = isItemUnlocked(color, currentLevel);
-            const isEquipped = userProfile.equipped_color_id === color.id;
-
-            const card = document.createElement('div');
-            card.className = 'color-card';
-            card.classList.toggle('locked', !isUnlocked);
-            card.classList.toggle('equipped', isEquipped);
-            card.dataset.colorId = color.id;
-
-            card.innerHTML = `
-                <div class="color-preview" style="background-color: ${color.colorHex}">
-                    <i class="fa-solid fa-font"></i>
-                </div>
-                <span class="color-name">${color.name}</span>
-                <span class="color-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : getUnlockDescription(color)}</span>
-            `;
-            container.appendChild(card);
-        });
-    }
-
-    // NEU: Logik für Akzentfarben
-    async function equipAccentColor(colorId, saveToDb = true) {
-        if (currentUser.isGuest) return;
-        
-        const color = accentColorsList.find(c => c.id === colorId);
-        if (!color) return;
-
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        if (!isItemUnlocked(color, currentLevel)) {
-            showToast("Du hast diese Akzentfarbe noch nicht freigeschaltet.", true);
-            return;
-        }
-
-        userProfile.equipped_accent_color_id = colorId;
-        
-        // Farbe global anwenden
-        document.documentElement.style.setProperty('--accent-color', color.colorHex);
-        if (color.colorHex.includes('linear-gradient')) {
-             document.documentElement.style.setProperty('--accent-color-faded', color.colorHex.replace('linear-gradient(90deg, ', 'linear-gradient(90deg, #ffffff20, '));
-        } else {
-             document.documentElement.style.setProperty('--accent-color-faded', color.colorHex + '20');
-        }
-
-        renderCustomAccentColors(); // UI im Menü aktualisieren
-
-        if (saveToDb && supabase) {
-            const { error } = await supabase.from('profiles').update({ equipped_accent_color_id: colorId }).eq('id', currentUser.id);
-            if (error) {
-                console.error("Fehler beim Speichern der Akzentfarbe:", error);
-                showToast("Fehler beim Speichern der Akzentfarbe.", true);
-            } else {
-                showToast(`Akzentfarbe "${color.name}" ausgerüstet!`, false);
-            }
-        }
-    }
-
-    function renderCustomAccentColors() {
-        const container = elements.customize.accentColorsList;
-        if (!container || currentUser.isGuest) return;
-        container.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-
-        const sortedColors = [...accentColorsList].sort((a, b) => {
-            const aUnlocked = isItemUnlocked(a, currentLevel);
-            const bUnlocked = isItemUnlocked(b, currentLevel);
-            if (aUnlocked && !bUnlocked) return -1;
-            if (!aUnlocked && bUnlocked) return 1;
-            return a.id - b.id;
-        });
-
-        sortedColors.forEach(color => {
-            const isUnlocked = isItemUnlocked(color, currentLevel);
-            const isEquipped = userProfile.equipped_accent_color_id === color.id;
-
-            const card = document.createElement('div');
-            card.className = 'color-card';
-            card.classList.toggle('locked', !isUnlocked);
-            card.classList.toggle('equipped', isEquipped);
-            card.dataset.colorId = color.id;
-
-            card.innerHTML = `
-                <div class="color-preview" style="background: ${color.colorHex}">
-                </div>
-                <span class="color-name">${color.name}</span>
-                <span class="color-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Klicken') : getUnlockDescription(color)}</span>
-            `;
-            container.appendChild(card);
-        });
-    }
-
-    // NEU: Logik für persönliche CSS-Hintergründe
-    async function equipBackground(backgroundId, saveToDb = true) {
-        if (currentUser.isGuest) return;
-        
-        const background = backgroundsList.find(b => b.backgroundId === backgroundId);
-        if (!background) return;
-
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        if (!isItemUnlocked(background, currentLevel)) {
-            showToast("Du hast diesen Hintergrund noch nicht freigeschaltet.", true);
-            return;
-        }
-
-        userProfile.equipped_background_id = backgroundId;
-        applyBackground(backgroundId); // Global anwenden
-        renderCustomBackgrounds(); // UI im Menü aktualisieren
-
-        if (saveToDb && supabase) {
-            const { error } = await supabase.from('profiles').update({ equipped_background_id: backgroundId }).eq('id', currentUser.id);
-            if (error) {
-                console.error("Fehler beim Speichern des Hintergrunds:", error);
-                showToast("Fehler beim Speichern des Hintergrunds.", true);
-            } else {
-                showToast(`Hintergrund "${background.name}" ausgerüstet!`, false);
-            }
-        }
-    }
-
-    function renderCustomBackgrounds() {
-        const container = elements.customize.backgroundsList;
-        if (currentUser.isGuest || !container) return;
-        container.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        
-        backgroundsList.forEach(bg => {
-            const isUnlocked = isItemUnlocked(bg, currentLevel);
-            const isEquipped = userProfile.equipped_background_id === bg.backgroundId;
-            
-            const li = document.createElement('li');
-            li.dataset.bgId = bg.backgroundId;
-            li.innerHTML = `<button class="button-select ${isEquipped ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}">
-                                ${bg.name}
-                                ${!isUnlocked ? `<span style="font-size: 0.8rem; color: var(--text-muted-color); margin-left: auto;">(${getUnlockDescription(bg)})</span>` : ''}
-                            </button>`;
-            container.appendChild(li);
-        });
-    }
-
-    function applyBackground(backgroundId) {
-        const bg = backgroundsList.find(b => b.backgroundId === backgroundId) || backgroundsList[0];
-        
-        if (elements.appBackground) {
-            // Entferne alle alten bg-Klassen
-            elements.appBackground.className = 'app-background';
-            // Füge die neue Klasse hinzu
-            elements.appBackground.classList.add(bg.cssClass || 'radial-only');
-        }
-    }
-
-    // KORREKTUR: Funktion entfernt, da Host-Hintergrund nicht mehr geteilt wird
-    // function applyLobbyBackground(backgroundId) { ... }
-    
-    // --- ENDE: "Anpassen"-Menü Funktionen ---
-
-    function renderLevelProgress() {
-        if (!elements.levelProgress.list || currentUser.isGuest) return;
-        elements.levelProgress.list.innerHTML = '';
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        const maxDisplayLevel = 50;
-
-        for (let level = 1; level <= maxDisplayLevel; level++) {
-            const isUnlocked = currentLevel >= level;
-            const item = document.createElement('div');
-            item.className = 'level-progress-item';
-            item.classList.toggle('unlocked', isUnlocked);
-            
-            const xpNeeded = getXpForLevel(level + 1);
-            
-            const levelTitles = titlesList.filter(t => t.unlockType === 'level' && t.unlockValue === level);
-            const levelIcons = iconsList.filter(i => i.unlockType === 'level' && i.unlockValue === level);
-            const levelAccents = accentColorsList.filter(a => a.unlockType === 'level' && a.unlockValue === level); // NEU
-            const rewards = [...levelTitles, ...levelIcons, ...levelAccents];
-
-            let rewardsHtml = '';
-            
-            // NEU: Spot-Belohnungen alle 5 Level
-            if (level % 5 === 0) {
-                const spotAmount = 50 + (Math.floor(level / 5) * 25);
-                rewardsHtml += `
-                    <div class="reward-item">
-                        <i class="fa-solid fa-coins" style="color: #FFD700;"></i>
-                        <span>${spotAmount} 🎵</span>
-                    </div>
-                `;
-            }
-            
-            if (rewards.length > 0) {
-                rewards.forEach(reward => {
-                    let icon = 'fa-ticket';
-                    if (reward.type === 'icon') icon = reward.iconClass;
-                    else if (reward.type === 'accent-color') icon = 'fa-palette';
-                    
-                    rewardsHtml += `
-                        <div class="reward-item">
-                            <i class="fa-solid ${icon}"></i>
-                            <span>${reward.name || reward.description}</span>
-                        </div>
-                    `;
-                });
-            }
-            
-            if (rewardsHtml === '') {
-                rewardsHtml = '<div class="no-reward">Keine spezielle Belohnung</div>';
-            }
-
-            item.innerHTML = `
-                <div class="level-progress-header">
-                    <h3>Level ${level}</h3>
-                    <span>${isUnlocked ? 'Erreicht' : `Nächstes Level bei ${xpNeeded} XP`}</span>
-                </div>
-                <div class="level-progress-rewards">
-                    ${rewardsHtml}
-                </div>
-            `;
-            elements.levelProgress.list.appendChild(item);
-        }
-    }
-    
-    function updatePlayerProgressDisplay() {
-        if (currentUser.isGuest) return;
-        
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        const currentLevelXp = getXpForLevel(currentLevel);
-        const nextLevelXp = getXpForLevel(currentLevel + 1);
-        const xpForThisLevel = nextLevelXp - currentLevelXp;
-        const xpProgress = (userProfile.xp || 0) - currentLevelXp;
-        const progressPercent = xpForThisLevel > 0 ? (xpProgress / xpForThisLevel) * 100 : 0;
-        
-        if (elements.home.profileLevel) elements.home.profileLevel.textContent = currentLevel;
-        if (elements.home.profileXpFill) elements.home.profileXpFill.style.width = `${progressPercent}%`;
-        if (elements.home.profileXpText) elements.home.profileXpText.textContent = `${userProfile.xp || 0} / ${nextLevelXp} XP`;
-    }
-
-    async function updatePlayerProgress() {
-        if (currentUser.isGuest || !supabase) return;
-        try {
-            const { data, error } = await supabase.from('profiles').select('xp, games_played, wins, correct_answers, highscore, spots').eq('id', currentUser.id).single();
-            if (error) throw error;
-            userProfile = { ...userProfile, ...data };
-            updatePlayerProgressDisplay();
-            updateStatsDisplay();
-            updateSpotsDisplay();
-        } catch(error) {
-            console.error("Fehler beim Aktualisieren der Spieler-Progression:", error);
-        }
-    }
-    
-    function updateStatsDisplay() {
-        if (currentUser.isGuest) return;
-        const stats = userProfile;
-        const winrate = (stats.games_played > 0 ? (stats.wins / stats.games_played) * 100 : 0).toFixed(0);
-        const avgScore = (stats.games_played > 0 ? (stats.correct_answers / stats.games_played) : 0).toFixed(1); 
-        
-        if(elements.stats.gamesPlayedPreview) elements.stats.gamesPlayedPreview.textContent = stats.games_played || 0;
-        if(elements.stats.winsPreview) elements.stats.winsPreview.textContent = stats.wins || 0;
-        if(elements.stats.correctAnswersPreview) elements.stats.correctAnswersPreview.textContent = stats.correct_answers || 0;
-        if(elements.stats.gamesPlayed) elements.stats.gamesPlayed.textContent = stats.games_played || 0;
-        if(elements.stats.wins) elements.stats.wins.textContent = stats.wins || 0;
-        if(elements.stats.winrate) elements.stats.winrate.textContent = `${winrate}%`;
-        if(elements.stats.highscore) elements.stats.highscore.textContent = stats.highscore || 0;
-        if(elements.stats.correctAnswers) elements.stats.correctAnswers.textContent = stats.correct_answers || 0;
-        if(elements.stats.avgScore) elements.stats.avgScore.textContent = avgScore;
-    }
-
-    async function loadShopItems() {
-        if (currentUser.isGuest) return;
-        setLoading(true, "Lade Shop...");
-        try {
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            if (sessionError || !session) {
-                throw new Error(sessionError?.message || "Authentifizierung fehlgeschlagen. Bitte neu einloggen.");
-            }
-            const accessToken = session.access_token;
-
-            const { data: profileData, error: profileError } = await supabase.from('profiles').select('spots').eq('id', currentUser.id).single();
-            if (profileError) throw profileError;
-            userProfile.spots = profileData.spots;
-            updateSpotsDisplay();
-
-            const response = await fetch('/api/shop/items', {
-                headers: { 'Authorization': `Bearer ${accessToken}` } 
-            });
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.message || 'Shop-Daten konnten nicht geladen werden.');
-            }
-            
-            const { items: shopItemsFromServer } = await response.json();
-            
-            const titlesListEl = elements.shop.titlesList;
-            const iconsListEl = elements.shop.iconsList;
-            const backgroundsListEl = elements.shop.backgroundsList;
-            const colorsListEl = elements.shop.colorsList;
-
-            titlesListEl.innerHTML = '';
-            iconsListEl.innerHTML = '';
-            backgroundsListEl.innerHTML = '';
-            colorsListEl.innerHTML = '';
-
-            const allShopItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList, ...accentColorsList]
-                .filter(item => item.unlockType === 'spots');
-
-            allShopItems.forEach(item => {
-                const serverItem = shopItemsFromServer.find(si => si.id === item.id);
-                const isOwned = serverItem ? serverItem.isOwned : false;
-                
-                if (isOwned) {
-                    if (item.type === 'title') ownedTitleIds.add(item.id);
-                    else if (item.type === 'icon') ownedIconIds.add(item.id);
-                    else if (item.type === 'background') ownedBackgroundIds.add(item.backgroundId);
-                    else if (item.type === 'color') ownedColorIds.add(item.id);
-                    else if (item.type === 'accent-color') ownedAccentColorIds.add(item.id); // NEU
-                }
-
-                if (item.type === 'title') {
-                    titlesListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
-                } else if (item.type === 'icon') {
-                    iconsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
-                } else if (item.type === 'background') {
-                    backgroundsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
-                } else if (item.type === 'color') {
-                    colorsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
-                }
-                 // TODO: Akzentfarben zum Shop hinzufügen
-            });
-
-        } catch (error) {
-            console.error("Error loading shop items:", error);
-            showToast(error.message || "Fehler beim Laden des Shops.", true);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    function renderShopItem(item, userSpots, isOwned) {
-        const el = document.createElement('div');
-        el.className = 'shop-item';
-        el.classList.toggle('owned', isOwned);
-        
-        let previewHtml = '';
-        if (item.type === 'icon') {
-            previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
-        } else if (item.type === 'background') {
-            // NEU: CSS-Hintergrund-Vorschau
-            previewHtml = `<div class="item-preview-background ${item.cssClass || 'radial-only'}"></div>`;
-        } else if (item.type === 'color') {
-            previewHtml = `<div class="item-preview-color" style="background-color: ${item.colorHex}"><i class="fa-solid fa-font"></i></div>`;
-        } else if (item.type === 'accent-color') {
-             previewHtml = `<div class="item-preview-color" style="background: ${item.colorHex}"></div>`;
-        } else {
-            previewHtml = `<div class="item-preview-icon"><i class="fa-solid fa-ticket"></i></div>`;
-        }
-
-        const canAfford = userSpots >= item.cost;
-        el.classList.toggle('cannot-afford', !canAfford && !isOwned);
-
-        el.innerHTML = `
-            ${previewHtml}
-            <div class="shop-item-info">
-                <div class="item-name">${item.name}</div>
-                <div class="item-description">${item.description || getUnlockDescription(item)}</div>
-                <div class="item-cost">${item.cost} 🎵</div>
-            </div>
-            <button class="button-primary buy-button" data-item-id="${item.id}" ${isOwned || !canAfford ? 'disabled' : ''}>
-                ${isOwned ? 'Besitzt du' : 'Kaufen'}
-            </button>
-        `;
-        return el;
-    }
-
-    async function handleBuyItem(itemId) {
-        const item = allItems.find(i => i.id == itemId);
-        if (!item) return;
-
-        showConfirmModal(
-            `Kauf bestätigen`,
-            `Möchtest du "${item.name}" für ${item.cost} 🎵 kaufen?`,
-            async () => {
-                setLoading(true, "Kauf wird verarbeitet...");
-                try {
-                    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-                    if (sessionError || !session) {
-                        throw new Error(sessionError?.message || "Authentifizierung fehlgeschlagen. Bitte neu einloggen.");
-                    }
-                    const accessToken = session.access_token;
-
-                    const response = await fetch('/api/shop/buy', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${accessToken}`
-                        },
-                        body: JSON.stringify({ itemId: item.id })
-                    });
-                    const result = await response.json();
-                    if (!response.ok || !result.success) {
-                        throw new Error(result.message || "Kauf fehlgeschlagen.");
-                    }
-                    setLoading(false);
-                    showToast(result.message, false);
-                    userProfile.spots = result.newSpots;
-                    updateSpotsDisplay();
-                    if (result.itemType === 'title') ownedTitleIds.add(item.id);
-                    else if (result.itemType === 'icon') ownedIconIds.add(item.id);
-                    else if (result.itemType === 'background') ownedBackgroundIds.add(item.backgroundId);
-                    else if (result.itemType === 'color') ownedColorIds.add(item.id);
-                    else if (result.itemType === 'accent-color') ownedAccentColorIds.add(item.id); // NEU
-                    loadShopItems(); 
-                    
-                    awardClientSideAchievement(21);
-
-                } catch (error) {
-                    setLoading(false);
-                    console.error("Fehler beim Kaufen:", error);
-                    showToast(error.message, true);
-                }
-            }
-        );
-    }
-    
-    // NEU: Clean Reaction Popup
-    function displayReaction(playerId, nickname, iconId, reaction) {
-        const icon = iconsList.find(i => i.id === iconId) || iconsList[0];
-        const iconClass = icon ? icon.iconClass : 'fa-user';
-
-        const toast = document.createElement('div');
-        toast.className = 'reaction-toast';
-        toast.innerHTML = `
-            <i class="icon fa-solid ${iconClass}"></i>
-            <span class="name">${nickname}</span>
-            <span class="reaction">${reaction}</span>
-        `;
-        
-        elements.popups.container.appendChild(toast);
-        
-        setTimeout(() => {
-            toast.remove();
-        }, 2000);
-    }
-    
-    function showCountdown(number) { 
-        console.log(`Countdown: ${number}`); 
-        elements.countdownOverlay.textContent = number;
-        elements.countdownOverlay.classList.remove('hidden');
-    }
-    
-    function setupNewRound(data) { 
-        console.log("New Round Setup", data); 
-        elements.countdownOverlay.classList.add('hidden');
-        elements.game.round.textContent = data.round;
-        elements.game.totalRounds.textContent = data.totalRounds;
-
-        const guessTypes = gameCreationSettings.guessTypes;
-        const answerType = gameCreationSettings.answerType;
-        const mcOptions = data.mcOptions;
-        
-        let html = '<div class="guess-container">';
-        
-        const me = currentGame.players.find(p => p.id === currentUser.id);
-        const isReady = me ? me.isReady : false;
-        
-        if (answerType === 'freestyle') {
-            html += '<h2>Was ist das für ein Song?</h2>';
-            if (guessTypes.includes('title')) {
-                html += '<input type="text" id="guess-input-title" class="guess-input" placeholder="Titel..." autocomplete="off">';
-            }
-            if (guessTypes.includes('artist')) {
-                html += '<input type="text" id="guess-input-artist" class="guess-input" placeholder="Künstler..." autocomplete="off">';
-            }
-            if (guessTypes.includes('year')) {
-                html += '<input type="number" id="guess-input-year" class="guess-input" placeholder="Jahr (z.B. 1999)" autocomplete="off">';
-            }
-        } else {
-            if (guessTypes.includes('title')) {
-                html += '<div class="mc-button-group" data-guess-type="title"><h3>Titel</h3>';
-                mcOptions.title.forEach(option => {
-                    html += `<button class="button-secondary mc-button" data-value="${option}">${option}</button>`;
-                });
-                html += '</div>';
-            }
-            if (guessTypes.includes('artist')) {
-                html += '<div class="mc-button-group" data-guess-type="artist"><h3>Künstler</h3>';
-                mcOptions.artist.forEach(option => {
-                    html += `<button class="button-secondary mc-button" data-value="${option}">${option}</button>`;
-                });
-                html += '</div>';
-            }
-            if (guessTypes.includes('year')) {
-                html += '<div class="mc-button-group" data-guess-type="year"><h3>Jahr</h3>';
-                mcOptions.year.forEach(option => {
-                    html += `<button class="button-secondary mc-button" data-value="${option}">${option}</button>`;
-                });
-                html += '</div>';
-            }
-        }
-        
-        const readyPlayers = currentGame.players.filter(p => p.isReady).length;
-        const totalPlayers = currentGame.players.length;
-        
-        html += `<div class="ready-container">
-                    <button id="player-ready-button" class="button-primary" ${isReady ? 'disabled' : ''}>
-                        ${isReady ? 'Bereit!' : 'Bereit?'}
-                    </button>
-                    <span id="ready-status-display">${readyPlayers} / ${totalPlayers} Spieler bereit</span>
-                 </div>`;
-        
-        html += '</div>'; 
-        
-        elements.game.gameContentArea.innerHTML = html;
-        
-        elements.game.timerBar.style.transition = 'none';
-        elements.game.timerBar.style.width = '100%';
-        setTimeout(() => {
-            elements.game.timerBar.style.transition = `width ${gameCreationSettings.guessTime}s linear`;
-            elements.game.timerBar.style.width = '0%';
-        }, 100);
-    }
-    
-    function showRoundResult(data) { 
-        console.log("Round Result", data);
-        
-        elements.game.timerBar.style.transition = 'none';
-        elements.game.timerBar.style.width = '0%';
-        
-        const correct = data.correctTrack;
-        let html = `<div class="round-result-container">
-                        <h2>Runde vorbei!</h2>
-                        <div class="correct-answer-card">
-                            <img src="${correct.albumArtUrl || ''}" alt="Album Art" class="album-art">
-                            <div class="track-info">
-                                <span class="track-title">${correct.title}</span>
-                                <span class="track-artist">${correct.artist}</span>
-                                <span class="track-year">${correct.year}</span>
-                            </div>
-                        </div>
-                        <h3>Ergebnisse:</h3>
-                        <div class="round-result-details">`;
-
-        data.scores.forEach(player => {
-            html += `<div class="player-result-card">
-                        <span class="player-name">${player.nickname}</span>`;
-            
-            if (player.lastPointsBreakdown) {
-                const breakdown = player.lastPointsBreakdown.breakdown;
-                html += `<div class="points-breakdown">`;
-                Object.keys(breakdown).forEach(key => {
-                    html += `<span class="point-item ${breakdown[key].points > 0 ? 'correct' : 'wrong'}">
-                                ${breakdown[key].text}: <strong>+${breakdown[key].points}</strong>
-                             </span>`;
-                });
-                html += `</div>
-                         <span class="round-total-points">+${player.lastPointsBreakdown.total}</span>`;
-            } else {
-                html += `<span class="round-total-points">+0</span>`;
-            }
-            html += `</div>`;
-        });
-
-        html += `</div></div>`;
-        
-        elements.game.gameContentArea.innerHTML = html;
-        renderGamePlayerList(data.scores); 
-    }
-    
-    async function loadFriendsData() { 
-        if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) {
-            showToast("Keine Serververbindung.", true);
-            return;
-        }
-        console.log("Lade Freunde...");
-        elements.friendsModal.friendsList.innerHTML = '<li>Lade Freunde...</li>';
-        elements.friendsModal.requestsList.innerHTML = '<li>Lade Anfragen...</li>';
-        ws.socket.send(JSON.stringify({ type: 'load-friends' }));
-    }
-    
-    function renderFriendsList(friends) {
-        if (!elements.friendsModal.friendsList) return;
-        elements.friendsModal.friendsList.innerHTML = '';
-        onlineFriends = friends.filter(f => f.isOnline); 
-        
-        if (friends.length === 0) {
-            elements.friendsModal.friendsList.innerHTML = '<li>Du hast noch keine Freunde.</li>';
-            return;
-        }
-        
-        friends.sort((a, b) => b.isOnline - a.isOnline);
-        
-        friends.forEach(friend => {
-            const li = document.createElement('li');
-            let actionButtons = '';
-            
-            if (pendingGameInvites[friend.id]) {
-                actionButtons = `
-                    <button class="button-primary button-small button-join" data-friend-id="${friend.id}" title="Lobby beitreten">
-                        <i class="fa-solid fa-right-to-bracket"></i> Beitreten
-                    </button>
-                `;
-            } else {
-                actionButtons = `
-                    <button class="button-icon button-gift" data-friend-id="${friend.id}" data-friend-name="${friend.username}" title="Spots schenken"><i class="fa-solid fa-gift"></i></button>
-                    <button class="button-icon button-danger button-remove-friend" data-friend-id="${friend.id}" data-friend-name="${friend.username}" title="Freund entfernen"><i class="fa-solid fa-user-minus"></i></button>
-                `;
-            }
-            
-            li.innerHTML = `
-                <div class="friend-info">
-                    <span class="friend-name">${friend.username}</span>
-                    <span class="friend-status ${friend.isOnline ? 'online' : ''}">${friend.isOnline ? 'Online' : 'Offline'}</span>
-                </div>
-                <div class="friend-actions">
-                    ${actionButtons}
-                </div>
-            `;
-            elements.friendsModal.friendsList.appendChild(li);
-        });
-    }
-
-    function renderRequestsList(requests) {
-        if (!elements.friendsModal.requestsList) return;
-        elements.friendsModal.requestsList.innerHTML = '';
-        
-        if (requests.length === 0) {
-            elements.friendsModal.requestsList.innerHTML = '<li>Keine neuen Anfragen.</li>';
-            elements.friendsModal.requestsCount.classList.add('hidden');
-            return;
-        }
-        
-        elements.friendsModal.requestsCount.textContent = requests.length;
-        elements.friendsModal.requestsCount.classList.remove('hidden');
-
-        requests.forEach(req => {
-            const li = document.createElement('li');
-            li.innerHTML = `
-                <div class="friend-info">
-                    <span class="friend-name">${req.username}</span>
-                </div>
-                <div class="friend-actions">
-                    <button class="button-icon button-primary button-accept-request" data-sender-id="${req.id}" title="Annehmen"><i class="fa-solid fa-check"></i></button>
-                    <button class="button-icon button-danger button-decline-request" data-sender-id="${req.id}" title="Ablehnen"><i class="fa-solid fa-user-minus"></i></button>
-                </div>
-            `;
-            elements.friendsModal.requestsList.appendChild(li);
-        });
-    }
-    
-    async function fetchHostData(isRefresh = false) {
-        console.log(`Fetching host data... Refresh: ${isRefresh}`);
-        if (!spotifyToken) {
-            showToast("Spotify ist nicht verbunden.", true);
-            return;
-        }
-        
-        if (allPlaylists.length > 0 && availableDevices.length > 0 && !isRefresh) {
-            console.log("Using cached host data.");
-            renderPaginatedPlaylists(allPlaylists, 1);
-            renderDeviceList(availableDevices);
-            return;
-        }
-
-        setLoading(true, "Lade Spotify-Daten...");
-        try {
-            const authHeader = { 'Authorization': `Bearer ${spotifyToken}` };
-            
-            const [deviceResponse, playlistResponse] = await Promise.all([
-                fetch('/api/devices', { headers: authHeader }),
-                fetch('/api/playlists', { headers: authHeader })
+        if (guessTypes.includes('title')) {
+            mcOptions.title = shuffleArray([
+                track.title, 
+                ...falseTracks.map(t => t.title)
             ]);
-
-            if (!deviceResponse.ok) throw new Error(`Gerätefehler: ${deviceResponse.statusText}`);
-            const deviceData = await deviceResponse.json();
-            availableDevices = deviceData.devices || [];
-            renderDeviceList(availableDevices);
-
-            if (!playlistResponse.ok) throw new Error(`Playlistfehler: ${playlistResponse.statusText}`);
-            const playlistData = await playlistResponse.json();
-            allPlaylists = playlistData.items || [];
-            renderPaginatedPlaylists(allPlaylists, 1);
-            
-            console.log(`Fetched ${availableDevices.length} devices and ${allPlaylists.length} playlists.`);
-
-        } catch (error) {
-            console.error("Error fetching host data:", error);
-            showToast(`Fehler: ${error.message}`, true);
-            spotifyToken = null; 
-            checkSpotifyStatus();
-        } finally {
-            setLoading(false);
+        }
+        if (guessTypes.includes('artist')) {
+            mcOptions.artist = shuffleArray([
+                track.artist, 
+                ...falseTracks.map(t => t.artist)
+            ]);
+        }
+        if (guessTypes.includes('year')) {
+            const falseYear1 = track.year + (Math.floor(Math.random() * 5) + 1) * (Math.random() < 0.5 ? 1 : -1);
+            const falseYear2 = track.year + (Math.floor(Math.random() * 10) + 6) * (Math.random() < 0.5 ? 1 : -1);
+            const falseYear3 = track.year - (Math.floor(Math.random() * 10) + 1) * (Math.random() < 0.5 ? 1 : -1);
+            mcOptions.year = shuffleArray([track.year, falseYear1, falseYear2, falseYear3]);
         }
     }
 
-    function renderDeviceList(devices) {
-        if (!elements.deviceSelectModal.list) return;
-        elements.deviceSelectModal.list.innerHTML = '';
-        if (devices.length === 0) {
-            elements.deviceSelectModal.list.innerHTML = '<li>Keine aktiven Geräte gefunden. Starte Spotify auf einem Gerät.</li>';
-            return;
+    broadcastToLobby(pin, { 
+        type: 'new-round', 
+        payload: { 
+            round: game.currentRound, 
+            totalRounds: game.tracks.length,
+            mcOptions: mcOptions 
+        } 
+    });
+    
+    broadcastLobbyUpdate(pin);
+
+    game.roundTimer = setTimeout(() => {
+        console.log(`Timer für Runde ${game.currentRound} in Spiel ${pin} abgelaufen.`);
+        endRound(pin);
+    }, game.settings.guessTime * 1000);
+}
+
+// --- QUIZ MODUS ---
+async function endRound(pin) {
+    const game = games[pin];
+    if (!game || game.gameState !== 'PLAYING') return; 
+
+    console.log(`Spiel ${pin}, Runde ${game.currentRound} wird berechnet.`);
+    game.gameState = 'RESULTS';
+    if (game.roundTimer) clearTimeout(game.roundTimer);
+
+    await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+
+    const correctTrack = game.currentTrack;
+    const guessTypes = game.settings.guessTypes;
+    const isFreestyle = game.settings.answerType === 'freestyle'; 
+    
+    Object.values(game.players).forEach(player => {
+        if (!player.isConnected || player.isGuest) return; 
+
+        const guess = player.currentGuess;
+        let roundScore = 0;
+        let breakdown = {};
+
+        if (guessTypes.includes('title')) {
+            const normalizedGuess = normalizeAnswer(guess.title || '');
+            const normalizedAnswer = normalizeAnswer(correctTrack.title);
+            const distance = getLevenshteinDistance(normalizedGuess, normalizedAnswer);
+
+            if (distance === 0) { 
+                roundScore += 100;
+                breakdown.title = { points: 100, text: "Titel (Perfekt!)" };
+            } else if (distance <= 2 && isFreestyle) { 
+                roundScore += 75;
+                breakdown.title = { points: 75, text: "Titel (Fast...)" };
+            } else {
+                breakdown.title = { points: 0, text: "Titel (Falsch)" };
+            }
         }
-        devices.forEach(device => {
-            const li = document.createElement('li');
-            li.dataset.deviceId = device.id;
-            li.dataset.deviceName = device.name;
-            li.innerHTML = `<button class="button-select ${device.is_active ? 'active' : ''}">
-                <i class="fa-solid ${getDeviceIcon(device.type)}"></i> ${device.name}
-            </button>`;
-            elements.deviceSelectModal.list.appendChild(li);
+        
+        if (guessTypes.includes('artist')) {
+            const normalizedGuess = normalizeAnswer(guess.artist || '');
+            const normalizedAnswer = normalizeAnswer(correctTrack.artist);
+            const distance = getLevenshteinDistance(normalizedGuess, normalizedAnswer);
+
+            if (distance === 0) {
+                roundScore += 50;
+                breakdown.artist = { points: 50, text: "Künstler (Perfekt!)" };
+            } else if (distance <= 2 && isFreestyle) { 
+                roundScore += 25;
+                breakdown.artist = { points: 25, text: "Künstler (Fast...)" };
+            } else {
+                breakdown.artist = { points: 0, text: "Künstler (Falsch)" };
+            }
+        }
+        
+        if (guessTypes.includes('year')) {
+            const guessYear = parseInt(guess.year, 10);
+            const correctYear = correctTrack.year;
+            
+            if (guessYear === correctYear) { 
+                roundScore += 75;
+                breakdown.year = { points: 75, text: "Jahr (Exakt!)" };
+            } else if (Math.abs(guessYear - correctYear) <= 2 && isFreestyle) { 
+                roundScore += 30;
+                breakdown.year = { points: 30, text: "Jahr (Nah dran)" };
+            } else if (Math.abs(guessYear - correctYear) <= 5 && isFreestyle) { 
+                roundScore += 10;
+                breakdown.year = { points: 10, text: "Jahr (OK)" };
+            } else {
+                breakdown.year = { points: 0, text: "Jahr (Falsch)" };
+            }
+        }
+        
+        player.score += roundScore; 
+        player.lastPointsBreakdown = { total: roundScore, breakdown };
+    });
+
+    const scores = getScores(pin); 
+
+    broadcastToLobby(pin, { 
+        type: 'round-result', 
+        payload: { 
+            correctTrack: game.currentTrack,
+            scores: scores 
+        } 
+    });
+    
+    setTimeout(() => {
+        if (games[pin]) { 
+            startNewRound(pin);
+        }
+    }, 8000); 
+}
+
+// --- NEU: TIMELINE-MODUS LOGIK ---
+async function startNewTimelineRound(pin, isFirstRound = false) {
+    const game = games[pin];
+    if (!game) return;
+    if (game.roundTimer) clearTimeout(game.roundTimer);
+
+    if (game.currentRound >= game.tracks.length) {
+        await endGame(pin);
+        return;
+    }
+    
+    game.gameState = 'PLAYING';
+    game.currentRound++;
+    const track = game.tracks[game.currentRound - 1];
+    game.currentTrack = track; // Der Song, der platziert werden muss
+
+    Object.values(game.players).forEach(p => {
+        p.isReady = false; // Wird für "Antwort erhalten" genutzt
+        p.currentGuess = { index: -1 }; 
+        p.lastPointsBreakdown = null; 
+    });
+    
+    console.log(`Spiel ${pin}, Timeline Runde ${game.currentRound}: Song ${track.title}`);
+
+    // Musik starten
+    const success = await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
+        uris: [`spotify:track:${track.spotifyId}`] 
+    });
+
+    if (!success) {
+        broadcastToLobby(pin, { type: 'toast', payload: { message: "Fehler bei Spotify-Wiedergabe.", isError: true } });
+        await sleep(2000);
+        await startNewTimelineRound(pin); // Nächste Runde
+        return;
+    }
+
+    // Wenn es die ERSTE Runde ist, fügen wir den Song direkt zur Timeline hinzu
+    if (isFirstRound) {
+        game.timeline.push(track);
+        console.log(`Spiel ${pin}: Erster Song ${track.title} (${track.year}) zur Timeline hinzugefügt.`);
+        
+        // Sende Runden-Info, aber starte sofort die nächste Runde
+        broadcastToLobby(pin, { 
+            type: 'new-timeline-round', 
+            payload: { 
+                round: game.currentRound, 
+                totalRounds: game.tracks.length,
+                newTrack: track, // Der neue Song
+                timeline: [], // Leere Timeline, da es der erste Song ist
+                isFirstRound: true
+            } 
         });
+        
+        await sleep(game.settings.guessTime * 1000); // Warte, während der erste Song spielt
+        await startNewTimelineRound(pin, false); // Starte die ZWEITE Runde
+        return;
+    }
+
+    // Für alle folgenden Runden:
+    broadcastToLobby(pin, { 
+        type: 'new-timeline-round', 
+        payload: { 
+            round: game.currentRound, 
+            totalRounds: game.tracks.length,
+            newTrack: track, // Der neue Song zum Platzieren
+            timeline: game.timeline, // Die bereits liegenden Karten
+            isFirstRound: false
+        } 
+    });
+    
+    broadcastLobbyUpdate(pin);
+
+    // Timer für Rundenende starten
+    game.roundTimer = setTimeout(() => {
+        console.log(`Timer für Timeline-Runde ${game.currentRound} in Spiel ${pin} abgelaufen.`);
+        endTimelineRound(pin);
+    }, game.settings.guessTime * 1000);
+}
+
+// Spieler hat einen Platzierungs-Index gesendet
+function submitTimelineGuess(game, player, guessedIndex) {
+    if (!game || !player || game.gameState !== 'PLAYING') return;
+
+    player.isReady = true; // Markiere Spieler als "fertig"
+    player.currentGuess.index = guessedIndex;
+    
+    const correctTrack = game.currentTrack;
+    
+    // Finde den korrekten Index
+    let correctIndex = 0;
+    while (correctIndex < game.timeline.length && game.timeline[correctIndex].year < correctTrack.year) {
+        correctIndex++;
     }
     
-    function getDeviceIcon(type) {
-        switch (type.toLowerCase()) {
-            case 'computer': return 'fa-desktop';
-            case 'smartphone': return 'fa-mobile-alt';
-            case 'speaker': return 'fa-volume-high';
-            default: return 'fa-question-circle';
-        }
-    }
-
-    function renderPaginatedPlaylists(playlistsToRender, page = 1) {
-        if (!elements.playlistSelectModal.list) return;
-        
-        const searchTerm = elements.playlistSelectModal.search.value.toLowerCase();
-        const filteredPlaylists = searchTerm 
-            ? playlistsToRender.filter(p => p.name.toLowerCase().includes(searchTerm))
-            : playlistsToRender;
-
-        currentPage = page;
-        const totalPages = Math.ceil(filteredPlaylists.length / itemsPerPage);
-        const startIndex = (page - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedItems = filteredPlaylists.slice(startIndex, endIndex);
-
-        elements.playlistSelectModal.list.innerHTML = '';
-        if (paginatedItems.length === 0) {
-            elements.playlistSelectModal.list.innerHTML = '<li>Keine Playlists gefunden.</li>';
-        } else {
-            paginatedItems.forEach(p => {
-                const li = document.createElement('li');
-                li.dataset.playlistId = p.id;
-                li.dataset.playlistName = p.name;
-                li.innerHTML = `<button class="button-select">
-                    ${p.name} <span style="color: var(--text-muted-color); font-size: 0.8rem;">(${p.tracks.total} Songs)</span>
-                </button>`;
-                elements.playlistSelectModal.list.appendChild(li);
-            });
-        }
-
-        if (elements.playlistSelectModal.pagination) {
-            elements.playlistSelectModal.pagination.innerHTML = '';
-            if (totalPages > 1) {
-                const prevBtn = document.createElement('button');
-                prevBtn.className = 'button-secondary button-small';
-                prevBtn.textContent = 'Zurück';
-                prevBtn.dataset.page = page - 1;
-                prevBtn.disabled = page === 1;
-                elements.playlistSelectModal.pagination.appendChild(prevBtn);
-
-                const pageIndicator = document.createElement('span');
-                pageIndicator.textContent = `Seite ${page} / ${totalPages}`;
-                pageIndicator.style.fontSize = '0.9rem';
-                elements.playlistSelectModal.pagination.appendChild(pageIndicator);
-
-                const nextBtn = document.createElement('button');
-                nextBtn.className = 'button-secondary button-small';
-                nextBtn.textContent = 'Vor';
-                nextBtn.dataset.page = page + 1;
-                nextBtn.disabled = page === totalPages;
-                elements.playlistSelectModal.pagination.appendChild(nextBtn);
-            }
-        }
+    let roundScore = 0;
+    let breakdown = {};
+    
+    if (guessedIndex === correctIndex) {
+        roundScore = 150; // Feste Punktzahl für richtige Platzierung
+        breakdown.placement = { points: 150, text: "Korrekt platziert!" };
+    } else {
+        // 0 Punkte, aber Hitster-Regel: Karte wird trotzdem hinzugefügt
+        breakdown.placement = { points: 0, text: "Falsch platziert." };
     }
     
-    function openCustomValueModal(type, title, min = 1, max = 100) { 
-        currentCustomType = { type, min, max };
-        customValueInput = "";
-        elements.customValueModal.title.textContent = `${title} (${min}-${max})`;
-        elements.customValueModal.display.forEach(d => d.textContent = "");
-        elements.customValueModal.confirmBtn.disabled = true;
-        elements.customValueModal.overlay.classList.remove('hidden');
-    }
+    player.score += roundScore; 
+    player.lastPointsBreakdown = { total: roundScore, breakdown, correctIndex: correctIndex };
 
-    function showInvitePopup(from, pin, fromUserId) { 
-        if (activePopups.invite) {
-            activePopups.invite.remove();
-        }
-        
-        const popup = document.createElement('div');
-        popup.className = 'invite-popup';
-        popup.innerHTML = `
-            <p><span id="invite-sender-name">${from}</span> lädt dich ein!</p>
-            <div class="invite-actions">
-                <button class="accept-invite-button button-primary button-small">Annehmen</button>
-                <button class="decline-invite-button button-secondary button-small">Ablehnen</button>
-            </div>`;
-            
-        elements.popups.container.appendChild(popup);
-        activePopups.invite = popup;
-        
-        const closePopup = () => {
-            popup.remove();
-            activePopups.invite = null;
-            // "Beitreten"-Button in Freundesliste anzeigen
-            renderFriendsList(onlineFriends);
-        };
-        
-        popup.querySelector('.accept-invite-button').onclick = () => {
-            if(!currentUser){ showToast("Anmelden/Gast zuerst.", true); return; } 
-            if(!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } 
-            setLoading(true, "Trete Lobby bei..."); 
-            ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pin, user: currentUser } })); 
-            delete pendingGameInvites[fromUserId];
-            closePopup();
-        };
-        popup.querySelector('.decline-invite-button').onclick = () => {
-            delete pendingGameInvites[fromUserId];
-            closePopup();
-        };
-        
-        setTimeout(closePopup, 10000);
+    broadcastLobbyUpdate(game.pin); // Sende Ready-Status
+
+    // Prüfen, ob alle bereit sind
+    const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
+    if (allReady) {
+        console.log(`Alle Spieler in ${game.pin} (Timeline) sind bereit. Beende Runde früher.`);
+        endTimelineRound(game.pin);
     }
+}
+
+async function endTimelineRound(pin) {
+    const game = games[pin];
+    if (!game || game.gameState !== 'PLAYING') return; 
+
+    console.log(`Spiel ${pin}, Timeline Runde ${game.currentRound} wird berechnet.`);
+    game.gameState = 'RESULTS';
+    if (game.roundTimer) clearTimeout(game.roundTimer);
+
+    await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+
+    const correctTrack = game.currentTrack;
     
-    function showFriendRequestPopup(from, senderId) {
-        if (activePopups.friendRequest) {
-            activePopups.friendRequest.remove();
-        }
-        
-        const popup = document.createElement('div');
-        popup.className = 'friend-request-popup';
-        popup.innerHTML = `
-            <p><span>${from}</span> hat dir eine Freundschaftsanfrage gesendet!</p>
-            <div class="invite-actions">
-                <button class="button-primary button-small accept-friend-request">Annehmen</button>
-                <button class="button-secondary button-small decline-friend-request">Ablehnen</button>
-            </div>`;
-            
-        elements.popups.container.appendChild(popup);
-        activePopups.friendRequest = popup;
-        
-        const closePopup = () => {
-            popup.remove();
-            activePopups.friendRequest = null;
-        };
-        
-        popup.querySelector('.accept-friend-request').onclick = () => {
-            if (ws.socket?.readyState === WebSocket.OPEN) {
-                ws.socket.send(JSON.stringify({ type: 'accept-friend-request', payload: { senderId: senderId } }));
-            }
-            closePopup();
-        };
-        popup.querySelector('.decline-friend-request').onclick = () => {
-            if (ws.socket?.readyState === WebSocket.OPEN) {
-                ws.socket.send(JSON.stringify({ type: 'decline-friend-request', payload: { friendId: senderId } }));
-            }
-            closePopup();
-        };
-        
-        setTimeout(closePopup, 10000);
+    // Füge den Song an der KORREKTEN Stelle zur Timeline hinzu (Hitster-Regel)
+    let correctIndex = 0;
+    while (correctIndex < game.timeline.length && game.timeline[correctIndex].year < correctTrack.year) {
+        correctIndex++;
     }
+    game.timeline.splice(correctIndex, 0, correctTrack);
+
+    // Berechne Punkte für Spieler, die nicht "Ready" waren (Timer abgelaufen)
+    Object.values(game.players).forEach(player => {
+        if (!player.isReady && player.isConnected) {
+            player.lastPointsBreakdown = { total: 0, breakdown: { placement: { points: 0, text: "Keine Antwort." } }, correctIndex: correctIndex };
+        }
+    });
+
+    const scores = getScores(pin); 
+
+    broadcastToLobby(pin, { 
+        type: 'round-result', 
+        payload: { 
+            correctTrack: game.currentTrack,
+            scores: scores,
+            timeline: game.timeline // Sende die NEUE, korrekte Timeline
+        } 
+    });
     
-    function handlePresetClick(e, groupId) { 
-        const btn = e.target.closest('.preset-button');
-        if (!btn || !btn.closest('.preset-group')) return;
-        
-        const presetGroup = btn.closest('.preset-group');
-        presetGroup.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        
-        const value = btn.dataset.value;
-        const type = btn.dataset.type;
-        
-        if (value === 'custom') {
-            if (type === 'song-count') openCustomValueModal('song-count', 'Anzahl Songs', 1, 999);
-            else if (type === 'guess-time') openCustomValueModal('guess-time', 'Ratezeit (Sek.)', 10, 120);
-            else if (type === 'lives') openCustomValueModal('lives', 'Leben (1-10)', 1, 10);
-            return;
+    setTimeout(() => {
+        if (games[pin]) { 
+            startNewTimelineRound(pin, false); // Nächste Runde (nie "first round")
         }
+    }, 8000); // 8 Sekunden Pause
+}
+// --- ENDE TIMELINE ---
 
-        if (currentGame.pin && currentGame.isHost) {
-            let setting = {};
-            if (groupId === 'song-count-presets') setting.songCount = parseInt(value);
-            if (groupId === 'guess-time-presets') setting.guessTime = parseInt(value);
-            
-            ws.socket.send(JSON.stringify({
-                type: 'update-settings',
-                payload: setting
-            }));
-        }
-    }
+async function endGame(pin) {
+    const game = games[pin];
+    if (!game) return;
+
+    console.log(`Spiel ${pin} beendet.`);
+    game.gameState = 'FINISHED';
+    if (game.roundTimer) clearTimeout(game.roundTimer);
+
+    await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     
-    async function handleGiftSpots(friendId, friendName) {
-        showToast("Freunde-System (Gifting) kommt bald!", false);
-    }
+    const finalScores = getScores(pin);
+    broadcastToLobby(pin, { 
+        type: 'game-over', 
+        payload: { 
+            scores: finalScores 
+        } 
+    });
+
+    // --- NEU: Überarbeitete Spot/XP Vergabe (für normales Spielende) ---
+    console.log(`Awarding stats for game ${pin}...`);
+    const gamePlayers = Object.values(game.players);
     
-    function sendGuess() {
-        if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) return;
+    for (const player of gamePlayers) {
+        if (player.isGuest || !player.id) continue;
         
-        const guess = {
-            title: document.getElementById('guess-input-title')?.value || '',
-            artist: document.getElementById('guess-input-artist')?.value || '',
-            year: document.getElementById('guess-input-year')?.value || ''
-        };
+        const score = player.score || 0;
+        const placement = finalScores.findIndex(p => p.id === player.id);
+        const isWinner = (placement === 0) && (finalScores[0].score > 0);
         
-        ws.socket.send(JSON.stringify({
-            type: 'submit-guess',
-            payload: { guess }
-        }));
-    }
-
-    function addEventListeners() {
-        try { 
-            console.log("Adding all application event listeners...");
-            
-            document.body.addEventListener('click', (e) => {
-                const btn = e.target.closest('.reaction-btn');
-                if (btn && ws.socket?.readyState === WebSocket.OPEN && !reactionCooldown) {
-                    
-                    reactionCooldown = true;
-                    elements.game.reactionButtons.classList.add('cooldown');
-                    
-                    ws.socket.send(JSON.stringify({
-                        type: 'send-reaction',
-                        payload: { reaction: btn.dataset.reaction }
-                    }));
-                    
-                    setTimeout(() => {
-                        reactionCooldown = false;
-                        if (elements.game.reactionButtons) {
-                            elements.game.reactionButtons.classList.remove('cooldown');
-                        }
-                    }, 2000); // 2 Sekunden Cooldown
-                }
-                
-                // NEU: Hilfe-Icon Klicks
-                const helpIcon = e.target.closest('.help-icon');
-                if (helpIcon && helpIcon.title) {
-                    e.preventDefault();
-                    showToast(helpIcon.title, false);
-                }
-            });
-            
-            elements.leaveGameButton?.addEventListener('click', goBack);
-            elements.leaveConfirmModal.cancelBtn?.addEventListener('click', () => elements.leaveConfirmModal.overlay.classList.add('hidden'));
-            elements.leaveConfirmModal.confirmBtn?.addEventListener('click', () => { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type: 'leave-game', payload: { pin: currentGame.pin, playerId: currentGame.playerId } })); } localStorage.removeItem('fakesterGame'); currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] }; screenHistory = ['auth-screen', 'home-screen']; showScreen('home-screen'); elements.leaveConfirmModal.overlay.classList.add('hidden'); });
-
-            elements.auth.loginForm?.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.target, false); });
-            elements.auth.registerForm?.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.target, true); });
-            elements.auth.showRegister?.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm?.classList.add('hidden'); elements.auth.registerForm?.classList.remove('hidden'); });
-            elements.auth.showLogin?.addEventListener('click', (e) => { e.preventDefault(); elements.auth.loginForm?.classList.remove('hidden'); elements.auth.registerForm?.classList.add('hidden'); });
-
-            elements.guestModal.openBtn?.addEventListener('click', () => { elements.guestModal.overlay?.classList.remove('hidden'); elements.guestModal.input?.focus(); });
-            elements.guestModal.closeBtn?.addEventListener('click', () => elements.guestModal.overlay?.classList.add('hidden'));
-            elements.guestModal.submitBtn?.addEventListener('click', () => { const nickname = elements.guestModal.input?.value; if (!nickname || nickname.trim().length < 3 || nickname.trim().length > 15) { showToast("Nickname muss 3-15 Zeichen lang sein.", true); return; } elements.guestModal.overlay?.classList.add('hidden'); initializeApp({ username: nickname }, true); });
-
-            elements.home.logoutBtn?.addEventListener('click', handleLogout);
-            elements.home.spotifyConnectBtn?.addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/login'; });
-            elements.home.createRoomBtn?.addEventListener('click', () => showScreen('mode-selection-screen'));
-            elements.home.joinRoomBtn?.addEventListener('click', () => { if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) { showToast("Verbindung zum Server wird aufgebaut...", true); return; } pinInput = ""; elements.joinModal.pinDisplay?.forEach(d => d.textContent = ""); elements.joinModal.overlay?.classList.remove('hidden'); });
-            elements.home.statsBtn?.addEventListener('click', () => showScreen('stats-screen'));
-            elements.home.achievementsBtn?.addEventListener('click', () => showScreen('achievements-screen'));
-            elements.home.levelProgressBtn?.addEventListener('click', () => showScreen('level-progress-screen'));
-            elements.home.profileTitleBtn?.addEventListener('click', () => showScreen('title-selection-screen'));
-            elements.home.profilePictureBtn?.addEventListener('click', () => showScreen('icon-selection-screen'));
-            elements.home.friendsBtn?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { loadFriendsData(); elements.friendsModal.overlay?.classList.remove('hidden'); } });
-            elements.home.usernameContainer?.addEventListener('click', () => { if (!currentUser || currentUser.isGuest) return; elements.changeNameModal.input.value = currentUser.username; elements.changeNameModal.overlay?.classList.remove('hidden'); elements.changeNameModal.input?.focus(); });
-            elements.home.shopButton?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { loadShopItems(); showScreen('shop-screen'); } });
-            elements.home.customizationBtn?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { renderCustomizationMenu(); showScreen('customization-screen'); } }); 
-
-             elements.modeSelection.container?.addEventListener('click', (e) => { 
-                const mb=e.target.closest('.mode-box'); 
-                if(mb && !mb.disabled){ 
-                    selectedGameMode=mb.dataset.mode; 
-                    console.log(`Mode: ${selectedGameMode}`); 
-                    
-                    gameCreationSettings = { gameType: null, lives: 3, guessTypes: [], answerType: 'freestyle' };
-                    
-                    if (elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=true; 
-                    if (elements.gameTypeScreen.pointsBtn) elements.gameTypeScreen.pointsBtn.classList.remove('active'); 
-                    if (elements.gameTypeScreen.livesBtn) elements.gameTypeScreen.livesBtn.classList.remove('active'); 
-                    if (elements.gameTypeScreen.livesSettings) elements.gameTypeScreen.livesSettings.classList.add('hidden'); 
-                    
-                    elements.gameTypeScreen.quizSettingsContainer.classList.toggle('hidden', selectedGameMode !== 'quiz');
-                    
-                    showScreen('game-type-selection-screen'); 
-                } 
-            });
-            
-            elements.gameTypeScreen.pointsBtn?.addEventListener('click', () => { gameCreationSettings.gameType='points'; elements.gameTypeScreen.pointsBtn.classList.add('active'); elements.gameTypeScreen.livesBtn?.classList.remove('active'); elements.gameTypeScreen.livesSettings?.classList.add('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
-            elements.gameTypeScreen.livesBtn?.addEventListener('click', () => { gameCreationSettings.gameType='lives'; elements.gameTypeScreen.pointsBtn?.classList.remove('active'); elements.gameTypeScreen.livesBtn.classList.add('active'); elements.gameTypeScreen.livesSettings?.classList.remove('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
-            elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const btn=e.target.closest('.preset-button'); if(btn){ elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const v=btn.dataset.value; if(v==='custom'){ openCustomValueModal('lives', 'Leben (1-10)', 1, 10); } else { gameCreationSettings.lives=parseInt(v); console.log(`Lives: ${gameCreationSettings.lives}`); } } });
-            
-            elements.gameTypeScreen.guessTypesCheckboxes.forEach(cb => {
-                cb.addEventListener('change', () => {
-                    const checked = Array.from(elements.gameTypeScreen.guessTypesCheckboxes).filter(c => c.checked).map(c => c.value);
-                    if (checked.length === 0) {
-                        elements.gameTypeScreen.guessTypesError.classList.remove('hidden');
-                    } else {
-                        elements.gameTypeScreen.guessTypesError.classList.add('hidden');
-                    }
-                    gameCreationSettings.guessTypes = checked;
-                });
-            });
-            elements.gameTypeScreen.answerTypePresets?.addEventListener('click', (e) => {
-                const btn = e.target.closest('.preset-button');
-                if (btn) {
-                    elements.gameTypeScreen.answerTypePresets.querySelectorAll('.preset-button').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    gameCreationSettings.answerType = btn.dataset.value;
-                }
-            });
-            
-            elements.gameTypeScreen.createLobbyBtn?.addEventListener('click', () => { 
-                if(!selectedGameMode || !gameCreationSettings.gameType){ showToast("Modus/Typ fehlt.", true); return; } 
-                if(selectedGameMode === 'quiz' && gameCreationSettings.guessTypes.length === 0) {
-                    showToast("Wähle mindestens eine Sache zum Raten aus.", true);
-                    elements.gameTypeScreen.guessTypesError.classList.remove('hidden');
-                    return;
-                }
-                if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } 
-                
-                setLoading(true, "Lobby wird erstellt...");
-                
-                ws.socket.send(JSON.stringify({ 
-                    type: 'create-game', 
-                    payload: { 
-                        user: currentUser, 
-                        token: spotifyToken, 
-                        gameMode: selectedGameMode,
-                        ...gameCreationSettings 
-                    } 
-                })); 
-            });
-
-            elements.lobby.inviteFriendsBtn?.addEventListener('click', async () => { 
-                elements.inviteFriendsModal.list.innerHTML = '';
-                if(onlineFriends.length === 0) {
-                    elements.inviteFriendsModal.list.innerHTML = '<li>Keine Freunde online.</li>';
-                } else {
-                    onlineFriends.forEach(friend => {
-                        const li = document.createElement('li');
-                        const isCoolingDown = inviteCooldowns[friend.id];
-                        li.innerHTML = `<button class="button-select" data-friend-id="${friend.id}" ${isCoolingDown ? 'disabled' : ''}>
-                                            ${friend.username}
-                                            ${isCoolingDown ? '<span style="color:var(--text-muted-color); font-size: 0.8rem;"> (Warte...)</span>' : ''}
-                                        </button>`;
-                        elements.inviteFriendsModal.list.appendChild(li);
-                    });
-                }
-                elements.inviteFriendsModal.overlay.classList.remove('hidden');
-            });
-            elements.lobby.deviceSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.deviceSelectModal.overlay?.classList.remove('hidden'); }); 
-            elements.lobby.playlistSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.playlistSelectModal.overlay?.classList.remove('hidden'); });
-            
-            elements.lobby.songCountPresets?.addEventListener('click', (e) => handlePresetClick(e, 'song-count-presets'));
-            elements.lobby.guessTimePresets?.addEventListener('click', (e) => handlePresetClick(e, 'guess-time-presets'));
-            
-            elements.lobby.startGameBtn?.addEventListener('click', () => { if (elements.lobby.startGameBtn && !elements.lobby.startGameBtn.disabled && ws.socket?.readyState === WebSocket.OPEN) { setLoading(true, "Spiel startet..."); ws.socket.send(JSON.stringify({ type: 'start-game', payload: { pin: currentGame.pin } })); } else { showToast("Wähle Gerät & Playlist.", true); } });
-
-            elements.game.gameContentArea?.addEventListener('input', (e) => {
-                if (e.target.classList.contains('guess-input')) {
-                    if (guessDebounceTimer) clearTimeout(guessDebounceTimer);
-                    guessDebounceTimer = setTimeout(sendGuess, 300); 
-                }
-            });
-            
-            elements.game.gameContentArea?.addEventListener('click', (e) => {
-                const mcButton = e.target.closest('.mc-button');
-                const readyButton = e.target.closest('#player-ready-button');
-
-                if (mcButton && !mcButton.classList.contains('active')) {
-                    const group = mcButton.closest('.mc-button-group');
-                    const guessType = group.dataset.guessType;
-                    const value = mcButton.dataset.value;
-
-                    group.querySelectorAll('.mc-button').forEach(btn => btn.classList.remove('active'));
-                    mcButton.classList.add('active');
-                    
-                    const guess = {
-                        title: (guessType === 'title') ? value : document.querySelector('.mc-button-group[data-guess-type="title"] .active')?.dataset.value || '',
-                        artist: (guessType === 'artist') ? value : document.querySelector('.mc-button-group[data-guess-type="artist"] .active')?.dataset.value || '',
-                        year: (guessType === 'year') ? value : document.querySelector('.mc-button-group[data-guess-type="year"] .active')?.dataset.value || ''
-                    };
-                    ws.socket.send(JSON.stringify({ type: 'submit-guess', payload: { guess } }));
-                    
-                    const allTypesGuessed = gameCreationSettings.guessTypes.every(type => {
-                        return document.querySelector(`.mc-button-group[data-guess-type="${type}"] .active`);
-                    });
-
-                    if (allTypesGuessed) {
-                        ws.socket.send(JSON.stringify({ type: 'player-ready' }));
-                        document.getElementById('player-ready-button')?.setAttribute('disabled', 'true');
-                        document.getElementById('player-ready-button').textContent = 'Bereit!';
-                    }
-                }
-                
-                if (readyButton && !readyButton.disabled) {
-                    if (ws.socket?.readyState === WebSocket.OPEN) {
-                        ws.socket.send(JSON.stringify({ type: 'player-ready' }));
-                        readyButton.setAttribute('disabled', 'true');
-                        readyButton.textContent = 'Bereit!';
-                    }
-                }
-            });
-            
-            elements.titles.list?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { equipTitle(parseInt(card.dataset.titleId), true); } });
-            elements.icons.list?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipIcon(parseInt(card.dataset.iconId), true); } });
-            
-            elements.customize.tabsContainer?.addEventListener('click', (e) => {
-                const tab = e.target.closest('.tab-button');
-                if (tab && !tab.classList.contains('active')) {
-                    elements.customize.tabsContainer.querySelectorAll('.tab-button').forEach(t => t.classList.remove('active'));
-                    elements.customize.tabContents.forEach(c => c.classList.remove('active'));
-                    tab.classList.add('active');
-                    document.getElementById(tab.dataset.tab)?.classList.add('active');
-                }
-            });
-            elements.customize.titlesList?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { equipTitle(parseInt(card.dataset.titleId), true); } });
-            elements.customize.iconsList?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipIcon(parseInt(card.dataset.iconId), true); } });
-            elements.customize.colorsList?.addEventListener('click', (e) => { const card = e.target.closest('.color-card:not(.locked)'); if (card) { const colorId = card.dataset.colorId === '' ? null : parseInt(card.dataset.colorId); equipColor(colorId, true); } });
-            
-            // NEU: Listener für Akzentfarben
-            elements.customize.accentColorsList?.addEventListener('click', (e) => { 
-                const card = e.target.closest('.color-card:not(.locked)'); 
-                if (card) { 
-                    const colorId = card.dataset.colorId === '' ? null : parseInt(card.dataset.colorId); 
-                    equipAccentColor(colorId, true); 
-                } 
-            });
-            
-            elements.customize.backgroundsList?.addEventListener('click', (e) => {
-                const li = e.target.closest('li[data-bg-id]');
-                const btn = e.target.closest('button:not(.locked)');
-                if (li && btn) {
-                    const bgId = li.dataset.bgId;
-                    equipBackground(bgId, true); // NEU: Speichert den persönlichen Hintergrund
-                }
-            });
-
-            elements.shop.screen?.addEventListener('click', (e) => { const buyBtn = e.target.closest('.buy-button:not([disabled])'); if (buyBtn) { handleBuyItem(buyBtn.dataset.itemId); } });
-            
-            document.querySelectorAll('.button-exit-modal').forEach(btn => btn.addEventListener('click', () => btn.closest('.modal-overlay')?.classList.add('hidden')));
-            
-            elements.joinModal.numpad?.addEventListener('click', (e) => { 
-                const btn=e.target.closest('button'); 
-                if(!btn) return; 
-                const key=btn.dataset.key, action=btn.dataset.action; 
-                let confirmBtn = elements.joinModal.numpad.querySelector('[data-action="confirm"]'); 
-                if(key >= '0' && key <= '9' && pinInput.length < 4) {
-                    pinInput += key; 
-                } else if(action==='clear'||action==='backspace') {
-                    pinInput = pinInput.slice(0, -1); 
-                } else if(action==='confirm' && pinInput.length===4) { 
-                    if(!currentUser){ showToast("Anmelden/Gast zuerst.", true); return; } 
-                    if(!ws.socket || ws.socket.readyState !== WebSocket.OPEN){ showToast("Keine Serververbindung.", true); return; } 
-                    setLoading(true, "Trete Lobby bei..."); 
-                    ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pinInput, user: currentUser } })); 
-                    pinInput = ""; 
-                } 
-                elements.joinModal.pinDisplay?.forEach((d,i)=>d.textContent=pinInput[i]||""); 
-                if(confirmBtn) confirmBtn.disabled = pinInput.length !== 4; 
-            });
-            
-            elements.friendsModal.tabsContainer?.addEventListener('click', (e) => { const tab = e.target.closest('.tab-button'); if (tab && !tab.classList.contains('active')) { elements.friendsModal.tabs?.forEach(t => t.classList.remove('active')); elements.friendsModal.tabContents?.forEach(c => c.classList.remove('active')); tab.classList.add('active'); document.getElementById(tab.dataset.tab)?.classList.add('active'); } });
-            elements.friendsModal.addFriendBtn?.addEventListener('click', async () => { 
-                const name = elements.friendsModal.addFriendInput.value; 
-                if(name && ws.socket?.readyState === WebSocket.OPEN) { 
-                    ws.socket.send(JSON.stringify({ type: 'add-friend', payload: { friendName: name } }));
-                    elements.friendsModal.addFriendInput.value = ''; 
-                }
-            });
-            elements.friendsModal.requestsList?.addEventListener('click', (e) => { 
-                const acceptBtn = e.target.closest('.button-accept-request');
-                const declineBtn = e.target.closest('.button-decline-request');
-                if (acceptBtn && ws.socket?.readyState === WebSocket.OPEN) {
-                    ws.socket.send(JSON.stringify({ type: 'accept-friend-request', payload: { senderId: acceptBtn.dataset.senderId } }));
-                } else if (declineBtn && ws.socket?.readyState === WebSocket.OPEN) {
-                    ws.socket.send(JSON.stringify({ type: 'decline-friend-request', payload: { friendId: declineBtn.dataset.senderId } }));
-                }
-            });
-            elements.friendsModal.friendsList?.addEventListener('click', (e) => { 
-                const removeBtn = e.target.closest('.button-remove-friend'); 
-                const giftBtn = e.target.closest('.button-gift'); 
-                const joinBtn = e.target.closest('.button-join');
-                
-                if (removeBtn && ws.socket?.readyState === WebSocket.OPEN) { 
-                    showConfirmModal("Freund entfernen", `Möchtest du ${removeBtn.dataset.friendName || 'diesen Freund'} wirklich entfernen?`, () => {
-                        ws.socket.send(JSON.stringify({ type: 'remove-friend', payload: { friendId: removeBtn.dataset.friendId } }));
-                    });
-                } else if (giftBtn) { 
-                    handleGiftSpots(giftBtn.dataset.friendId, giftBtn.dataset.friendName); 
-                } else if (joinBtn) {
-                    const friendId = joinBtn.dataset.friendId;
-                    const pin = pendingGameInvites[friendId];
-                    if (pin && ws.socket?.readyState === WebSocket.OPEN) {
-                        setLoading(true, "Trete Lobby bei...");
-                        ws.socket.send(JSON.stringify({ type: 'join-game', payload: { pin: pin, user: currentUser } }));
-                        elements.friendsModal.overlay.classList.add('hidden');
-                        delete pendingGameInvites[friendId];
-                    } else {
-                        showToast("Einladung ist abgelaufen oder ungültig.", true);
-                        delete pendingGameInvites[friendId];
-                        renderFriendsList(onlineFriends);
-                    }
-                }
-            });
-            
-            elements.inviteFriendsModal.list?.addEventListener('click', (e) => {
-                const btn = e.target.closest('button[data-friend-id]');
-                if (btn && !btn.disabled && ws.socket?.readyState === WebSocket.OPEN) {
-                    const friendId = btn.dataset.friendId;
-                    
-                    if (inviteCooldowns[friendId]) return;
-                    
-                    ws.socket.send(JSON.stringify({ type: 'invite-friend', payload: { friendId: friendId } }));
-                    
-                    btn.disabled = true;
-                    btn.innerHTML = `${btn.textContent} <span style="color:var(--text-muted-color); font-size: 0.8rem;"> (Warte...)</span>`;
-                    inviteCooldowns[friendId] = true;
-                    
-                    setTimeout(() => {
-                        delete inviteCooldowns[friendId];
-                        const friend = onlineFriends.find(f => f.id === friendId);
-                        if (btn) { // Sicherstellen, dass der Button noch existiert
-                            btn.disabled = false;
-                            btn.innerHTML = friend ? friend.username : 'Freund';
-                        }
-                    }, 10000); // 10 Sekunden Cooldown
-                }
-            });
-            
-            elements.customValueModal.numpad?.addEventListener('click', (e) => { 
-                const btn=e.target.closest('button'); if(!btn) return; 
-                const key=btn.dataset.key, action=btn.dataset.action;
-                if(key >= '0' && key <= '9' && customValueInput.length < 3) {
-                    customValueInput += key; 
-                } else if(action==='clear'||action==='backspace') {
-                    customValueInput = customValueInput.slice(0, -1); 
-                }
-                elements.customValueModal.display.forEach((d,i)=>d.textContent=customValueInput[i]||""); 
-                
-                const value = parseInt(customValueInput || "0");
-                const isValid = value >= currentCustomType.min && value <= currentCustomType.max;
-                elements.customValueModal.confirmBtn.disabled = !isValid;
-            });
-            elements.customValueModal.confirmBtn?.addEventListener('click', () => { 
-                const value = parseInt(customValueInput);
-                if (!currentCustomType || isNaN(value) || value < currentCustomType.min || value > currentCustomType.max) {
-                    showToast(`Ungültiger Wert. Muss zwischen ${currentCustomType.min} und ${currentCustomType.max} sein.`, true);
-                    return;
-                }
-                
-                let setting = {};
-                if (currentCustomType.type === 'song-count') {
-                    setting.songCount = value;
-                    updatePresets(elements.lobby.songCountPresets, value, 'song-count');
-                } else if (currentCustomType.type === 'guess-time') {
-                    setting.guessTime = value;
-                    updatePresets(elements.lobby.guessTimePresets, value, 'guess-time');
-                } else if (currentCustomType.type === 'lives') {
-                    gameCreationSettings.lives = value;
-                    updatePresets(elements.gameTypeScreen.livesPresets, value, 'lives');
-                }
-                
-                if (currentGame.pin && currentGame.isHost && (currentCustomType.type === 'song-count' || currentCustomType.type === 'guess-time')) {
-                    ws.socket.send(JSON.stringify({ type: 'update-settings', payload: setting }));
-                }
-
-                elements.customValueModal.overlay.classList.add('hidden');
-            });
-            
-            elements.changeNameModal.submitBtn?.addEventListener('click', async () => { console.log("Change name submit"); showToast("Name ändern (STUB)", false); });
-            
-            elements.deviceSelectModal.refreshBtn?.addEventListener('click', () => fetchHostData(true));
-            elements.deviceSelectModal.list?.addEventListener('click', (e) => { 
-                const li = e.target.closest('li[data-device-id]');
-                if (li && ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) {
-                    const { deviceId, deviceName } = li.dataset;
-                    ws.socket.send(JSON.stringify({
-                        type: 'update-settings',
-                        payload: { deviceId, deviceName }
-                    }));
-                    elements.deviceSelectModal.overlay?.classList.add('hidden');
-                }
-            });
-            
-            elements.playlistSelectModal.search?.addEventListener('input', () => { 
-                clearTimeout(elements.playlistSelectModal.search.debounceTimer); 
-                elements.playlistSelectModal.search.debounceTimer = setTimeout(() => { 
-                    renderPaginatedPlaylists(allPlaylists, 1); 
-                }, 300); 
-            });
-            elements.playlistSelectModal.list?.addEventListener('click', (e) => { 
-                const li = e.target.closest('li[data-playlist-id]');
-                if (li && ws.socket?.readyState === WebSocket.OPEN && currentGame.isHost) {
-                    const { playlistId, playlistName } = li.dataset;
-                    ws.socket.send(JSON.stringify({
-                        type: 'update-settings',
-                        payload: { playlistId, playlistName }
-                    }));
-                    elements.playlistSelectModal.overlay?.classList.add('hidden');
-                }
-            });
-            elements.playlistSelectModal.pagination?.addEventListener('click', (e) => { 
-                const btn = e.target.closest('button[data-page]');
-                if (btn && !btn.disabled) {
-                    const newPage = parseInt(btn.dataset.page);
-                    renderPaginatedPlaylists(allPlaylists, newPage);
-                }
-            });
-
-            elements.confirmActionModal.cancelBtn?.addEventListener('click', () => { elements.confirmActionModal.overlay?.classList.add('hidden'); currentConfirmAction = null; });
-            elements.confirmActionModal.confirmBtn?.addEventListener('click', () => { if (typeof currentConfirmAction === 'function') { currentConfirmAction(); } elements.confirmActionModal.overlay?.classList.add('hidden'); currentConfirmAction = null; });
-
-            toggleConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.toggle('hidden'));
-            closeConsoleBtn?.addEventListener('click', () => onPageConsole?.classList.add('hidden'));
-            clearConsoleBtn?.addEventListener('click', () => { if (consoleOutput) consoleOutput.innerHTML = ''; });
-            copyConsoleBtn?.addEventListener('click', () => { if (!consoleOutput) return; const txt = Array.from(consoleOutput.children).map(e => e.dataset.rawText || e.textContent).join('\n'); navigator.clipboard.writeText(txt).then(() => showToast('Logs kopiert!', false), err => { console.error('Fehler: Logs kopieren:', err); showToast('Kopieren fehlgeschlagen.', true); }); });
-
-            console.log("All event listeners added successfully.");
-
-        } catch (error) {
-            console.error("FATAL ERROR adding event listeners:", error);
-            logToPage('error', ["FATAL ERROR adding event listeners:", error]);
-            document.body.innerHTML = `<div class="fatal-error"><h1>Fehler</h1><p>Ein unerwarteter Fehler ist beim Initialisieren aufgetreten. (${error.message}) Bitte lade die Seite neu.</p></div>`;
-        }
-    }
-
-    async function initializeSupabase() {
+        let placementBonusSpots = 0;
+        if (placement === 0) placementBonusSpots = 15; // 1. Platz
+        else if (placement === 1) placementBonusSpots = 10; // 2. Platz
+        else if (placement === 2) placementBonusSpots = 5;  // 3. Platz
+        
+        const scoreSpots = Math.max(1, Math.floor(score * 0.20)); // 20% des Scores als Spots
+        const totalSpotBonus = scoreSpots + placementBonusSpots;
+        
+        const scoreXp = Math.max(10, Math.floor(score / 15)); // 1 XP pro 15 Punkte (min 10)
+        const winnerXpBonus = isWinner ? 25 : 0; // 25 XP extra für den Sieg
+        const totalXpBonus = scoreXp + winnerXpBonus;
+        
         try {
-            console.log("Fetching /api/config...");
-            const response = await fetch('/api/config');
-            if (!response.ok) throw new Error(`Config fetch failed: ${response.statusText}`);
-            const config = await response.json();
-            if (!config.supabaseUrl || !config.supabaseAnonKey) { throw new Error("Supabase config missing."); }
+            const { data: profile, error: fetchError } = await supabase
+                .from('profiles')
+                .select('xp, spots, games_played, wins, highscore')
+                .eq('id', player.id)
+                .single();
+                
+            if (fetchError) throw fetchError;
 
-            supabase = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, { global: { fetch: (...args) => window.fetch(...args) }, auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
-            console.log("Supabase client initialized.");
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({
+                    xp: profile.xp + totalXpBonus,
+                    spots: profile.spots + totalSpotBonus,
+                    games_played: profile.games_played + 1,
+                    wins: isWinner ? profile.wins + 1 : profile.wins,
+                    highscore: score > profile.highscore ? score : profile.highscore
+                })
+                .eq('id', player.id);
+            
+            if (updateError) throw updateError;
+            
+            console.log(`Awarded ${totalXpBonus} XP and ${totalSpotBonus} Spots to ${player.id}.`);
+            showToastToPlayer(player.ws, `Spiel beendet! +${totalXpBonus} XP & +${totalSpotBonus} 🎵`, false);
 
-            supabase.auth.onAuthStateChange(async (event, session) => {
-                console.log(`Supabase Auth Event: ${event}`, session ? `User: ${session.user.id}` : 'No session');
-                if (event === 'SIGNED_OUT') { 
-                    currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
-                    ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); ownedAccentColorIds.clear(); inventory = {};
-                    if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
-                    if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
-                    localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); 
-                    document.body.classList.add('is-guest'); setLoading(false); 
-                    elements.home.spotifyConnectBtn?.classList.remove('hidden'); elements.home.createRoomBtn?.classList.add('hidden'); 
-                    return; 
-                }
-                if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
-                     if (!window.initializeAppRunning && (!currentUser || currentUser.id !== session.user.id)) {
-                          window.initializeAppRunning = true; console.log(`Session available/updated for ${session.user.id}. Initializing app...`); setLoading(true, "Lade Profil...");
-                          try { initializeApp(session.user, false); }
-                          catch(initError) { console.error("Error calling initializeApp:", initError); setLoading(false); showScreen('auth-screen'); }
-                          finally { window.initializeAppRunning = false; }
-                     } else if (event === 'TOKEN_REFRESHED') { console.log("Token refreshed, checking Spotify status (async)..."); checkSpotifyStatus(); }
-                     else if (!window.initializeAppRunning) { console.log("App already initialized for this session or init running."); }
-                } else if (!session && !['USER_UPDATED', 'PASSWORD_RECOVERY', 'MFA_CHALLENGE_VERIFIED'].includes(event)) {
-                     console.log(`No active session or invalid (Event: ${event}). Showing auth.`);
-                     if (currentUser) { 
-                         currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
-                         ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); ownedAccentColorIds.clear(); inventory = {};
-                         if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
-                         if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
-                         localStorage.removeItem('fakesterGame'); 
-                    }
-                     screenHistory = ['auth-screen']; showScreen('auth-screen'); setLoading(false);
-                }
-            });
+        } catch (e) {
+            console.error(`Exception awarding stats for ${player.id}:`, e);
+        }
+    }
+    // --- ENDE NEU ---
 
-            console.log("Getting initial session...");
-            const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
-            if(sessionError){ console.error("Error getting initial session:", sessionError); showScreen('auth-screen'); setLoading(false); }
-            else if (!initialSession) {
-                if (!document.getElementById('auth-screen')?.classList.contains('active')) { console.log("Initial: No session, show auth."); showScreen('auth-screen'); }
-                else { console.log("Initial: No session, auth active."); }
-                setLoading(false);
-                checkSpotifyStatus(); 
-             }
+    setTimeout(() => {
+        if (games[pin]) {
+            console.log(`Deleting finished game ${pin}.`);
+            delete games[pin];
+        }
+    }, 10000); 
+}
 
-        } catch (error) { console.error("FATAL Supabase init error:", error); document.body.innerHTML = `<div class="fatal-error"><h1>Init Fehler</h1><p>App konnte nicht laden. (${error.message})</p></div>`; setLoading(false); }
+
+async function handleLoadFriends(ws, userId) {
+    if (!userId) return;
+    try {
+        const { data, error } = await supabase
+            .from('friends')
+            .select(`
+                user_id_1, user_id_2, status, requested_by,
+                profile_1:profiles!friends_user_id_1_fkey (id, username),
+                profile_2:profiles!friends_user_id_2_fkey (id, username)
+            `)
+            .or(`user_id_1.eq.${userId},user_id_2.eq.${userId}`);
+
+        if (error) throw error;
+
+        const friendsList = [];
+        const requestsList = [];
+
+        data.forEach(friendship => {
+            const otherUser = friendship.profile_1.id === userId ? friendship.profile_2 : friendship.profile_1;
+            const isOnline = onlineUsers.has(otherUser.id);
+
+            const friendData = {
+                id: otherUser.id,
+                username: otherUser.username,
+                isOnline: isOnline
+            };
+
+            if (friendship.status === 'accepted') {
+                friendsList.push(friendData);
+            } else if (friendship.status === 'pending' && friendship.requested_by !== userId) {
+                requestsList.push(friendData);
+            }
+        });
+
+        ws.send(JSON.stringify({ 
+            type: 'friends-update', 
+            payload: { 
+                friends: friendsList, 
+                requests: requestsList 
+            } 
+        }));
+
+    } catch (error) {
+        console.error("Fehler beim Laden der Freunde:", error);
+        showToastToPlayer(ws, "Fehler beim Laden der Freunde.", true);
+    }
+}
+
+async function handleAddFriend(ws, senderId, payload) {
+    const { friendName } = payload;
+    if (!friendName || friendName.trim() === '') {
+        return showToastToPlayer(ws, "Name darf nicht leer sein.", true);
+    }
+    
+    const { data: friend, error: friendError } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .eq('username', friendName.trim())
+        .single();
+
+    if (friendError || !friend) {
+        return showToastToPlayer(ws, "Benutzer nicht gefunden.", true);
+    }
+    
+    if (friend.id === senderId) {
+        return showToastToPlayer(ws, "Du kannst dich nicht selbst hinzufügen.", true);
     }
 
-    addEventListeners(); 
-    initializeSupabase(); 
+    const { data: existing, error: existingError } = await supabase
+        .from('friends')
+        .select('id')
+        .or(`(user_id_1.eq.${senderId},user_id_2.eq.${friend.id}),(user_id_1.eq.${friend.id},user_id_2.eq.${senderId})`)
+        .single();
+        
+    if (existing) {
+        return showToastToPlayer(ws, "Du bist bereits mit diesem Benutzer befreundet oder hast eine Anfrage gesendet.", true);
+    }
+    
+    const user1 = senderId < friend.id ? senderId : friend.id;
+    const user2 = senderId > friend.id ? senderId : friend.id;
 
-});
+    const { error: insertError } = await supabase
+        .from('friends')
+        .insert({
+            user_id_1: user1,
+            user_id_2: user2,
+            status: 'pending',
+            requested_by: senderId
+        });
+        
+    if (insertError) {
+        console.error("Fehler beim Senden der Freundschaftsanfrage:", insertError);
+        return showToastToPlayer(ws, "Anfrage fehlgeschlagen.", true);
+    }
+    
+    showToastToPlayer(ws, `Anfrage an ${friend.username} gesendet!`);
+    
+    const friendWs = onlineUsers.get(friend.id);
+    if (friendWs) {
+        friendWs.send(JSON.stringify({
+            type: 'friend-request-received',
+            payload: {
+                from: ws.nickname,
+                senderId: senderId
+            }
+        }));
+        handleLoadFriends(friendWs, friend.id); 
+    }
+    
+    awardAchievement(ws, senderId, 14);
+}
+
+async function handleAcceptFriendRequest(ws, receiverId, payload) {
+    const { senderId } = payload; 
+
+    const { error } = await supabase
+        .from('friends')
+        .update({ status: 'accepted' })
+        .match({ requested_by: senderId, status: 'pending' })
+        .or(`user_id_1.eq.${receiverId},user_id_2.eq.${receiverId}`);
+        
+    if (error) {
+        console.error("Fehler beim Annehmen der Anfrage:", error);
+        return showToastToPlayer(ws, "Anfrage annehmen fehlgeschlagen.", true);
+    }
+    
+    showToastToPlayer(ws, "Freundschaft angenommen!");
+    handleLoadFriends(ws, receiverId); 
+
+    const senderWs = onlineUsers.get(senderId);
+    if (senderWs) {
+        showToastToPlayer(senderWs, `${ws.nickname} hat deine Anfrage angenommen!`);
+        handleLoadFriends(senderWs, senderId); 
+    }
+}
+
+async function handleRemoveFriend(ws, currentUserId, payload) {
+    const { friendId } = payload; 
+
+    const { error } = await supabase
+        .from('friends')
+        .delete()
+        .or(`(user_id_1.eq.${currentUserId},user_id_2.eq.${friendId}),(user_id_1.eq.${friendId},user_id_2.eq.${currentUserId})`);
+        
+    if (error) {
+        console.error("Fehler beim Entfernen/Ablehnen des Freundes:", error);
+        return showToastToPlayer(ws, "Aktion fehlgeschlagen.", true);
+    }
+    
+    showToastToPlayer(ws, "Freund entfernt/abgelehnt.");
+    handleLoadFriends(ws, currentUserId); 
+
+    const friendWs = onlineUsers.get(friendId);
+    if (friendWs) {
+        showToastToPlayer(friendWs, `${ws.nickname} hat dich als Freund entfernt.`);
+        handleLoadFriends(friendWs, friendId); 
+    }
+}
+
+async function handleInviteFriend(ws, senderId, payload) {
+    const { friendId } = payload;
+    const game = games[ws.pin];
+    
+    if (!game) {
+        return showToastToPlayer(ws, "Du bist in keiner Lobby.", true);
+    }
+    
+    const friendWs = onlineUsers.get(friendId);
+    if (!friendWs) {
+        return showToastToPlayer(ws, "Dieser Freund ist nicht online.", true);
+    }
+    
+    friendWs.send(JSON.stringify({
+        type: 'invite-received',
+        payload: {
+            from: ws.nickname,
+            fromUserId: senderId, 
+            pin: game.pin
+        }
+    }));
+    
+    showToastToPlayer(ws, "Einladung gesendet!");
+}
+
+
+// --- Utility-Funktionen ---
+function shuffleArray(array) { 
+    for (let i = array.length - 1; i > 0; i--) { 
+        const j = Math.floor(Math.random() * (i + 1)); 
+        [array[i], array[j]] = [array[j], array[i]]; 
+    } 
+    return array; 
+}
+
+// --- Start Server ---
+server.listen(process.env.PORT || 8080, () => { console.log(`✅ Fakester-Server läuft auf Port ${process.env.PORT || 8080}`); });
