@@ -756,7 +756,7 @@ async function handlePlayerDisconnect(ws) {
         }
     }
     
-    broadcastToLobby(pin);
+    broadcastLobbyUpdate(pin);
     
     const connectedPlayers = Object.values(game.players).filter(p => p.isConnected).length;
     if (connectedPlayers === 0 && game.gameState === 'LOBBY') { 
@@ -1238,7 +1238,6 @@ async function endGame(pin) {
         } 
     });
 
-    // --- NEU: Überarbeitete Spot/XP Vergabe (für normales Spielende) ---
     console.log(`Awarding stats for game ${pin}...`);
     const gamePlayers = Object.values(game.players);
     
@@ -1290,7 +1289,6 @@ async function endGame(pin) {
             console.error(`Exception awarding stats for ${player.id}:`, e);
         }
     }
-    // --- ENDE NEU ---
 
     setTimeout(() => {
         if (games[pin]) {

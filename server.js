@@ -8,8 +8,7 @@
 // NEU: Server-Logik für 'submit-guess' und 'player-ready' hinzugefügt.
 // NEU: Reaktionen sind kostenlos und senden mehr Spieler-Daten für Pop-up.
 // NEU: Persönliche Hintergründe (Host ändert sie nicht mehr für alle).
-// NEU: Akzentfarben-Logik hinzugefügt (lädt equipped_accent_color_id).
-// NEU: Timeline-Modus-Logik (startNewTimelineRound, submitTimelineGuess) hinzugefügt.
+// NEU: Vorbereitet für Akzentfarben (lädt equipped_accent_color_id).
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -623,11 +622,7 @@ async function handleWebSocketMessage(ws, data) {
 
             case 'submit-guess':
                 if (game && game.players[playerId] && game.gameState === 'PLAYING') {
-                    if (game.gameMode === 'quiz') {
-                        game.players[playerId].currentGuess = payload.guess;
-                    } else if (game.gameMode === 'timeline') {
-                        submitTimelineGuess(game, player, payload.guess.index);
-                    }
+                    game.players[playerId].currentGuess = payload.guess;
                 }
                 break;
             
@@ -639,13 +634,7 @@ async function handleWebSocketMessage(ws, data) {
                     const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
                     if (allReady) {
                         console.log(`Alle Spieler in ${pin} sind bereit. Beende Runde früher.`);
-                        if (game.gameMode === 'quiz') {
-                            endRound(pin);
-                        } else if (game.gameMode === 'timeline') {
-                            // Im Timeline-Modus gibt es kein "Ready", da der Klick sofort wertet.
-                            // Aber falls doch, können wir die Timer-Logik hier anwenden
-                            endTimelineRound(pin);
-                        }
+                        endRound(pin); 
                     }
                 }
                 break;
@@ -748,11 +737,7 @@ async function handlePlayerDisconnect(ws) {
         const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
         if (allReady) {
             console.log(`Ein Spieler hat ${pin} verlassen. Alle verbleibenden sind bereit. Beende Runde.`);
-            if (game.gameMode === 'quiz') {
-                endRound(pin);
-            } else if (game.gameMode === 'timeline') {
-                endTimelineRound(pin);
-            }
+            endRound(pin);
         }
     }
     
@@ -868,16 +853,10 @@ async function startGameLogic(pin) {
         broadcastToLobby(pin, { type: 'countdown', payload: { number: i } });
         await sleep(1000);
     }
-    
-    // NEU: Spielmodus-Weiche
-    if (game.gameMode === 'timeline') {
-        await startNewTimelineRound(pin, true); // Erster Aufruf
-    } else {
-        await startNewRound(pin); // Quiz-Modus
-    }
+
+    await startNewRound(pin);
 }
 
-// --- QUIZ MODUS ---
 async function startNewRound(pin) {
     const game = games[pin];
     if (!game) return;
@@ -964,7 +943,7 @@ async function startNewRound(pin) {
     }, game.settings.guessTime * 1000);
 }
 
-// --- QUIZ MODUS ---
+// --- NEU: endRound mit MC-Scoring-Fix ---
 async function endRound(pin) {
     const game = games[pin];
     if (!game || game.gameState !== 'PLAYING') return; 
@@ -977,7 +956,7 @@ async function endRound(pin) {
 
     const correctTrack = game.currentTrack;
     const guessTypes = game.settings.guessTypes;
-    const isFreestyle = game.settings.answerType === 'freestyle'; 
+    const isFreestyle = game.settings.answerType === 'freestyle'; // NEU: Prüfen, ob Freestyle
     
     Object.values(game.players).forEach(player => {
         if (!player.isConnected || player.isGuest) return; 
@@ -986,6 +965,7 @@ async function endRound(pin) {
         let roundScore = 0;
         let breakdown = {};
 
+        // 1. Titel-Check
         if (guessTypes.includes('title')) {
             const normalizedGuess = normalizeAnswer(guess.title || '');
             const normalizedAnswer = normalizeAnswer(correctTrack.title);
@@ -994,7 +974,7 @@ async function endRound(pin) {
             if (distance === 0) { 
                 roundScore += 100;
                 breakdown.title = { points: 100, text: "Titel (Perfekt!)" };
-            } else if (distance <= 2 && isFreestyle) { 
+            } else if (distance <= 2 && isFreestyle) { // NEU: Tippfehler-Punkte nur bei Freestyle
                 roundScore += 75;
                 breakdown.title = { points: 75, text: "Titel (Fast...)" };
             } else {
@@ -1002,6 +982,7 @@ async function endRound(pin) {
             }
         }
         
+        // 2. Künstler-Check
         if (guessTypes.includes('artist')) {
             const normalizedGuess = normalizeAnswer(guess.artist || '');
             const normalizedAnswer = normalizeAnswer(correctTrack.artist);
@@ -1010,7 +991,7 @@ async function endRound(pin) {
             if (distance === 0) {
                 roundScore += 50;
                 breakdown.artist = { points: 50, text: "Künstler (Perfekt!)" };
-            } else if (distance <= 2 && isFreestyle) { 
+            } else if (distance <= 2 && isFreestyle) { // NEU: Tippfehler-Punkte nur bei Freestyle
                 roundScore += 25;
                 breakdown.artist = { points: 25, text: "Künstler (Fast...)" };
             } else {
@@ -1018,6 +999,7 @@ async function endRound(pin) {
             }
         }
         
+        // 3. Jahr-Check
         if (guessTypes.includes('year')) {
             const guessYear = parseInt(guess.year, 10);
             const correctYear = correctTrack.year;
@@ -1025,10 +1007,10 @@ async function endRound(pin) {
             if (guessYear === correctYear) { 
                 roundScore += 75;
                 breakdown.year = { points: 75, text: "Jahr (Exakt!)" };
-            } else if (Math.abs(guessYear - correctYear) <= 2 && isFreestyle) { 
+            } else if (Math.abs(guessYear - correctYear) <= 2 && isFreestyle) { // NEU: Tippfehler-Punkte nur bei Freestyle
                 roundScore += 30;
                 breakdown.year = { points: 30, text: "Jahr (Nah dran)" };
-            } else if (Math.abs(guessYear - correctYear) <= 5 && isFreestyle) { 
+            } else if (Math.abs(guessYear - correctYear) <= 5 && isFreestyle) { // NEU: Tippfehler-Punkte nur bei Freestyle
                 roundScore += 10;
                 breakdown.year = { points: 10, text: "Jahr (OK)" };
             } else {
@@ -1056,169 +1038,7 @@ async function endRound(pin) {
         }
     }, 8000); 
 }
-
-// --- NEU: TIMELINE-MODUS LOGIK ---
-async function startNewTimelineRound(pin, isFirstRound = false) {
-    const game = games[pin];
-    if (!game) return;
-    if (game.roundTimer) clearTimeout(game.roundTimer);
-
-    if (game.currentRound >= game.tracks.length) {
-        await endGame(pin);
-        return;
-    }
-    
-    game.gameState = 'PLAYING';
-    game.currentRound++;
-    const track = game.tracks[game.currentRound - 1];
-    game.currentTrack = track; // Der Song, der platziert werden muss
-
-    Object.values(game.players).forEach(p => {
-        p.isReady = false; // Wird für "Antwort erhalten" genutzt
-        p.currentGuess = { index: -1 }; 
-        p.lastPointsBreakdown = null; 
-    });
-    
-    console.log(`Spiel ${pin}, Timeline Runde ${game.currentRound}: Song ${track.title}`);
-
-    // Musik starten
-    const success = await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
-        uris: [`spotify:track:${track.spotifyId}`] 
-    });
-
-    if (!success) {
-        broadcastToLobby(pin, { type: 'toast', payload: { message: "Fehler bei Spotify-Wiedergabe.", isError: true } });
-        await sleep(2000);
-        await startNewTimelineRound(pin); // Nächste Runde
-        return;
-    }
-
-    // Wenn es die ERSTE Runde ist, fügen wir den Song direkt zur Timeline hinzu
-    if (isFirstRound) {
-        game.timeline.push(track);
-        console.log(`Spiel ${pin}: Erster Song ${track.title} (${track.year}) zur Timeline hinzugefügt.`);
-        
-        // Sende Runden-Info, aber starte sofort die nächste Runde
-        broadcastToLobby(pin, { 
-            type: 'new-timeline-round', 
-            payload: { 
-                round: game.currentRound, 
-                totalRounds: game.tracks.length,
-                newTrack: track, // Der neue Song
-                timeline: [], // Leere Timeline, da es der erste Song ist
-                isFirstRound: true
-            } 
-        });
-        
-        await sleep(game.settings.guessTime * 1000); // Warte, während der erste Song spielt
-        await startNewTimelineRound(pin, false); // Starte die ZWEITE Runde
-        return;
-    }
-
-    // Für alle folgenden Runden:
-    broadcastToLobby(pin, { 
-        type: 'new-timeline-round', 
-        payload: { 
-            round: game.currentRound, 
-            totalRounds: game.tracks.length,
-            newTrack: track, // Der neue Song zum Platzieren
-            timeline: game.timeline, // Die bereits liegenden Karten
-            isFirstRound: false
-        } 
-    });
-    
-    broadcastLobbyUpdate(pin);
-
-    // Timer für Rundenende starten
-    game.roundTimer = setTimeout(() => {
-        console.log(`Timer für Timeline-Runde ${game.currentRound} in Spiel ${pin} abgelaufen.`);
-        endTimelineRound(pin);
-    }, game.settings.guessTime * 1000);
-}
-
-// Spieler hat einen Platzierungs-Index gesendet
-function submitTimelineGuess(game, player, guessedIndex) {
-    if (!game || !player || game.gameState !== 'PLAYING') return;
-
-    player.isReady = true; // Markiere Spieler als "fertig"
-    player.currentGuess.index = guessedIndex;
-    
-    const correctTrack = game.currentTrack;
-    
-    // Finde den korrekten Index
-    let correctIndex = 0;
-    while (correctIndex < game.timeline.length && game.timeline[correctIndex].year < correctTrack.year) {
-        correctIndex++;
-    }
-    
-    let roundScore = 0;
-    let breakdown = {};
-    
-    if (guessedIndex === correctIndex) {
-        roundScore = 150; // Feste Punktzahl für richtige Platzierung
-        breakdown.placement = { points: 150, text: "Korrekt platziert!" };
-    } else {
-        // 0 Punkte, aber Hitster-Regel: Karte wird trotzdem hinzugefügt
-        breakdown.placement = { points: 0, text: "Falsch platziert." };
-    }
-    
-    player.score += roundScore; 
-    player.lastPointsBreakdown = { total: roundScore, breakdown, correctIndex: correctIndex };
-
-    broadcastLobbyUpdate(game.pin); // Sende Ready-Status
-
-    // Prüfen, ob alle bereit sind
-    const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
-    if (allReady) {
-        console.log(`Alle Spieler in ${game.pin} (Timeline) sind bereit. Beende Runde früher.`);
-        endTimelineRound(game.pin);
-    }
-}
-
-async function endTimelineRound(pin) {
-    const game = games[pin];
-    if (!game || game.gameState !== 'PLAYING') return; 
-
-    console.log(`Spiel ${pin}, Timeline Runde ${game.currentRound} wird berechnet.`);
-    game.gameState = 'RESULTS';
-    if (game.roundTimer) clearTimeout(game.roundTimer);
-
-    await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
-
-    const correctTrack = game.currentTrack;
-    
-    // Füge den Song an der KORREKTEN Stelle zur Timeline hinzu (Hitster-Regel)
-    let correctIndex = 0;
-    while (correctIndex < game.timeline.length && game.timeline[correctIndex].year < correctTrack.year) {
-        correctIndex++;
-    }
-    game.timeline.splice(correctIndex, 0, correctTrack);
-
-    // Berechne Punkte für Spieler, die nicht "Ready" waren (Timer abgelaufen)
-    Object.values(game.players).forEach(player => {
-        if (!player.isReady && player.isConnected) {
-            player.lastPointsBreakdown = { total: 0, breakdown: { placement: { points: 0, text: "Keine Antwort." } }, correctIndex: correctIndex };
-        }
-    });
-
-    const scores = getScores(pin); 
-
-    broadcastToLobby(pin, { 
-        type: 'round-result', 
-        payload: { 
-            correctTrack: game.currentTrack,
-            scores: scores,
-            timeline: game.timeline // Sende die NEUE, korrekte Timeline
-        } 
-    });
-    
-    setTimeout(() => {
-        if (games[pin]) { 
-            startNewTimelineRound(pin, false); // Nächste Runde (nie "first round")
-        }
-    }, 8000); // 8 Sekunden Pause
-}
-// --- ENDE TIMELINE ---
+// --- ENDE NEU ---
 
 async function endGame(pin) {
     const game = games[pin];
@@ -1238,6 +1058,7 @@ async function endGame(pin) {
         } 
     });
 
+    // --- NEU: Überarbeitete Spot/XP Vergabe (für normales Spielende) ---
     console.log(`Awarding stats for game ${pin}...`);
     const gamePlayers = Object.values(game.players);
     
@@ -1289,6 +1110,7 @@ async function endGame(pin) {
             console.error(`Exception awarding stats for ${player.id}:`, e);
         }
     }
+    // --- ENDE NEU ---
 
     setTimeout(() => {
         if (games[pin]) {
@@ -1398,6 +1220,7 @@ async function handleAddFriend(ws, senderId, payload) {
     
     const friendWs = onlineUsers.get(friend.id);
     if (friendWs) {
+        // NEU: Sende Pop-up-Nachricht statt Toast
         friendWs.send(JSON.stringify({
             type: 'friend-request-received',
             payload: {
@@ -1475,7 +1298,7 @@ async function handleInviteFriend(ws, senderId, payload) {
         type: 'invite-received',
         payload: {
             from: ws.nickname,
-            fromUserId: senderId, 
+            fromUserId: senderId, // NEU: Sender-ID mitschicken
             pin: game.pin
         }
     }));
