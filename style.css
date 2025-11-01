@@ -431,11 +431,70 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .friends-modal .friend-actions button { width: 35px; height: 35px; font-size: 0.9rem; padding: 0; }
 .badge { background-color: var(--danger-color); color: white; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-left: 5px; }
 
-/* Invite Popup */
-.invite-popup { position: fixed; bottom: 90px; left: 20px; right: 20px; background: var(--surface-color); border-left: 4px solid var(--primary-color); padding: 15px; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); z-index: 1001; display: flex; justify-content: space-between; align-items: center; gap: 10px; transform: translateY(150%); animation: slideInUp 0.5s ease-out forwards; }
+/* --- NEU: "Beitreten"-Button in Freundesliste --- */
+.friends-modal li .friend-actions .button-join {
+    background-color: var(--primary-color);
+    color: var(--background-color);
+    width: auto;
+    padding: 0 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+.friends-modal li .friend-actions .button-join:hover {
+    background-color: #25d366; /* Etwas heller */
+}
+
+/* --- NEU: Popup-Container --- */
+.popup-overlay {
+    position: fixed;
+    bottom: 90px;
+    left: 20px;
+    right: 20px;
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Invite Popup (Angepasst) */
+.invite-popup { 
+    width: 100%;
+    max-width: 450px;
+    background: var(--surface-color); 
+    border-left: 4px solid var(--primary-color); 
+    padding: 15px; 
+    border-radius: 8px; 
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3); 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    gap: 10px; 
+    transform: translateY(150%); 
+    animation: slideInUp 0.5s ease-out forwards; 
+}
 @keyframes slideInUp { to { transform: translateY(0); } }
 .invite-popup p { margin: 0; font-size: 0.9rem; }
 .invite-popup .invite-actions { display: flex; gap: 10px; }
+
+/* NEU: Freundschaftsanfrage-Popup */
+.friend-request-popup {
+    width: 100%;
+    max-width: 450px;
+    background: var(--surface-color); 
+    border-left: 4px solid var(--success-color); /* Andere Farbe */
+    padding: 15px; 
+    border-radius: 8px; 
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3); 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    gap: 10px; 
+    transform: translateY(150%); 
+    animation: slideInUp 0.5s ease-out forwards; 
+}
+.friend-request-popup p { margin: 0; font-size: 0.9rem; }
+.friend-request-popup .invite-actions { display: flex; gap: 10px; }
 
 
 /* --- ON-PAGE KONSOLE --- */
@@ -497,7 +556,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 
 
 /* ==================
-   Spots & Shop Styles
+   Spots & Shop Styles (NEUES DESIGN)
    ================== */
 
 .header-spots { font-size: 1rem; font-weight: 700; color: var(--primary-color); }
@@ -536,45 +595,92 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     grid-auto-columns: minmax(110px, 1fr);
 }
 
+/* NEUES SHOP ITEM DESIGN */
 .shop-item {
-    background-color: var(--surface-color); padding: 15px; border-radius: var(--border-radius); text-align: center;
+    background-color: var(--surface-color); 
+    padding: 0; /* Kein Innenabstand mehr */
+    border-radius: var(--border-radius); 
+    text-align: left; /* Text linksbündig */
     border: 1px solid var(--dark-grey);
-    display: flex; flex-direction: column; justify-content: space-between; gap: 8px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease; 
+    display: flex; 
+    flex-direction: column; 
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; 
     min-height: 190px;
     width: 100%;
     white-space: normal;
+    position: relative;
+    overflow: hidden;
 }
-.shop-item:hover { transform: translateY(-4px); box-shadow: 0 6px 15px rgba(0,0,0,0.3); }
-
+.shop-item:hover { 
+    transform: translateY(-4px); 
+    box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+    border-color: var(--primary-color); /* Grüner Rand beim Hovern */
+}
+/* Info-Block unten */
+.shop-item-info {
+    padding: 12px;
+    margin-top: auto; /* Schiebt Info nach unten */
+    background: var(--surface-color);
+    z-index: 2;
+}
 .shop-item.owned { opacity: 0.6; background-color: var(--dark-grey); pointer-events: none; }
 .shop-item.owned .buy-button { background-color: var(--medium-grey); }
-.shop-item.cannot-afford { border-left: 4px solid var(--danger-color); padding-left: 11px; }
+.shop-item.cannot-afford { border-left: 4px solid var(--danger-color); }
 .shop-item.cannot-afford .buy-button { opacity: 0.7; }
 
 .shop-item .item-name { font-size: 1rem; font-weight: 700; color: var(--text-color); margin-bottom: 5px; }
-.shop-item .item-description { font-size: 0.75rem; color: var(--text-muted-color); flex-grow: 1; margin-bottom: 10px; line-height: 1.4; }
-.shop-item .item-cost { font-size: 1.1rem; font-weight: 800; color: var(--primary-color); margin-top: auto; }
-.shop-item .buy-button { width: 100%; margin-top: 10px; font-size: 0.9rem; padding: 10px 15px; }
-.shop-item .buy-button:disabled:not(.owned .buy-button) { background-color: var(--medium-grey); cursor: not-allowed; opacity: 0.7; }
+.shop-item .item-description { font-size: 0.75rem; color: var(--text-muted-color); margin-bottom: 10px; line-height: 1.4; }
+.shop-item .item-cost { 
+    font-size: 1.2rem; /* Größer */
+    font-weight: 800; 
+    color: var(--primary-color); 
+}
+.shop-item .buy-button { 
+    width: auto; /* Nicht mehr volle Breite */
+    position: absolute; /* Oben rechts */
+    top: 10px;
+    right: 10px;
+    font-size: 0.8rem; 
+    padding: 6px 12px;
+    border-radius: 50px;
+    z-index: 3;
+}
+.shop-item .buy-button:disabled { background-color: var(--medium-grey); }
 
 /* Shop Item Previews */
-.shop-item .item-preview-icon { font-size: 2.5rem; margin: 5px 0 10px 0; color: var(--primary-color); line-height: 1; }
-.shop-item .item-preview-background { width: 100%; padding-bottom: 56.25%; background-size: cover; background-position: center; border-radius: 8px; margin-bottom: 10px; border: 1px solid var(--dark-grey); background-color: var(--dark-grey); }
+.shop-item .item-preview-icon { 
+    font-size: 3rem; 
+    margin: 20px auto; 
+    color: var(--primary-color); 
+    line-height: 1;
+    text-align: center;
+    padding: 10px;
+}
+.shop-item .item-preview-background { 
+    width: 100%; 
+    height: 120px; /* Feste Höhe */
+    background-size: cover; 
+    background-position: center; 
+    border-radius: 0; /* Keine Rundung oben */
+    border-bottom: 1px solid var(--dark-grey); 
+    background-color: var(--dark-grey); 
+    z-index: 1;
+}
 .shop-item .item-preview-color {
     width: 100%;
-    height: 80px;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    border: 1px solid var(--dark-grey);
+    height: 120px; /* Feste Höhe */
+    border-radius: 0;
+    border-bottom: 1px solid var(--dark-grey);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.5rem;
+    font-size: 3rem;
     color: rgba(255, 255, 255, 0.5);
     text-shadow: 0 0 5px rgba(0,0,0,0.5);
     background-clip: padding-box;
+    z-index: 1;
 }
+/* ENDE NEUES SHOP DESIGN */
 
 /* Reaktionen & Gifting */
 .reaction-buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 20px auto 0 auto; max-width: 300px; }
@@ -748,7 +854,20 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     overflow: hidden;
     border: 1px solid var(--dark-grey);
     min-height: 70px; /* Höhe angepasst */
+    transition: border-color 0.3s ease;
 }
+/* NEU: Visuelles Feedback für "Ready" */
+.game-player-card.is-ready {
+    border-color: var(--primary-color);
+}
+.player-ready-icon {
+    color: var(--primary-color);
+    font-size: 1rem;
+    margin-left: auto;
+    padding-left: 5px;
+}
+/* --- */
+
 .game-player-card .player-card-background {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -811,4 +930,171 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 }
 .game-player-card .player-reaction-popup {
      top: -10px;
+}
+
+/* ==================
+   NEU: In-Game Raten & Leaderboard
+   ================== */
+
+/* Timer-Balken (Korrektur) */
+.timer-bar-container {
+    width: 100%;
+    height: 6px;
+    background-color: var(--dark-grey);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.timer-bar {
+    width: 100%;
+    height: 100%;
+    background-color: var(--primary-color);
+    border-radius: 3px;
+    transition: width 30s linear; /* Standard, wird von JS überschrieben */
+}
+
+/* Raten-UI */
+.guess-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+.guess-input {
+    font-size: 1.1rem;
+    padding: 15px;
+    border-radius: var(--border-radius); /* Runder */
+    background-color: var(--surface-color); /* Dunkler */
+    border: 1px solid var(--medium-grey);
+}
+.guess-input::placeholder {
+    color: var(--text-muted-color);
+}
+.mc-button-group {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.mc-button-group h3 {
+    grid-column: 1 / -1; /* Titel über volle Breite */
+    text-align: left;
+    font-size: 0.9rem;
+    color: var(--text-muted-color);
+    margin: 5px 0 0 0;
+}
+.mc-button {
+    width: 100%;
+    padding: 12px;
+    font-size: 0.9rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--medium-grey);
+    background-color: var(--dark-grey); /* Standard-Button-Farbe */
+    color: var(--text-muted-color);
+}
+.mc-button.active {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--background-color);
+}
+
+.ready-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+#ready-status-display {
+    font-size: 0.9rem;
+    color: var(--text-muted-color);
+    font-weight: 700;
+}
+
+/* Runden-Ergebnis-UI */
+.round-result-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.correct-answer-card {
+    background-color: var(--surface-color);
+    border-radius: var(--border-radius);
+    padding: 15px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+.album-art {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.track-info {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    overflow: hidden;
+}
+.track-title {
+    font-size: 1.2rem;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.track-artist {
+    font-size: 1rem;
+    color: var(--text-muted-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.track-year {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    margin-top: 5px;
+}
+
+.round-result-details {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.player-result-card {
+    background-color: var(--dark-grey);
+    border-radius: var(--border-radius);
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.player-result-card .player-name {
+    font-size: 1rem;
+    font-weight: 700;
+}
+.points-breakdown {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    font-size: 0.8rem;
+    color: var(--text-muted-color);
+}
+.point-item.correct {
+    color: var(--success-color);
+}
+.point-item.wrong {
+    color: var(--danger-color);
+    opacity: 0.7;
+}
+.round-total-points {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--primary-color);
 }
