@@ -1,5 +1,8 @@
 // script.js - FINAL VERSION (Mit allen Features & Bugfixes)
 // KORREKTUR: supabase.auth.getSession() wird jetzt asynchron mit 'await' aufgerufen.
+// NEU: Neuer Titel "Neuzugang" (ID 25) & Achievement (ID 25) für Neuregistrierungen hinzugefügt.
+// NEU: Neuer Titel "Überlebender" (ID 26) & Achievement (ID 26) für Host-Disconnect hinzugefügt.
+// NEU: Gameplay-Logik für Raten (Freestyle/MC), Ready-System und Runden-Leaderboard hinzugefügt.
 
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
@@ -29,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allPlaylists = [], availableDevices = [], currentPage = 1, itemsPerPage = 10;
     let wsPingInterval = null;
+    let guessDebounceTimer = null; // NEU: Timer für Texteingabe-Debounce
 
     // --- On-Page Konsole Setup ---
     const consoleOutput = document.getElementById('console-output');
@@ -73,7 +77,10 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 21, name: 'Shopaholic', description: 'Kaufe deinen ersten Gegenstand im Shop.' },
         { id: 22, name: 'Millionär', description: 'Besitze 1000 Spots auf einmal.' },
         { id: 23, name: 'Level 10', description: 'Erreiche Level 10.' },
-        { id: 24, name: 'Anpassungs-Künstler', description: 'Ändere dein Icon, Titel und Farbe.' }
+        { id: 24, name: 'Anpassungs-Künstler', description: 'Ändere dein Icon, Titel und Farbe.' },
+        { id: 25, name: 'Willkommen!', description: 'Registriere dein Konto.' },
+        // --- NEUER EINTRAG ---
+        { id: 26, name: 'Host-Flucht', description: 'Überlebe ein Spiel, das der Host abgebrochen hat.' }
     ];
     const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100));
     const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
@@ -99,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 19, name: 'Highscorer', unlockType: 'achievement', unlockValue: 18, type:'title' }, 
         { id: 20, name: 'Dauerbrenner', unlockType: 'achievement', unlockValue: 17, type:'title' },
         { id: 21, name: 'Shopper', unlockType: 'achievement', unlockValue: 21, type:'title' },
+        { id: 25, name: 'Neuzugang', unlockType: 'achievement', unlockValue: 25, type:'title', description: 'Erfolg: Willkommen!' },
+        // --- NEUER EINTRAG ---
+        { id: 26, name: 'Überlebender', unlockType: 'achievement', unlockValue: 26, type:'title', description: 'Erfolg: Host-Flucht' },
         { id: 101, name: 'Musik-Guru', unlockType: 'spots', cost: 100, unlockValue: 100, description: 'Nur im Shop', type:'title' }, 
         { id: 102, name: 'Playlist-Meister', unlockType: 'spots', cost: 150, unlockValue: 150, description: 'Nur im Shop', type:'title' }, 
         { id: 103, name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
@@ -156,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
             inviteFriendsBtn: document.getElementById('invite-friends-button'), 
             songCountPresets: document.getElementById('song-count-presets'), 
             guessTimePresets: document.getElementById('guess-time-presets'), 
-            backgroundSelectButton: document.getElementById('select-background-button'),
+            backgroundSelectButton: null, // Entfernt
         }, 
         game: { round: document.getElementById('current-round'), totalRounds: document.getElementById('total-rounds'), timerBar: document.getElementById('timer-bar'), gameContentArea: document.getElementById('game-content-area'), playerList: document.getElementById('game-player-list') }, 
         guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), input: document.getElementById('guest-nickname-input') }, 
@@ -175,10 +185,10 @@ document.addEventListener('DOMContentLoaded', () => {
             livesSettings: document.getElementById('lives-settings-container'), 
             livesPresets: document.getElementById('lives-count-presets'), 
             createLobbyBtn: document.getElementById('create-lobby-button'),
-            quizSettingsContainer: document.getElementById('quiz-settings-container'), // NEU
-            guessTypesCheckboxes: document.querySelectorAll('#guess-types-setting input[type="checkbox"]'), // NEU
-            guessTypesError: document.getElementById('guess-types-error'), // NEU
-            answerTypePresets: document.getElementById('answer-type-presets') // NEU
+            quizSettingsContainer: document.getElementById('quiz-settings-container'), 
+            guessTypesCheckboxes: document.querySelectorAll('#guess-types-setting input[type="checkbox"]'), 
+            guessTypesError: document.getElementById('guess-types-error'), 
+            answerTypePresets: document.getElementById('answer-type-presets') 
         }, 
         changeNameModal: { overlay: document.getElementById('change-name-modal-overlay'), closeBtn: document.getElementById('close-change-name-modal-button'), submitBtn: document.getElementById('change-name-submit'), input: document.getElementById('change-name-input'), }, 
         deviceSelectModal: { overlay: document.getElementById('device-select-modal-overlay'), closeBtn: document.getElementById('close-device-select-modal'), list: document.getElementById('device-list'), refreshBtn: document.getElementById('refresh-devices-button-modal'), }, 
@@ -189,12 +199,12 @@ document.addEventListener('DOMContentLoaded', () => {
         shop: { screen: document.getElementById('shop-screen'), titlesList: document.getElementById('shop-titles-list'), iconsList: document.getElementById('shop-icons-list'), backgroundsList: document.getElementById('shop-backgrounds-list'), colorsList: document.getElementById('shop-colors-list'), spotsBalance: document.getElementById('shop-spots-balance'), }, 
         customize: { 
             screen: document.getElementById('customization-screen'), 
-            tabsContainer: document.getElementById('customization-tabs'), // NEU
-            tabContents: document.querySelectorAll('#customization-screen .tab-content'), // NEU
+            tabsContainer: document.getElementById('customization-tabs'), 
+            tabContents: document.querySelectorAll('#customization-screen .tab-content'), 
             titlesList: document.getElementById('customize-title-list'), 
             iconsList: document.getElementById('customize-icon-list'), 
             colorsList: document.getElementById('customize-color-list'),
-            backgroundsList: document.getElementById('owned-backgrounds-list') // NEU
+            backgroundsList: document.getElementById('owned-backgrounds-list') 
         }, 
     };
 
@@ -279,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } 
     }
     function getUnlockDescription(item) { if (!item) return ''; if (item.unlockType === 'spots') return `Kosten: ${item.cost} 🎵`; switch (item.unlockType) { case 'level': return `Erreiche Level ${item.unlockValue}`; case 'achievement': const ach = achievementsList.find(a => a.id === item.unlockValue); return `Erfolg: ${ach ? ach.name : 'Unbekannt'}`; case 'special': return 'Spezial'; case 'free': return 'Standard'; default: return ''; } }
-    function updateSpotsDisplay() { const spots = userProfile?.spots ?? 0; if (elements.home.spotsBalance) elements.home.spotsBalance.textContent = spots; if (elements.shop.spotsBalance) elements.shop.spotsBalance.textContent = spots; }
+    function updateSpotsDisplay() { const spots = userProfile?.spots ?? 0; if (elements.home.spotsBalance) elements.home.spotsBalance.textContent = spots; if (elements.shop.spotsBalance) elements.home.spotsBalance.textContent = spots; }
 
 
     // --- Initialization and Auth ---
@@ -287,6 +297,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`initializeApp called for user: ${user.username || user.id}, isGuest: ${isGuest}`); 
         localStorage.removeItem('fakesterGame'); 
         const fallbackUsername = isGuest ? user.username : user.user_metadata?.username || user.email?.split('@')[0] || 'Unbekannt'; 
+        
+        // --- KORREKTUR: Standard-Titel ist jetzt 1 (Neuling). Wird bei Registrierung unten überschrieben. ---
         const fallbackProfile = { id: user.id, username: fallbackUsername, xp: 0, games_played: 0, wins: 0, correct_answers: 0, highscore: 0, spots: 0, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null }; 
         
         if (isGuest) { 
@@ -394,6 +406,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("initializeApp finished (non-blocking setup complete)."); 
     };
     const checkSpotifyStatus = async () => { if (currentUser && currentUser.isGuest) { console.log("Guest mode, hiding Spotify connect button."); elements.home.spotifyConnectBtn?.classList.add('guest-hidden'); elements.home.createRoomBtn?.classList.add('hidden'); return; } try { const response = await fetch('/api/status'); const data = await response.json(); if (data.loggedIn && data.token) { console.log("Spotify is connected."); spotifyToken = data.token; elements.home.spotifyConnectBtn?.classList.add('hidden'); elements.home.createRoomBtn?.classList.remove('hidden'); if (currentUser && !currentUser.isGuest && !userUnlockedAchievementIds.includes(9)) { awardClientSideAchievement(9); } } else { console.log("Spotify is NOT connected."); spotifyToken = null; elements.home.spotifyConnectBtn?.classList.remove('hidden'); elements.home.createRoomBtn?.classList.add('hidden'); } } catch (error) { console.error("Error checking Spotify status:", error); spotifyToken = null; elements.home.spotifyConnectBtn?.classList.remove('hidden'); elements.home.createRoomBtn?.classList.add('hidden'); } };
+    
+    // --- KORREKTUR: Logik für neuen Titel/Achievement bei Registrierung ---
     const handleAuthAction = async (action, form, isRegister = false) => { 
         if (!supabase) { showToast("Verbindung wird aufgebaut, bitte warte...", true); return; } 
         setLoading(true, "Authentifiziere..."); 
@@ -404,7 +418,14 @@ document.addEventListener('DOMContentLoaded', () => {
             username = formData.get('username'); 
             credentials.email = `${username}@fakester.app`; 
             credentials.password = formData.get('password'); 
-            credentials.options = { data: { username: username, xp: 0, spots: 100, equipped_title_id: 1, equipped_icon_id: 1, equipped_color_id: null } }; 
+            credentials.options = { data: { 
+                username: username, 
+                xp: 0, 
+                spots: 100, 
+                equipped_title_id: 25, // NEU: Starte mit Titel "Neuzugang"
+                equipped_icon_id: 1, 
+                equipped_color_id: null 
+            } }; 
         } else { 
             username = formData.get('username'); 
             credentials.email = `${username}@fakester.app`; 
@@ -412,10 +433,24 @@ document.addEventListener('DOMContentLoaded', () => {
         } 
         const { data, error } = await action(credentials); 
         setLoading(false); 
-        if (error) { console.error(`Auth Error (${isRegister ? 'Register' : 'Login'}):`, error); showToast(error.message, true); } 
-        else if (data.user) { console.log(`Auth Success (${isRegister ? 'Register' : 'Login'}):`, data.user.id); } 
-        else { console.warn("Auth: Kein Fehler, aber auch keine User-Daten."); } 
+        if (error) { 
+            console.error(`Auth Error (${isRegister ? 'Register' : 'Login'}):`, error); 
+            showToast(error.message, true); 
+        } 
+        else if (data.user) { 
+            console.log(`Auth Success (${isRegister ? 'Register' : 'Login'}):`, data.user.id); 
+            // NEU: Verleihe "Willkommen!"-Achievement direkt nach Registrierung
+            if (isRegister) {
+                // Kurze Verzögerung, um sicherzustellen, dass der User eingeloggt ist
+                setTimeout(() => awardClientSideAchievement(25), 500); 
+            }
+        } 
+        else { 
+            console.warn("Auth: Kein Fehler, aber auch keine User-Daten."); 
+        } 
     };
+    // --- ENDE KORREKTUR ---
+
     const handleLogout = async () => { if (!supabase) return; showConfirmModal("Abmelden", "Möchtest du dich wirklich abmelden?", async () => { setLoading(true, "Melde ab..."); console.log("Logging out..."); const { error: signOutError } = await supabase.auth.signOut(); try { await fetch('/logout', { method: 'POST' }); console.log("Spotify cookie cleared."); } catch (fetchError) { console.error("Error clearing Spotify cookie:", fetchError); } setLoading(false); if (signOutError) { console.error("SignOut Error:", signOutError); showToast(signOutError.message, true); } else { console.log("Logout successful."); } }); };
     const awardClientSideAchievement = (achievementId) => { if (!currentUser || currentUser.isGuest || !supabase || userUnlockedAchievementIds.includes(achievementId)) { if(userUnlockedAchievementIds.includes(achievementId)) { console.log(`Achievement ${achievementId} already in list, not awarding again.`); } return; } console.log(`Awarding client-side achievement: ${achievementId}`); userUnlockedAchievementIds.push(achievementId); const achievement = achievementsList.find(a => a.id === achievementId); showToast(`Erfolg freigeschaltet: ${achievement?.name || `ID ${achievementId}`}!`); if(elements.achievements.grid) renderAchievements(); if(elements.titles.list) renderTitles(); if(elements.icons.list) renderIcons(); supabase.from('user_achievements').insert({ user_id: currentUser.id, achievement_id: achievementId }).then(({ error }) => { if (error) { console.error(`Fehler beim Speichern von Client-Achievement ${achievementId} im Hintergrund:`, error); } else { console.log(`Client-Achievement ${achievementId} erfolgreich im Hintergrund gespeichert.`); } }); };
 
@@ -489,13 +524,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleLobbyUpdate(payload);
                 setLoading(false); 
                 elements.joinModal.overlay.classList.add('hidden'); // BUGFIX: Join-Modal schließen
-                showScreen('lobby-screen');
+                // NEU: Zeige Lobby nur, wenn wir nicht gerade im Spiel sind (z.B. bei Ready-Update)
+                if (screenHistory[screenHistory.length - 1] !== 'game-screen') {
+                    showScreen('lobby-screen');
+                }
                 break;
             case 'toast':
                 showToast(payload.message, payload.isError);
                 setLoading(false); 
                 break;
-            case 'friends-update': // NEU: Freunde-System
+            case 'friends-update': 
                 renderFriendsList(payload.friends);
                 renderRequestsList(payload.requests);
                 break;
@@ -503,15 +541,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 setLoading(true, "Spiel startet...");
                 break;
             case 'countdown':
-                showCountdown(payload.number); // Geändert zu 'number'
+                showCountdown(payload.number); 
                 break;
             case 'new-round':
                 setLoading(false);
-                setupNewRound(payload);
+                setupNewRound(payload); // NEU: Leitet zur Gameplay-UI
                 showScreen('game-screen');
                 break;
             case 'round-result':
-                showRoundResult(payload);
+                showRoundResult(payload); // NEU: Leitet zum Leaderboard-Screen
                 break;
             case 'game-over':
                 setLoading(false);
@@ -540,13 +578,17 @@ document.addEventListener('DOMContentLoaded', () => {
         currentGame.isHost = hostId === currentUser.id;
         currentGame.gameMode = gameMode;
         currentGame.players = players; 
+        
+        // NEU: Einstellungen für Raten-Logik speichern
+        gameCreationSettings.guessTypes = settings.guessTypes || ['title', 'artist'];
+        gameCreationSettings.answerType = settings.answerType || 'freestyle';
 
         if (elements.lobby.pinDisplay) {
             elements.lobby.pinDisplay.textContent = pin;
         }
 
         renderPlayerList(players, hostId);
-        renderGamePlayerList(players); 
+        renderGamePlayerList(players); // Aktualisiert auch In-Game-Liste (für Ready-Status)
 
         elements.lobby.hostSettings?.classList.toggle('hidden', !currentGame.isHost);
         elements.lobby.guestWaitingMessage?.classList.toggle('hidden', currentGame.isHost);
@@ -557,7 +599,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Game Over ---
     function showGameOver(payload) {
         console.log("STUB: showGameOver", payload);
-        showToast("Spiel beendet!", false);
+        // NEU: Zeige Toast an, wenn Host gegangen ist
+        if (payload.message) {
+            showToast(payload.message, true);
+        } else {
+            showToast("Spiel beendet!", false);
+        }
         showScreen('home-screen'); 
         if(elements.game.playerList) elements.game.playerList.innerHTML = '';
     }
@@ -577,26 +624,43 @@ document.addEventListener('DOMContentLoaded', () => {
             playerCard.dataset.playerId = player.id;
             
             const icon = iconsList.find(i => i.id === player.iconId) || iconsList[0];
-            const iconClass = isHost ? 'fa-crown' : (icon ? icon.iconClass : 'fa-user'); 
+            const iconClass = icon ? icon.iconClass : 'fa-user'; 
             
             const color = nameColorsList.find(c => c.id === player.colorId); 
             const colorStyle = color ? `style="color: ${color.colorHex}"` : '';
+
+            const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
+            const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
+            const backgroundStyle = background && background.imageUrl ? `style="background-image: url('${background.imageUrl}')"` : '';
             
+            const displayIconClass = isHost ? 'fa-crown' : iconClass;
+            const hostClass = isHost ? 'host' : '';
+
             playerCard.innerHTML = `
-                <i class="player-icon fa-solid ${iconClass} ${isHost ? 'host' : ''}"></i>
-                <span class="player-name" ${colorStyle}>${player.nickname || 'Unbekannt'}</span>
+                <div class="player-card-background" ${backgroundStyle}></div>
+                <div class="player-card-content ${hostClass}">
+                    <i class="player-icon fa-solid ${displayIconClass}"></i>
+                    <div class="player-info">
+                        <span class="player-title">${title.name}</span>
+                        <span class="player-name" ${colorStyle}>${player.nickname || 'Unbekannt'}</span>
+                    </div>
+                </div>
             `;
             elements.lobby.playerList.appendChild(playerCard);
         });
     }
 
+    // --- NEU: Überarbeitet für "Ready"-Status ---
     function renderGamePlayerList(players) {
         if (!elements.game.playerList) return;
         elements.game.playerList.innerHTML = ''; // Leere die Liste
         
-        players.forEach(player => {
+        const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+        
+        sortedPlayers.forEach(player => {
             const playerCard = document.createElement('div');
             playerCard.className = 'game-player-card';
+            playerCard.classList.toggle('is-ready', player.isReady); // NEU: Klasse für Ready-Status
             playerCard.dataset.playerId = player.id;
             
             const icon = iconsList.find(i => i.id === player.iconId) || iconsList[0];
@@ -605,10 +669,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const color = nameColorsList.find(c => c.id === player.colorId); 
             const colorStyle = color ? `style="color: ${color.colorHex}"` : '';
 
+            const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
+            const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
+            const backgroundStyle = background && background.imageUrl ? `style="background-image: url('${background.imageUrl}')"` : '';
+
             playerCard.innerHTML = `
-                <i class="player-icon fa-solid ${iconClass}" ${colorStyle}></i>
-                <span class="player-name" ${colorStyle}>${player.nickname || 'Unbekannt'}</span>
-                <span class="player-score">${player.score}</span>
+                <div class="player-card-background" ${backgroundStyle}></div>
+                <div class="player-card-content">
+                    <i class="player-icon fa-solid ${iconClass}"></i>
+                    <div class="player-info">
+                        <span class="player-title">${title.name}</span>
+                        <span class="player-name" ${colorStyle}>${player.nickname || 'Unbekannt'}</span>
+                    </div>
+                    <span class="player-score">${player.score}</span>
+                    ${player.isReady ? '<i class="player-ready-icon fa-solid fa-check-circle"></i>' : ''}
+                </div>
             `;
             elements.game.playerList.appendChild(playerCard);
         });
@@ -633,10 +708,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const customBtn = presetContainer.querySelector(`[data-value="custom"][data-type="${customValueType}"]`);
             if (!valueFound && customBtn && value) {
                 customBtn.classList.add('active');
-                customBtn.textContent = (customValueType === 'guess-time') ? `${value}s` : `${value}`;
+                
+                let textContent = `${value}`;
+                if (customValueType === 'guess-time') textContent = `${value}s`;
+                else if (customValueType === 'lives') textContent = `${value} ❤️`;
+                customBtn.textContent = textContent;
+        
             } else if (customBtn) {
-                // Setze den Text zurück
-                customBtn.textContent = (customValueType === 'guess-time') ? 'Custom' : 'Custom';
+                if (customValueType === 'guess-time') customBtn.textContent = 'Custom';
+                else if (customValueType === 'lives') customBtn.textContent = 'Custom';
+                else customBtn.textContent = 'Custom';
                 if (valueFound) {
                     customBtn.classList.remove('active');
                 }
@@ -649,10 +730,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (elements.lobby.playlistSelectBtn) {
             elements.lobby.playlistSelectBtn.textContent = settings.playlistName || 'Playlist auswählen';
         }
-        if (elements.lobby.backgroundSelectButton) {
-             elements.lobby.backgroundSelectButton.textContent = backgroundsList.find(b => b.backgroundId === settings.chosenBackgroundId)?.name || 'Standard';
-             applyLobbyBackground(settings.chosenBackgroundId || 'default');
-        }
+        
+        applyLobbyBackground(settings.chosenBackgroundId || 'default');
 
         updatePresets(elements.lobby.songCountPresets, settings.songCount, 'song-count');
         updatePresets(elements.lobby.guessTimePresets, settings.guessTime, 'guess-time');
@@ -1016,11 +1095,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             lobbyScreen.style.backgroundImage = 'none';
         }
-        
-        // Aktualisiere auch den Button in der Lobby, falls vorhanden
-        if (elements.lobby.backgroundSelectButton) {
-             elements.lobby.backgroundSelectButton.textContent = bg ? bg.name : 'Standard';
-        }
     }
     // --- ENDE: "Anpassen"-Menü Funktionen ---
 
@@ -1277,34 +1351,138 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- Game Logic Functions (Implementiert) ---
+    // --- NEU: Überarbeitete Game Logic Funktionen ---
     function showCountdown(number) { 
         console.log(`Countdown: ${number}`); 
         elements.countdownOverlay.textContent = number;
         elements.countdownOverlay.classList.remove('hidden');
     }
-    function setupPreRound(data) { 
-        console.log("Pre-Round Setup"); 
-        elements.countdownOverlay.classList.add('hidden');
-        elements.game.gameContentArea.innerHTML = `<h2>Macht euch bereit...</h2>`;
-        renderGamePlayerList(currentGame.players);
-    }
+    
     function setupNewRound(data) { 
         console.log("New Round Setup", data); 
         elements.countdownOverlay.classList.add('hidden');
         elements.game.round.textContent = data.round;
         elements.game.totalRounds.textContent = data.totalRounds;
-        elements.game.gameContentArea.innerHTML = `<h2>Was ist das für ein Song?</h2>`; // Platzhalter
-        // TODO: Input-Felder / Multiple-Choice-Buttons anzeigen
+
+        const guessTypes = gameCreationSettings.guessTypes;
+        const answerType = gameCreationSettings.answerType;
+        const mcOptions = data.mcOptions;
+        
+        let html = '<div class="guess-container">';
+        
+        // Finde den aktuellen Spieler, um zu sehen, ob er schon 'ready' ist
+        const me = currentGame.players.find(p => p.id === currentUser.id);
+        const isReady = me ? me.isReady : false;
+        
+        // 1. Inputs / MC-Buttons erstellen
+        if (answerType === 'freestyle') {
+            html += '<h2>Was ist das für ein Song?</h2>';
+            if (guessTypes.includes('title')) {
+                html += '<input type="text" id="guess-input-title" class="guess-input" placeholder="Titel..." autocomplete="off">';
+            }
+            if (guessTypes.includes('artist')) {
+                html += '<input type="text" id="guess-input-artist" class="guess-input" placeholder="Künstler..." autocomplete="off">';
+            }
+            if (guessTypes.includes('year')) {
+                html += '<input type="number" id="guess-input-year" class="guess-input" placeholder="Jahr (z.B. 1999)" autocomplete="off">';
+            }
+        } else {
+            // Multiple Choice
+            if (guessTypes.includes('title')) {
+                html += '<div class="mc-button-group" data-guess-type="title"><h3>Titel</h3>';
+                mcOptions.title.forEach(option => {
+                    html += `<button class="button-secondary mc-button" data-value="${option}">${option}</button>`;
+                });
+                html += '</div>';
+            }
+            if (guessTypes.includes('artist')) {
+                html += '<div class="mc-button-group" data-guess-type="artist"><h3>Künstler</h3>';
+                mcOptions.artist.forEach(option => {
+                    html += `<button class="button-secondary mc-button" data-value="${option}">${option}</button>`;
+                });
+                html += '</div>';
+            }
+            if (guessTypes.includes('year')) {
+                html += '<div class="mc-button-group" data-guess-type="year"><h3>Jahr</h3>';
+                mcOptions.year.forEach(option => {
+                    html += `<button class="button-secondary mc-button" data-value="${option}">${option}</button>`;
+                });
+                html += '</div>';
+            }
+        }
+        
+        // 2. Ready-Button und Status
+        const readyPlayers = currentGame.players.filter(p => p.isReady).length;
+        const totalPlayers = currentGame.players.length;
+        
+        html += `<div class="ready-container">
+                    <button id="player-ready-button" class="button-primary" ${isReady ? 'disabled' : ''}>
+                        ${isReady ? 'Bereit!' : 'Bereit?'}
+                    </button>
+                    <span id="ready-status-display">${readyPlayers} / ${totalPlayers} Spieler bereit</span>
+                 </div>`;
+        
+        html += '</div>'; // .guess-container schließen
+        
+        elements.game.gameContentArea.innerHTML = html;
+        
+        // Timer starten (visuell)
+        elements.game.timerBar.style.transition = 'none';
+        elements.game.timerBar.style.width = '100%';
+        setTimeout(() => {
+            elements.game.timerBar.style.transition = `width ${gameCreationSettings.guessTime}s linear`;
+            elements.game.timerBar.style.width = '0%';
+        }, 100);
     }
+    
     function showRoundResult(data) { 
-        console.log("Round Result", data); 
-        elements.game.gameContentArea.innerHTML = `
-            <h2>Runde vorbei!</h2>
-            <h3>Der Song war: ${data.correctTrack.title} - ${data.correctTrack.artist} (${data.correctTrack.year})</h3>
-        `;
-        renderGamePlayerList(data.scores); // Scores aktualisieren
+        console.log("Round Result", data);
+        
+        // Timer-Bar zurücksetzen
+        elements.game.timerBar.style.transition = 'none';
+        elements.game.timerBar.style.width = '0%';
+        
+        const correct = data.correctTrack;
+        let html = `<div class="round-result-container">
+                        <h2>Runde vorbei!</h2>
+                        <div class="correct-answer-card">
+                            <img src="${correct.albumArtUrl || ''}" alt="Album Art" class="album-art">
+                            <div class="track-info">
+                                <span class="track-title">${correct.title}</span>
+                                <span class="track-artist">${correct.artist}</span>
+                                <span class="track-year">${correct.year}</span>
+                            </div>
+                        </div>
+                        <h3>Ergebnisse:</h3>
+                        <div class="round-result-details">`;
+
+        // Punkte-Aufschlüsselung für jeden Spieler
+        data.scores.forEach(player => {
+            html += `<div class="player-result-card">
+                        <span class="player-name">${player.nickname}</span>`;
+            
+            if (player.lastPointsBreakdown) {
+                const breakdown = player.lastPointsBreakdown.breakdown;
+                html += `<div class="points-breakdown">`;
+                Object.keys(breakdown).forEach(key => {
+                    html += `<span class="point-item ${breakdown[key].points > 0 ? 'correct' : 'wrong'}">
+                                ${breakdown[key].text}: <strong>+${breakdown[key].points}</strong>
+                             </span>`;
+                });
+                html += `</div>
+                         <span class="round-total-points">+${player.lastPointsBreakdown.total}</span>`;
+            } else {
+                html += `<span class="round-total-points">+0</span>`;
+            }
+            html += `</div>`;
+        });
+
+        html += `</div></div>`;
+        
+        elements.game.gameContentArea.innerHTML = html;
+        renderGamePlayerList(data.scores); // Scores in der Top-Leiste aktualisieren
     }
+    // --- ENDE NEU ---
     
     // --- Friends Modal Logic (Implementiert) ---
     async function loadFriendsData() { 
@@ -1571,6 +1749,22 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleGiftSpots(friendId, friendName) {
         showToast("Freunde-System (Gifting) kommt bald!", false);
     }
+    
+    // --- NEU: Funktion zum Senden von Antworten ---
+    function sendGuess() {
+        if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) return;
+        
+        const guess = {
+            title: document.getElementById('guess-input-title')?.value || '',
+            artist: document.getElementById('guess-input-artist')?.value || '',
+            year: document.getElementById('guess-input-year')?.value || ''
+        };
+        
+        ws.socket.send(JSON.stringify({
+            type: 'submit-guess',
+            payload: { guess }
+        }));
+    }
 
     // --- Event Listeners (FINAL) ---
     function addEventListeners() {
@@ -1705,19 +1899,65 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             elements.lobby.deviceSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.deviceSelectModal.overlay?.classList.remove('hidden'); }); 
             elements.lobby.playlistSelectBtn?.addEventListener('click', async () => { await fetchHostData(false); elements.playlistSelectModal.overlay?.classList.remove('hidden'); });
-            elements.lobby.backgroundSelectButton?.addEventListener('click', () => {
-                 renderCustomizationMenu(); 
-                 showScreen('customization-screen');
-                 // Wechsle direkt zum Hintergründe-Tab
-                 elements.customize.tabsContainer.querySelectorAll('.tab-button').forEach(t => t.classList.remove('active'));
-                 elements.customize.tabContents.forEach(c => c.classList.remove('active'));
-                 document.querySelector('[data-tab="tab-customize-backgrounds"]').classList.add('active');
-                 document.getElementById('tab-customize-backgrounds').classList.add('active');
-            });
+            
+            // Listener für Lobby-Hintergrund-Button entfernt
+
             elements.lobby.songCountPresets?.addEventListener('click', (e) => handlePresetClick(e, 'song-count-presets'));
             elements.lobby.guessTimePresets?.addEventListener('click', (e) => handlePresetClick(e, 'guess-time-presets'));
             
             elements.lobby.startGameBtn?.addEventListener('click', () => { if (elements.lobby.startGameBtn && !elements.lobby.startGameBtn.disabled && ws.socket?.readyState === WebSocket.OPEN) { setLoading(true, "Spiel startet..."); ws.socket.send(JSON.stringify({ type: 'start-game', payload: { pin: currentGame.pin } })); } else { showToast("Wähle Gerät & Playlist.", true); } });
+
+            // --- NEU: Event-Listener für Gameplay (Delegation) ---
+            elements.game.gameContentArea?.addEventListener('input', (e) => {
+                if (e.target.classList.contains('guess-input')) {
+                    if (guessDebounceTimer) clearTimeout(guessDebounceTimer);
+                    guessDebounceTimer = setTimeout(sendGuess, 300); // Sendet 300ms nach der letzten Eingabe
+                }
+            });
+            
+            elements.game.gameContentArea?.addEventListener('click', (e) => {
+                const mcButton = e.target.closest('.mc-button');
+                const readyButton = e.target.closest('#player-ready-button');
+
+                if (mcButton && !mcButton.classList.contains('active')) {
+                    const group = mcButton.closest('.mc-button-group');
+                    const guessType = group.dataset.guessType;
+                    const value = mcButton.dataset.value;
+
+                    // Alte Auswahl aufheben
+                    group.querySelectorAll('.mc-button').forEach(btn => btn.classList.remove('active'));
+                    mcButton.classList.add('active');
+                    
+                    // Sende 'submit-guess' für MC
+                    const guess = {
+                        title: (guessType === 'title') ? value : document.querySelector('.mc-button-group[data-guess-type="title"] .active')?.dataset.value || '',
+                        artist: (guessType === 'artist') ? value : document.querySelector('.mc-button-group[data-guess-type="artist"] .active')?.dataset.value || '',
+                        year: (guessType === 'year') ? value : document.querySelector('.mc-button-group[data-guess-type="year"] .active')?.dataset.value || ''
+                    };
+                    ws.socket.send(JSON.stringify({ type: 'submit-guess', payload: { guess } }));
+                    
+                    // Prüfen, ob alle Typen ausgewählt wurden
+                    const allTypesGuessed = gameCreationSettings.guessTypes.every(type => {
+                        return document.querySelector(`.mc-button-group[data-guess-type="${type}"] .active`);
+                    });
+
+                    // Wenn alle MC-Typen beantwortet wurden, automatisch "Ready" senden
+                    if (allTypesGuessed) {
+                        ws.socket.send(JSON.stringify({ type: 'player-ready' }));
+                        document.getElementById('player-ready-button')?.setAttribute('disabled', 'true');
+                        document.getElementById('player-ready-button').textContent = 'Bereit!';
+                    }
+                }
+                
+                if (readyButton && !readyButton.disabled) {
+                    if (ws.socket?.readyState === WebSocket.OPEN) {
+                        ws.socket.send(JSON.stringify({ type: 'player-ready' }));
+                        readyButton.setAttribute('disabled', 'true');
+                        readyButton.textContent = 'Bereit!';
+                    }
+                }
+            });
+            // --- ENDE NEU ---
             
             // Veraltete Item/Title/Icon Screens
             elements.titles.list?.addEventListener('click', (e) => { const card = e.target.closest('.title-card:not(.locked)'); if (card) { equipTitle(parseInt(card.dataset.titleId), true); } });
@@ -1850,7 +2090,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     updatePresets(elements.lobby.guessTimePresets, value, 'guess-time');
                 } else if (currentCustomType.type === 'lives') {
                     gameCreationSettings.lives = value;
-                    // updatePresets(elements.gameTypeScreen.livesPresets, value, 'lives'); // TODO: Fix this preset update
+                    // KORREKTUR: updatePresets für Leben-Modal
+                    updatePresets(elements.gameTypeScreen.livesPresets, value, 'lives');
                 }
                 
                 if (currentGame.pin && currentGame.isHost && (currentCustomType.type === 'song-count' || currentCustomType.type === 'guess-time')) {

@@ -231,13 +231,79 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .lobby-players-container { width: 100%; text-align: left; }
 .lobby-players-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .player-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.player-card { background-color: var(--dark-grey); padding: 12px; border-radius: var(--border-radius); display: flex; align-items: center; gap: 10px; position: relative; overflow: hidden;}
+
+/* KORREKTUR: Spieler-Karten-Design (Lobby) */
+.player-card { 
+    background-color: var(--dark-grey); 
+    border-radius: var(--border-radius); 
+    position: relative; 
+    overflow: hidden;
+    min-height: 80px; /* Gib der Karte eine Mindesthöhe */
+    border: 1px solid var(--dark-grey);
+}
+.player-card-background {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.2; /* Damit der Text lesbar bleibt */
+    z-index: 1;
+}
+.player-card-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: linear-gradient(90deg, rgba(40, 40, 40, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%); /* Dunklerer Verlauf für Lesbarkeit */
+    height: 100%;
+    min-height: 80px;
+}
+.player-card-content.host {
+     border-left: 4px solid var(--primary-color);
+     padding-left: 8px; /* Ausgleich für den Border */
+}
+.player-card .player-icon { 
+    font-size: 1.8rem; /* Größeres Icon */
+    color: var(--text-color); /* Standard-Icon-Farbe */
+    flex-shrink: 0;
+    width: 30px;
+    text-align: center;
+}
+.player-card-content.host .player-icon {
+    color: var(--primary-color); /* Host-Krone-Farbe */
+}
+.player-info {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    gap: 2px;
+    overflow: hidden; /* Verhindert Überlaufen */
+}
+.player-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.player-card .player-name { 
+    font-weight: 700; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+    font-size: 1rem; /* Größerer Name */
+    line-height: 1.2;
+    transition: color 0.3s ease; 
+}
 .player-card.new { animation: slideIn 0.5s ease-out forwards; }
-.player-card.disconnected::after { content: 'Offline'; position: absolute; top:0; left:0; right:0; bottom:0; background: #000000a0; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; }
+.player-card.disconnected::after { content: 'Offline'; position: absolute; top:0; left:0; right:0; bottom:0; background: #000000a0; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; z-index: 3; }
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-.player-card .player-icon { font-size: 1.2rem; }
-.player-card .player-icon.host { color: var(--primary-color); }
-.player-card .player-name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.9rem; transition: color 0.3s ease; }
+/* ENDE KORREKTUR */
+
+
 #host-settings { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--dark-grey); width: 100%; display: flex; flex-direction: column; gap: 15px; }
 #host-settings h3 { text-align: left; margin-bottom: 5px; font-size: 1.1rem; color: var(--text-muted-color); }
 .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
@@ -665,12 +731,12 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 
 
 /* ==================
-   In-Game Spielerliste
+   In-Game Spielerliste (ÜBERARBEITET)
    ================== */
 .game-player-grid {
     width: 100%;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid; /* Geändert von flex zu grid */
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); /* Lässt Karten wachsen */
     gap: 8px;
     justify-content: center;
     padding: 10px;
@@ -678,33 +744,70 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .game-player-card {
     background: var(--dark-grey);
     border-radius: var(--border-radius);
-    padding: 8px 12px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--dark-grey);
+    min-height: 70px; /* Höhe angepasst */
+}
+.game-player-card .player-card-background {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.15; /* Etwas dunkler als in der Lobby */
+    z-index: 1;
+}
+.game-player-card .player-card-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px; /* Etwas kompakter als Lobby */
+    background: linear-gradient(90deg, rgba(40, 40, 40, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%);
+    height: 100%;
+    min-height: 70px;
+}
+.game-player-card .player-icon {
+    font-size: 1.5rem; /* Etwas kleiner als Lobby */
+    color: var(--text-color);
+    flex-shrink: 0;
+    width: 25px;
+    text-align: center;
+    transition: color 0.3s ease;
+}
+.game-player-card .player-info {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    min-width: 80px;
-    position: relative;
+    text-align: left;
+    gap: 1px;
+    overflow: hidden; /* Verhindert Überlaufen */
+    flex-grow: 1; /* Nimmt Platz ein */
+}
+.game-player-card .player-title {
+    font-size: 0.7rem; /* Kleiner */
+    font-weight: 700;
+    color: var(--primary-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .game-player-card .player-name {
-    font-size: 0.8rem;
+    font-size: 0.85rem; /* Etwas kleiner */
     font-weight: 700;
     color: var(--text-muted-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 70px;
+    line-height: 1.2;
     transition: color 0.3s ease;
 }
 .game-player-card .player-score {
-    font-size: 1.1rem;
+    font-size: 1.2rem;
     font-weight: 800;
     color: var(--primary-color);
-}
-.game-player-card .player-icon {
-    font-size: 1rem;
-    color: var(--text-color);
-    transition: color 0.3s ease;
+    margin-left: auto; /* Schiebt Score nach rechts */
+    padding-left: 5px;
 }
 .game-player-card .player-reaction-popup {
      top: -10px;

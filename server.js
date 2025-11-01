@@ -3,6 +3,8 @@
 //                    echten 'api.spotify.com' & 'accounts.spotify.com' Endpunkte ersetzt.
 // KORREKTUR: spotifyApiCall sendet 'data' nur, wenn es nicht null ist, um PUT-Fehler zu beheben.
 // KORREKTUR: joinGame lädt jetzt auch equipped_title_id und equipped_background_id.
+// NEU: Host-Disconnect-Logik vergibt 10% Trostpreis-Spots.
+// NEU: endGame-Logik überarbeitet für 20% Score-Spots + Platzierungs-Bonus.
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -134,7 +136,6 @@ function showToastToPlayer(ws, message, isError = false) { if (ws && ws.readySta
 
 async function getPlaylistTracks(playlistId, token) { 
     try {
-        // --- KORREKTE URL ---
         const response = await axios.get(`https://api.spotify.com/v1/playlists/${playlistId}/tracks?limit=50&fields=items(track(id,name,artists(name),album(release_date,images),popularity))`, { 
             headers: { 'Authorization': `Bearer ${token}` } 
         });
@@ -227,7 +228,6 @@ async function awardAchievement(ws, userId, achievementId) {
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 app.get('/api/config', (req, res) => res.json({ supabaseUrl: SUPABASE_URL, supabaseAnonKey: SUPABASE_ANON_KEY }));
 
-// --- KORREKTE URL ---
 app.get('/login', (req, res) => { const scopes = 'user-read-private user-read-email playlist-read-private streaming user-modify-playback-state user-read-playback-state'; res.redirect('https://accounts.spotify.com/authorize?' + new URLSearchParams({ response_type: 'code', client_id: CLIENT_ID, scope: scopes, redirect_uri: REDIRECT_URI }).toString()); });
 
 app.get('/callback', async (req, res) => {
@@ -242,7 +242,6 @@ app.get('/callback', async (req, res) => {
         console.log("Attempting to exchange Spotify code for token...");
         const response = await axios({
             method: 'post',
-            // --- KORREKTE URL ---
             url: 'https://accounts.spotify.com/api/token',
             data: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI }).toString(),
             headers: { 'Authorization': 'Basic ' + (Buffer.from(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')), 'Content-Type': 'application/x-www-form-urlencoded' }
@@ -270,12 +269,10 @@ app.post('/logout', (req, res) => { res.clearCookie('spotify_access_token', { pa
 app.get('/api/status', (req, res) => { const token = req.cookies.spotify_access_token; res.json({ loggedIn: !!token, token: token || null }); });
 
 app.get('/api/playlists', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
-    // --- KORREKTE URL ---
     const d = await axios.get('https://api.spotify.com/v1/me/playlists', { headers: { 'Authorization': `Bearer ${token}` } });
     res.json(d.data); } catch (e) { console.error("Playlist API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Playlists" }); } });
 
 app.get('/api/devices', async (req, res) => { const token = req.headers.authorization?.split(' ')[1]; if (!token) return res.status(401).json({ message: "Nicht autorisiert" }); try {
-    // --- KORREKTE URL ---
     const d = await axios.get('https://api.spotify.com/v1/me/player/devices', { headers: { 'Authorization': `Bearer ${token}` } });
     res.json(d.data); } catch (e) { console.error("Device API Error:", e.response?.status, e.response?.data || e.message); res.status(e.response?.status || 500).json({ message: "Fehler beim Abrufen der Geräte" }); } });
 
@@ -577,7 +574,7 @@ async function handleWebSocketMessage(ws, data) {
 
 
 // --- Player Disconnect Logic ---
-function handlePlayerDisconnect(ws) {
+async function handlePlayerDisconnect(ws) {
     const { pin, playerId } = ws;
     if (playerId) {
         onlineUsers.delete(playerId);
@@ -598,11 +595,73 @@ function handlePlayerDisconnect(ws) {
     player.isConnected = false;
     player.ws = null;
     
-    // TODO: Host-Wechsel-Logik
+    // --- NEU: Host-Disconnect-Logik ---
+    if (playerId === game.hostId && game.gameState !== 'FINISHED') {
+        console.log(`Host ${playerId} disconnected from game ${pin}. Ending game.`);
+        
+        const finalScores = getScores(pin);
+        broadcastToLobby(pin, { 
+            type: 'game-over', 
+            payload: { 
+                scores: finalScores,
+                message: "Der Host hat das Spiel verlassen." // Extra-Info für den Client
+            } 
+        });
+
+        // --- NEU: 10% Trostpreis-Logik ---
+        console.log(`Awarding consolation stats for game ${pin} (host left).`);
+        const gamePlayers = Object.values(game.players);
+        
+        for (const p of gamePlayers) {
+            // Nur verbundene Spieler, die nicht der Host und keine Gäste sind
+            if (p.isGuest || !p.id || p.id === game.hostId || !p.isConnected) continue;
+            
+            const score = p.score || 0;
+            const spotBonus = Math.max(1, Math.floor(score * 0.10)); // 10% Trostpreis-Spots
+            const xpBonus = Math.max(5, Math.floor(score / 20)); // Kleiner Trostpreis-XP (1/20)
+            
+            try {
+                // Update-Aufruf (ohne games_played/wins)
+                const { error } = await supabase
+                    .from('profiles')
+                    .update({
+                        xp: supabase.sql(`xp + ${xpBonus}`),
+                        spots: supabase.sql(`spots + ${spotBonus}`)
+                    })
+                    .eq('id', p.id);
+                
+                if (error) throw error;
+                
+                console.log(`Awarded ${xpBonus} XP and ${spotBonus} Spots to ${p.id} (consolation).`);
+                showToastToPlayer(p.ws, `Spiel abgebrochen. +${xpBonus} XP & +${spotBonus} 🎵 (Trostpreis)`, false);
+
+            } catch (e) {
+                console.error(`Exception awarding consolation stats for ${p.id}:`, e);
+            }
+        }
+        // --- ENDE NEU ---
+        
+        // Spiel-Instanz aufräumen
+        Object.values(game.players).forEach(p => {
+            if (p.ws && p.ws.readyState === WebSocket.OPEN) {
+                p.ws.pin = null; // Verknüpfung für alle verbleibenden Spieler entfernen
+            }
+        });
+        delete games[pin];
+        console.log(`Game ${pin} deleted because host left.`);
+        return; // Keine weiteren Updates für diese Lobby senden
+    }
+    // --- ENDE NEU ---
     
     broadcastLobbyUpdate(pin);
     
-    // TODO: Leere Spiele aufräumen
+    // --- NEU: Leere Spiele aufräumen ---
+    const connectedPlayers = Object.values(game.players).filter(p => p.isConnected).length;
+    if (connectedPlayers === 0 && game.gameState === 'LOBBY') { // Nur leere Lobbys aufräumen
+        console.log(`Game ${pin} is empty. Deleting.`);
+        delete games[pin];
+    }
+    // --- ENDE NEU ---
 }
 
 // --- joinGame Logic ---
@@ -808,8 +867,66 @@ async function endGame(pin, cleanup = true) {
         } 
     });
 
-    // TODO: XP/Spots an Spieler vergeben
-    // TODO: Spiel-Instanz löschen
+    // --- NEU: Überarbeitete Spot/XP Vergabe (für normales Spielende) ---
+    console.log(`Awarding stats for game ${pin}...`);
+    const gamePlayers = Object.values(game.players);
+    
+    for (const player of gamePlayers) {
+        if (player.isGuest || !player.id) continue;
+        
+        const score = player.score || 0;
+        const placement = finalScores.findIndex(p => p.id === player.id);
+        const isWinner = (placement === 0) && (finalScores[0].score > 0);
+        
+        let placementBonusSpots = 0;
+        if (placement === 0) placementBonusSpots = 15; // 1. Platz
+        else if (placement === 1) placementBonusSpots = 10; // 2. Platz
+        else if (placement === 2) placementBonusSpots = 5;  // 3. Platz
+        
+        const scoreSpots = Math.max(1, Math.floor(score * 0.20)); // 20% des Scores als Spots
+        const totalSpotBonus = scoreSpots + placementBonusSpots;
+        
+        const scoreXp = Math.max(10, Math.floor(score / 15)); // 1 XP pro 15 Punkte (min 10)
+        const winnerXpBonus = isWinner ? 25 : 0; // 25 XP extra für den Sieg
+        const totalXpBonus = scoreXp + winnerXpBonus;
+        
+        try {
+            // Fetch current stats first
+            const { data: profile, error: fetchError } = await supabase
+                .from('profiles')
+                .select('xp, spots, games_played, wins, highscore')
+                .eq('id', player.id)
+                .single();
+                
+            if (fetchError) throw fetchError;
+
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update({
+                    xp: profile.xp + totalXpBonus,
+                    spots: profile.spots + totalSpotBonus,
+                    games_played: profile.games_played + 1,
+                    wins: isWinner ? profile.wins + 1 : profile.wins,
+                    highscore: score > profile.highscore ? score : profile.highscore
+                })
+                .eq('id', player.id);
+            
+            if (updateError) throw updateError;
+            
+            console.log(`Awarded ${totalXpBonus} XP and ${totalSpotBonus} Spots to ${player.id}.`);
+            showToastToPlayer(player.ws, `Spiel beendet! +${totalXpBonus} XP & +${totalSpotBonus} 🎵`, false);
+
+        } catch (e) {
+            console.error(`Exception awarding stats for ${player.id}:`, e);
+        }
+    }
+    // --- ENDE NEU ---
+
+    // Spiel-Instanz löschen
+    setTimeout(() => {
+        console.log(`Deleting finished game ${pin}.`);
+        delete games[pin];
+    }, 10000); // Delete game after 10 seconds
 }
 // --- Ende Game Logic ---
 
