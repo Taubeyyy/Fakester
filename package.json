@@ -1,19 +1,18 @@
 {
-  "name": "fakester",
-  "version": "2.0.0",
-  "description": "A Spotify music quiz game for Render (Single Page App).",
+  "name": "fakester-server",
+  "version": "1.0.0",
+  "description": "Fakester Game Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
-  "author": "",
+  "author": "Taubey",
   "license": "ISC",
   "dependencies": {
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "ws": "^8.14.2",
-    "@supabase/supabase-js": "^2.0.0",
-    "cors": "^2.8.5",
-    "jsonwebtoken": "^9.0.2"
+    "axios": "^1.7.2",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
   }
 }
