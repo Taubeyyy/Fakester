@@ -695,8 +695,8 @@ async function startGameLogic(pin) {
     game.currentRound = 0;
     
     // Pause Spotify, bevor es losgeht
-    // --- KORREKTUR: device_id als URL-Parameter & data=null (via Standard) ---
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken);
+    // --- KORREKTUR: device_id als URL-Parameter & data=null ---
+    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     // --- ENDE KORREKTUR ---
     await sleep(500); // Kurze Pause
 
@@ -766,8 +766,8 @@ async function endRound(pin) {
     game.gameState = 'RESULTS';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTUR: device_id als URL-Parameter & data=null (via Standard) ---
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken);
+    // --- KORREKTUR: device_id als URL-Parameter & data=null ---
+    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     // --- ENDE KORREKTUR ---
 
     // TODO: Ergebnisse berechnen
@@ -794,8 +794,8 @@ async function endGame(pin, cleanup = true) {
     game.gameState = 'FINISHED';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTUR: device_id als URL-Parameter & data=null (via Standard) ---
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken);
+    // --- KORREKTUR: device_id als URL-Parameter & data=null ---
+    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     // --- ENDE KORREKTUR ---
     
     const finalScores = getScores(pin);
