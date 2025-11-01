@@ -76,20 +76,11 @@ p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 15px; }
 
 .button-primary, .button-secondary, .button-danger {
     display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 12px 24px; border: none; border-radius: 50px;
-    font-size: 1rem; font-weight: 700; cursor: pointer; text-decoration: none; width: 100%; transition: transform 0.1s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+    font-size: 1rem; font-weight: 700; cursor: pointer; text-decoration: none; width: 100%; transition: transform 0.1s ease, background-color 0.2s ease;
 }
 .button-primary:active, .button-secondary:active, .button-danger:active { transform: scale(0.97); }
 .button-primary { background-color: var(--accent-color); color: var(--background-color); }
-
-/* NEU: Button-Fix für Deaktiviert (Akzent-Rand) */
-.button-primary:disabled { 
-    background-color: transparent; 
-    color: var(--accent-color); 
-    border: 2px solid var(--accent-color);
-    cursor: not-allowed; 
-    opacity: 0.5; 
-}
-
+.button-primary:disabled { background-color: var(--medium-grey); color: var(--dark-grey); cursor: not-allowed; opacity: 0.7; }
 .button-secondary { background-color: var(--dark-grey); color: var(--text-color); }
 .button-danger { background-color: var(--danger-color); color: var(--text-color); }
 .button-icon { background: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease; flex-shrink: 0; }
@@ -102,9 +93,6 @@ p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 15px; }
     transition: border-color 0.2s ease;
 }
 .button-select:hover { border-color: var(--accent-color); }
-.button-select.locked { opacity: 0.5; cursor: not-allowed; }
-.button-select.active { border-color: var(--accent-color); color: var(--accent-color); }
-
 
 input, select.lobby-select, input.lobby-input { width: 100%; padding: 12px 15px; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); border-radius: 8px; color: var(--text-color); font-size: 1rem; }
 input:focus, select:focus { border-color: var(--accent-color); outline: none; }
@@ -189,16 +177,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     opacity: 1;
     border-color: var(--accent-color);
     background-color: var(--accent-color-faded);
-}
-.achievement-card.hidden-achievement {
-    background-color: var(--dark-grey);
-    border-color: var(--medium-grey);
-    text-align: center;
-    opacity: 1;
-}
-.achievement-card.hidden-achievement h3 {
-    font-size: 2rem;
-    color: var(--text-muted-color);
 }
 .achievement-card h3 { font-size: 1.1rem; margin: 0; }
 .achievement-card p { font-size: 0.9rem; margin: 0; color: var(--text-muted-color); }
@@ -866,15 +844,12 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 /* ==================
    Anpassungsmenü
    ================== */
-.color-grid, .background-grid {
+.color-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
     gap: 15px;
 }
-.background-grid {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-}
-.color-card, .background-card {
+.color-card {
     background-color: var(--surface-color);
     border: 2px solid var(--surface-color);
     border-radius: var(--border-radius);
@@ -889,13 +864,13 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     gap: 10px;
     min-height: 120px;
 }
-.color-card.locked, .background-card.locked {
+.color-card.locked {
     background-color: var(--dark-grey);
     opacity: 0.5;
     cursor: not-allowed;
     position: relative;
 }
-.color-card.locked::after, .background-card.locked::after {
+.color-card.locked::after {
     content: '\f023';
     font-family: "Font Awesome 6 Free";
     font-weight: 900;
@@ -905,15 +880,15 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 0.8rem;
     color: var(--text-muted-color);
 }
-.color-card:not(.locked):hover, .background-card:not(.locked):hover {
+.color-card:not(.locked):hover {
     border-color: var(--accent-color);
 }
-.color-card.equipped, .background-card.equipped {
+.color-card.equipped {
     border-color: var(--accent-color);
     background-color: var(--accent-color-faded);
     box-shadow: 0 0 10px var(--accent-color-faded);
 }
-.color-card .color-preview, .background-card .background-preview {
+.color-card .color-preview {
     width: 100%;
     height: 60px;
     border-radius: 8px;
@@ -924,20 +899,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 2rem;
     color: rgba(255, 255, 255, 0.5);
     text-shadow: 0 0 5px rgba(0,0,0,0.5);
-    background-size: cover;
-    background-position: center;
 }
-.color-card .color-name, .background-card .background-name { font-size: 0.8rem; font-weight: 700; }
-.color-card .color-desc, .background-card .background-desc { font-size: 0.8rem; color: var(--text-muted-color); }
-
-/* NEU: Speziell für Verlaufs-Textfarben */
-.color-preview .gradient-text {
-    background: var(--preview-gradient, #fff);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    text-fill-color: transparent;
-}
+.color-card .color-name { font-size: 0.8rem; font-weight: 700; }
+.color-card .color-desc { font-size: 0.8rem; color: var(--text-muted-color); }
 
 
 /* ==================
@@ -1019,12 +983,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 0.85rem; /* Etwas kleiner */
     font-weight: 700;
     color: var(--text-muted-color);
-    /* NEU: iPhone-Fix */
-    white-space: normal; 
-    overflow: visible; 
-    text-overflow: clip; 
-    word-break: break-all;
-    /* --- */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     line-height: 1.2;
     transition: color 0.3s ease;
 }
@@ -1209,33 +1170,34 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 /* ==================
    NEU: CSS-Hintergründe
    ================== */
-.background-preview.bg-synthwave, .app-background.bg-synthwave {
+
+.app-background.bg-synthwave {
     background: #000020;
     background-image: 
         radial-gradient(ellipse at 50% 0%, rgba(255, 0, 150, 0.4) 0%, rgba(0, 0, 0, 0) 60%),
         radial-gradient(ellipse at 50% 100%, rgba(0, 200, 255, 0.4) 0%, rgba(0, 0, 0, 0) 60%);
 }
-.background-preview.bg-concert, .app-background.bg-concert {
+.app-background.bg-concert {
     background: #110a0f;
     background-image: 
         radial-gradient(ellipse at 50% 100%, rgba(255, 100, 0, 0.5) 0%, rgba(0, 0, 0, 0) 70%),
         radial-gradient(ellipse at 20% 0%, rgba(100, 0, 255, 0.6) 0%, rgba(0, 0, 0, 0) 50%),
         radial-gradient(ellipse at 80% 0%, rgba(255, 0, 100, 0.6) 0%, rgba(0, 0, 0, 0) 50%);
 }
-.background-preview.bg-vinyl, .app-background.bg-vinyl {
+.app-background.bg-vinyl {
     background-color: #3a2e28;
     background-image: linear-gradient(135deg, #3a2e28 0%, #1e1a18 100%);
 }
-.background-preview.bg-sunset, .app-background.bg-sunset {
+.app-background.bg-sunset {
     background: linear-gradient(170deg, #ff7e5f, #feb47b, #121212 70%);
 }
-.background-preview.bg-ocean, .app-background.bg-ocean {
+.app-background.bg-ocean {
     background: linear-gradient(170deg, #005c97, #363795, #121212 70%);
 }
-.background-preview.bg-forest, .app-background.bg-forest {
+.app-background.bg-forest {
     background: linear-gradient(170deg, #136a8a, #267871, #121212 70%);
 }
-.background-preview.bg-stars, .app-background.bg-stars {
+.app-background.bg-stars {
     background-color: #00001a;
     background-image: radial-gradient(circle at 10% 20%, rgba(200, 200, 255, 0.3), transparent 20%),
                       radial-gradient(circle at 80% 30%, rgba(200, 200, 255, 0.3), transparent 20%),
@@ -1244,18 +1206,18 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     background-size: 1px 1px;
     background-repeat: repeat;
 }
-.background-preview.bg-retro, .app-background.bg-retro {
+.app-background.bg-retro {
     background-color: #3D0000;
     background-image: linear-gradient(135deg, #3D0000 0%, #6A0000 50%, #B20000 100%);
 }
-.background-preview.bg-studio, .app-background.bg-studio {
+.app-background.bg-studio {
     background-color: #444;
     background-image: linear-gradient(45deg, #333 25%, transparent 25%, transparent 75%, #333 75%, #333), 
                       linear-gradient(45deg, #333 25%, transparent 25%, transparent 75%, #333 75%, #333);
     background-size: 20px 20px;
     background-position: 0 0, 10px 10px;
 }
-.background-preview.bg-party, .app-background.bg-party {
+.app-background.bg-party {
     background: linear-gradient(45deg, #ff00ff, #00ffff, #ffff00, #ff00ff);
     background-size: 400% 400%;
     animation: gradientParty 10s ease infinite;
