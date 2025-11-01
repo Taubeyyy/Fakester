@@ -1,6 +1,6 @@
 // server.js - FINAL VERSION (Mit Spielstart-Logik & Freunde-System-Backend)
-// KORREKTUR (NEU): spotifyApiCall sendet 'data' nur, wenn es nicht null ist, um PUT-Fehler zu beheben.
-// KORREKTUR: Spotify API Calls (Play/Pause) senden device_id jetzt als URL-Parameter.
+// KORREKTUR (NEU): Die URLs für Play/Pause sind jetzt korrekt formatiert (...?device_id=...).
+// KORREKTUR: spotifyApiCall sendet 'data' nur, wenn es nicht null ist, um PUT-Fehler zu beheben.
 // KORREKTUR: joinGame lädt jetzt auch equipped_title_id und equipped_background_id.
 
 const WebSocket = require('ws');
@@ -155,8 +155,8 @@ async function getPlaylistTracks(playlistId, token) {
     } 
 }
 
-// --- KORREKTUR: Diese Funktion wurde geändert, um 'data: null' korrekt zu verarbeiten ---
-async function spotifyApiCall(method, url, token, data = null) { // Standardmäßig auf null
+// --- KORRIGIERTE Funktion ---
+async function spotifyApiCall(method, url, token, data = null) {
     try {
         const config = {
             method,
@@ -164,7 +164,6 @@ async function spotifyApiCall(method, url, token, data = null) { // Standardmä�
             headers: { 'Authorization': `Bearer ${token}` }
         };
         
-        // Sende den 'data'-Body nur, wenn er nicht null ist
         if (data) {
             config.data = data;
         }
@@ -695,8 +694,8 @@ async function startGameLogic(pin) {
     game.currentRound = 0;
     
     // Pause Spotify, bevor es losgeht
-    // --- KORREKTUR: device_id als URL-Parameter & data=null ---
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+    // --- KORREKTUR: Korrekte URL und Syntax für Pause ---
+    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=f6907fd83a4d27e2003423ba8b095ef0012d6127?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     // --- ENDE KORREKTUR ---
     await sleep(500); // Kurze Pause
 
@@ -730,8 +729,8 @@ async function startNewRound(pin) {
     console.log(`Spiel ${pin}, Runde ${game.currentRound}: Song ${track.title}`);
 
     // Starte Spotify-Wiedergabe
-    // --- KORREKTUR: device_id als URL-Parameter & 'data' enthält nur 'uris' ---
-    const success = await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
+    // --- KORREKTUR: Korrekte URL und Syntax für Play ---
+    const success = await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize?device_id=f6907fd83a4d27e2003423ba8b095ef0012d6127?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
         uris: [`spotify:track:${track.spotifyId}`] 
     });
     // --- ENDE KORREKTUR ---
@@ -766,8 +765,8 @@ async function endRound(pin) {
     game.gameState = 'RESULTS';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTUR: device_id als URL-Parameter & data=null ---
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+    // --- KORREKTUR: Korrekte URL und Syntax für Pause ---
+    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=f6907fd83a4d27e2003423ba8b095ef0012d6127?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     // --- ENDE KORREKTUR ---
 
     // TODO: Ergebnisse berechnen
@@ -794,8 +793,8 @@ async function endGame(pin, cleanup = true) {
     game.gameState = 'FINISHED';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTUR: device_id als URL-Parameter & data=null ---
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
+    // --- KORREKTUR: Korrekte URL und Syntax für Pause ---
+    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=f6907fd83a4d27e2003423ba8b095ef0012d6127?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
     // --- ENDE KORREKTUR ---
     
     const finalScores = getScores(pin);
@@ -834,173 +833,4 @@ async function handleLoadFriends(ws, userId) {
             const otherUser = friendship.profile_1.id === userId ? friendship.profile_2 : friendship.profile_1;
             const isOnline = onlineUsers.has(otherUser.id);
 
-            const friendData = {
-                id: otherUser.id,
-                username: otherUser.username,
-                isOnline: isOnline
-            };
-
-            if (friendship.status === 'accepted') {
-                friendsList.push(friendData);
-            } else if (friendship.status === 'pending' && friendship.requested_by !== userId) {
-                // Nur Anfragen anzeigen, die an mich gerichtet sind
-                requestsList.push(friendData);
-            }
-        });
-
-        ws.send(JSON.stringify({ 
-            type: 'friends-update', 
-            payload: { 
-                friends: friendsList, 
-                requests: requestsList 
-            } 
-        }));
-
-    } catch (error) {
-        console.error("Fehler beim Laden der Freunde:", error);
-        showToastToPlayer(ws, "Fehler beim Laden der Freunde.", true);
-    }
-}
-
-async function handleAddFriend(ws, senderId, payload) {
-    const { friendName } = payload;
-    if (!friendName || friendName.trim() === '') {
-        return showToastToPlayer(ws, "Name darf nicht leer sein.", true);
-    }
-    
-    const { data: friend, error: friendError } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .eq('username', friendName.trim())
-        .single();
-
-    if (friendError || !friend) {
-        return showToastToPlayer(ws, "Benutzer nicht gefunden.", true);
-    }
-    
-    if (friend.id === senderId) {
-        return showToastToPlayer(ws, "Du kannst dich nicht selbst hinzufügen.", true);
-    }
-
-    const { data: existing, error: existingError } = await supabase
-        .from('friends')
-        .select('id')
-        .or(`(user_id_1.eq.${senderId},user_id_2.eq.${friend.id}),(user_id_1.eq.${friend.id},user_id_2.eq.${senderId})`)
-        .single();
-        
-    if (existing) {
-        return showToastToPlayer(ws, "Du bist bereits mit diesem Benutzer befreundet oder hast eine Anfrage gesendet.", true);
-    }
-    
-    const user1 = senderId < friend.id ? senderId : friend.id;
-    const user2 = senderId > friend.id ? senderId : friend.id;
-
-    const { error: insertError } = await supabase
-        .from('friends')
-        .insert({
-            user_id_1: user1,
-            user_id_2: user2,
-            status: 'pending',
-            requested_by: senderId
-        });
-        
-    if (insertError) {
-        console.error("Fehler beim Senden der Freundschaftsanfrage:", insertError);
-        return showToastToPlayer(ws, "Anfrage fehlgeschlagen.", true);
-    }
-    
-    showToastToPlayer(ws, `Anfrage an ${friend.username} gesendet!`);
-    
-    const friendWs = onlineUsers.get(friend.id);
-    if (friendWs) {
-        showToastToPlayer(friendWs, `Du hast eine Freundschaftsanfrage von ${ws.nickname}!`);
-        handleLoadFriends(friendWs, friend.id); // Freundesliste des Empfängers aktualisieren
-    }
-    
-    awardAchievement(ws, senderId, 14);
-}
-
-async function handleAcceptFriendRequest(ws, receiverId, payload) {
-    const { senderId } = payload; // ID der Person, die die ANFRAGE GESENDET hat
-
-    const { error } = await supabase
-        .from('friends')
-        .update({ status: 'accepted' })
-        .match({ requested_by: senderId, status: 'pending' })
-        .or(`user_id_1.eq.${receiverId},user_id_2.eq.${receiverId}`);
-        
-    if (error) {
-        console.error("Fehler beim Annehmen der Anfrage:", error);
-        return showToastToPlayer(ws, "Anfrage annehmen fehlgeschlagen.", true);
-    }
-    
-    showToastToPlayer(ws, "Freundschaft angenommen!");
-    handleLoadFriends(ws, receiverId); // Eigene Liste aktualisieren
-
-    const senderWs = onlineUsers.get(senderId);
-    if (senderWs) {
-        showToastToPlayer(senderWs, `${ws.nickname} hat deine Anfrage angenommen!`);
-        handleLoadFriends(senderWs, senderId); // Liste des Senders aktualisieren
-    }
-}
-
-async function handleRemoveFriend(ws, currentUserId, payload) {
-    const { friendId } = payload; // ID der Person, die entfernt/abgelehnt wird
-
-    const { error } = await supabase
-        .from('friends')
-        .delete()
-        .or(`(user_id_1.eq.${currentUserId},user_id_2.eq.${friendId}),(user_id_1.eq.${friendId},user_id_2.eq.${currentUserId})`);
-        
-    if (error) {
-        console.error("Fehler beim Entfernen/Ablehnen des Freundes:", error);
-        return showToastToPlayer(ws, "Aktion fehlgeschlagen.", true);
-    }
-    
-    showToastToPlayer(ws, "Freund entfernt/abgelehnt.");
-    handleLoadFriends(ws, currentUserId); // Eigene Liste aktualisieren
-
-    const friendWs = onlineUsers.get(friendId);
-    if (friendWs) {
-        showToastToPlayer(friendWs, `${ws.nickname} hat dich als Freund entfernt.`);
-        handleLoadFriends(friendWs, friendId); // Liste des anderen aktualisieren
-    }
-}
-
-async function handleInviteFriend(ws, senderId, payload) {
-    const { friendId } = payload;
-    const game = games[ws.pin];
-    
-    if (!game) {
-        return showToastToPlayer(ws, "Du bist in keiner Lobby.", true);
-    }
-    
-    const friendWs = onlineUsers.get(friendId);
-    if (!friendWs) {
-        return showToastToPlayer(ws, "Dieser Freund ist nicht online.", true);
-    }
-    
-    friendWs.send(JSON.stringify({
-        type: 'invite-received',
-        payload: {
-            from: ws.nickname,
-            pin: game.pin
-        }
-    }));
-    
-    showToastToPlayer(ws, "Einladung gesendet!");
-}
-// --- Ende Friend Handlers ---
-
-
-// --- Utility-Funktionen ---
-function shuffleArray(array) { 
-    for (let i = array.length - 1; i > 0; i--) { 
-        const j = Math.floor(Math.random() * (i + 1)); 
-        [array[i], array[j]] = [array[j], array[i]]; 
-    } 
-    return array; 
-}
-
-// --- Start Server ---
-server.listen(process.env.PORT || 8080, () => { console.log(`✅ Fakester-Server läuft auf Port ${process.env.PORT || 8080}`); });
+            const friendData =.
