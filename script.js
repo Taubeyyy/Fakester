@@ -1006,6 +1006,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Diese Funktion MUSS hier sein, damit updateHostSettings sie finden kann
+    function applyLobbyBackground(backgroundId) {
+        const lobbyScreen = document.getElementById('lobby-screen');
+        if (!lobbyScreen) return;
+        const bg = backgroundsList.find(b => b.backgroundId === backgroundId);
+        if (bg && bg.imageUrl) {
+            lobbyScreen.style.backgroundImage = `url('${bg.imageUrl}')`;
+        } else {
+            lobbyScreen.style.backgroundImage = 'none';
+        }
+        
+        // Aktualisiere auch den Button in der Lobby, falls vorhanden
+        if (elements.lobby.backgroundSelectButton) {
+             elements.lobby.backgroundSelectButton.textContent = bg ? bg.name : 'Standard';
+        }
+    }
     // --- ENDE: "Anpassen"-Menü Funktionen ---
 
     function renderLevelProgress() {
@@ -1261,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // --- Game Logic Functions (Stubs) ---
+    // --- Game Logic Functions (Implementiert) ---
     function showCountdown(number) { 
         console.log(`Countdown: ${number}`); 
         elements.countdownOverlay.textContent = number;
@@ -1550,6 +1566,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 payload: setting
             }));
         }
+    }
+    
+    async function handleGiftSpots(friendId, friendName) {
+        showToast("Freunde-System (Gifting) kommt bald!", false);
     }
 
     // --- Event Listeners (FINAL) ---
