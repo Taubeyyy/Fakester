@@ -1,4 +1,6 @@
 // server.js - FINAL VERSION (Mit Spielstart-Logik & Freunde-System-Backend)
+// KORREKTUR: Spotify API Calls (Play/Pause) senden device_id jetzt als URL-Parameter.
+// KORREKTUR: joinGame lädt jetzt auch equipped_title_id und equipped_background_id.
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -120,7 +122,11 @@ function getScores(pin) {
             isConnected: p.isConnected, 
             lastPointsBreakdown: p.lastPointsBreakdown,
             iconId: p.iconId || 1,
-            colorId: p.colorId || null
+            colorId: p.colorId || null,
+            // --- KORREKTUR: Daten für Lobby-Anzeige hinzugefügt ---
+            titleId: p.titleId || 1,
+            backgroundId: p.backgroundId || null
+            // --- ENDE KORREKTUR ---
         }))
         .filter(p => p.id)
         .sort((a, b) => b.score - a.score); 
@@ -608,20 +614,33 @@ async function joinGame(ws, user, pin) {
         
         let iconId = 1;
         let colorId = null;
+        // --- KORREKTUR: Hinzugefügte Variablen ---
+        let titleId = 1;
+        let backgroundId = null;
+        // --- ENDE KORREKTUR ---
+
         if (!user.isGuest) {
             try {
                 const { data: profile, error } = await supabase
                     .from('profiles')
-                    .select('equipped_icon_id, equipped_color_id')
+                    // --- KORREKTUR: Abfrage erweitert ---
+                    .select('equipped_icon_id, equipped_color_id, equipped_title_id, equipped_background_id')
+                    // --- ENDE KORREKTUR ---
                     .eq('id', playerId)
                     .single();
                 if (error) throw error;
                 if (profile) {
                     iconId = profile.equipped_icon_id || 1;
                     colorId = profile.equipped_color_id || null;
+                    // --- KORREKTUR: Hinzugefügte Zuweisungen ---
+                    titleId = profile.equipped_title_id || 1;
+                    backgroundId = profile.equipped_background_id || null;
+                    // --- ENDE KORREKTUR ---
                 }
             } catch (e) {
-                console.error(`Could not fetch icon/color for player ${playerId}:`, e.message);
+                // --- KORREKTUR: Fehlermeldung angepasst ---
+                console.error(`Could not fetch profile items for player ${playerId}:`, e.message);
+                // --- ENDE KORREKTUR ---
             }
         }
         
@@ -636,7 +655,11 @@ async function joinGame(ws, user, pin) {
             activeEffects: {},
             lastPointsBreakdown: null,
             iconId: iconId,
-            colorId: colorId
+            colorId: colorId,
+            // --- KORREKTUR: Neue Felder zum Player-Objekt hinzugefügt ---
+            titleId: titleId,
+            backgroundId: backgroundId
+            // --- ENDE KORREKTUR ---
         };
         game.players[playerId] = player;
     }
@@ -673,7 +696,9 @@ async function startGameLogic(pin) {
     game.currentRound = 0;
     
     // Pause Spotify, bevor es losgeht
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...`, game.spotifyToken, { device_id: game.settings.deviceId });
+    // --- KORREKTUR: device_id als URL-Parameter ---
+    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken);
+    // --- ENDE KORREKTUR ---
     await sleep(500); // Kurze Pause
 
     // Countdown
@@ -706,10 +731,11 @@ async function startNewRound(pin) {
     console.log(`Spiel ${pin}, Runde ${game.currentRound}: Song ${track.title}`);
 
     // Starte Spotify-Wiedergabe
-    const success = await spotifyApiCall('PUT', 'https://accounts.spotify.com/authorize', game.spotifyToken, { 
-        device_id: game.settings.deviceId, 
+    // --- KORREKTUR: device_id als URL-Parameter ---
+    const success = await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
         uris: [`spotify:track:${track.spotifyId}`] 
     });
+    // --- ENDE KORREKTUR ---
 
     if (!success) {
         broadcastToLobby(pin, { type: 'toast', payload: { message: "Fehler bei Spotify-Wiedergabe.", isError: true } });
@@ -741,7 +767,9 @@ async function endRound(pin) {
     game.gameState = 'RESULTS';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...`, game.spotifyToken, { device_id: game.settings.deviceId });
+    // --- KORREKTUR: device_id als URL-Parameter ---
+    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken);
+    // --- ENDE KORREKTUR ---
 
     // TODO: Ergebnisse berechnen
     const scores = getScores(pin); // Platzhalter
@@ -767,7 +795,9 @@ async function endGame(pin, cleanup = true) {
     game.gameState = 'FINISHED';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...`, game.spotifyToken, { device_id: game.settings.deviceId });
+    // --- KORREKTUR: device_id als URL-Parameter ---
+    await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken);
+    // --- ENDE KORREKTUR ---
     
     const finalScores = getScores(pin);
     broadcastToLobby(pin, { 
