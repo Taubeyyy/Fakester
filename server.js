@@ -1,4 +1,5 @@
 // server.js - FINAL VERSION (Mit Spielstart-Logik & Freunde-System-Backend)
+// KORREKTUR (NEU): spotifyApiCall sendet 'data' nur, wenn es nicht null ist, um PUT-Fehler zu beheben.
 // KORREKTUR: Spotify API Calls (Play/Pause) senden device_id jetzt als URL-Parameter.
 // KORREKTUR: joinGame lädt jetzt auch equipped_title_id und equipped_background_id.
 
@@ -123,10 +124,8 @@ function getScores(pin) {
             lastPointsBreakdown: p.lastPointsBreakdown,
             iconId: p.iconId || 1,
             colorId: p.colorId || null,
-            // --- KORREKTUR: Daten für Lobby-Anzeige hinzugefügt ---
             titleId: p.titleId || 1,
             backgroundId: p.backgroundId || null
-            // --- ENDE KORREKTUR ---
         }))
         .filter(p => p.id)
         .sort((a, b) => b.score - a.score); 
@@ -156,20 +155,30 @@ async function getPlaylistTracks(playlistId, token) {
     } 
 }
 
-async function spotifyApiCall(method, url, token, data = {}) { 
-    try { 
-        await axios({ 
-            method, 
-            url, 
-            data, 
-            headers: { 'Authorization': `Bearer ${token}` } 
-        }); 
-        return true; 
+// --- KORREKTUR: Diese Funktion wurde geändert, um 'data: null' korrekt zu verarbeiten ---
+async function spotifyApiCall(method, url, token, data = null) { // Standardmäßig auf null
+    try {
+        const config = {
+            method,
+            url,
+            headers: { 'Authorization': `Bearer ${token}` }
+        };
+        
+        // Sende den 'data'-Body nur, wenn er nicht null ist
+        if (data) {
+            config.data = data;
+        }
+        
+        await axios(config); 
+        
+        return true;
     } catch (e) { 
         console.error(`Spotify API Fehler bei ${method.toUpperCase()} ${url}:`, e.response?.data || e.message); 
         return false; 
     } 
 }
+// --- ENDE KORREKTUR ---
+
 async function hasAchievement(userId, achievementId) { try { const { count, error } = await supabase.from('user_achievements').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('achievement_id', achievementId); if (error) throw error; return count > 0; } catch (e) { console.error("Error checking achievement:", e); return false; } }
 function broadcastToLobby(pin, message) { const game = games[pin]; if (!game) return; const messageString = JSON.stringify(message); Object.values(game.players).forEach(player => { if (player.ws && player.ws.readyState === WebSocket.OPEN && player.isConnected) { try { player.ws.send(messageString); } catch (e) { console.error(`Failed to send message to player ${player.ws.playerId}:`, e); } } }); }
 function broadcastLobbyUpdate(pin) {
@@ -614,33 +623,25 @@ async function joinGame(ws, user, pin) {
         
         let iconId = 1;
         let colorId = null;
-        // --- KORREKTUR: Hinzugefügte Variablen ---
         let titleId = 1;
         let backgroundId = null;
-        // --- ENDE KORREKTUR ---
 
         if (!user.isGuest) {
             try {
                 const { data: profile, error } = await supabase
                     .from('profiles')
-                    // --- KORREKTUR: Abfrage erweitert ---
                     .select('equipped_icon_id, equipped_color_id, equipped_title_id, equipped_background_id')
-                    // --- ENDE KORREKTUR ---
                     .eq('id', playerId)
                     .single();
                 if (error) throw error;
                 if (profile) {
                     iconId = profile.equipped_icon_id || 1;
                     colorId = profile.equipped_color_id || null;
-                    // --- KORREKTUR: Hinzugefügte Zuweisungen ---
                     titleId = profile.equipped_title_id || 1;
                     backgroundId = profile.equipped_background_id || null;
-                    // --- ENDE KORREKTUR ---
                 }
             } catch (e) {
-                // --- KORREKTUR: Fehlermeldung angepasst ---
                 console.error(`Could not fetch profile items for player ${playerId}:`, e.message);
-                // --- ENDE KORREKTUR ---
             }
         }
         
@@ -656,10 +657,8 @@ async function joinGame(ws, user, pin) {
             lastPointsBreakdown: null,
             iconId: iconId,
             colorId: colorId,
-            // --- KORREKTUR: Neue Felder zum Player-Objekt hinzugefügt ---
             titleId: titleId,
             backgroundId: backgroundId
-            // --- ENDE KORREKTUR ---
         };
         game.players[playerId] = player;
     }
@@ -696,7 +695,7 @@ async function startGameLogic(pin) {
     game.currentRound = 0;
     
     // Pause Spotify, bevor es losgeht
-    // --- KORREKTUR: device_id als URL-Parameter ---
+    // --- KORREKTUR: device_id als URL-Parameter & data=null (via Standard) ---
     await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken);
     // --- ENDE KORREKTUR ---
     await sleep(500); // Kurze Pause
@@ -731,7 +730,7 @@ async function startNewRound(pin) {
     console.log(`Spiel ${pin}, Runde ${game.currentRound}: Song ${track.title}`);
 
     // Starte Spotify-Wiedergabe
-    // --- KORREKTUR: device_id als URL-Parameter ---
+    // --- KORREKTUR: device_id als URL-Parameter & 'data' enthält nur 'uris' ---
     const success = await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
         uris: [`spotify:track:${track.spotifyId}`] 
     });
@@ -767,7 +766,7 @@ async function endRound(pin) {
     game.gameState = 'RESULTS';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTUR: device_id als URL-Parameter ---
+    // --- KORREKTUR: device_id als URL-Parameter & data=null (via Standard) ---
     await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken);
     // --- ENDE KORREKTUR ---
 
@@ -795,7 +794,7 @@ async function endGame(pin, cleanup = true) {
     game.gameState = 'FINISHED';
     if (game.roundTimer) clearTimeout(game.roundTimer);
 
-    // --- KORREKTUR: device_id als URL-Parameter ---
+    // --- KORREKTUR: device_id als URL-Parameter & data=null (via Standard) ---
     await spotifyApiCall('PUT', `https://accounts.spotify.com/authorize...?device_id=${game.settings.deviceId}`, game.spotifyToken);
     // --- ENDE KORREKTUR ---
     
