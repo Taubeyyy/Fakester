@@ -564,12 +564,12 @@
     </div>
     
     <div id="gift-modal-overlay" class="modal-overlay hidden">
-        <div class="modal">
+        <div class="modal" style="gap: 20px;">
             <button class="button-exit-modal" id="close-gift-modal-button">×</button>
-            <h2>Geschenk senden an <span id="gift-recipient-name"></span></h2>
+            <h2>Geschenk senden an <span id="gift-recipient-name" style="color: var(--accent-color);"></span></h2>
             <p>Wähle, was du verschenken möchtest.</p>
-            <input type="number" id="gift-spots-amount" placeholder="Anzahl Spots...">
-            <button id="gift-send-button" class="button-primary">Senden</button>
+            <input type="number" id="gift-spots-amount" placeholder="Anzahl Spots..." min="1">
+            <button id="gift-send-button" class="button-primary" disabled>Senden</button>
         </div>
     </div>
     <div id="invite-friends-modal-overlay" class="modal-overlay hidden selection-modal">

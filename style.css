@@ -1,11 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&display=swap');
 
 :root {
-    /* NEU: Akzentfarben-Variablen */
-    --accent-color: #1DB954; /* Das ist die Farbe, die wir per JS ändern werden */
-    --accent-color-faded: #1db95420; /* Die helle Version der Akzentfarbe */
+    --accent-color: #1DB954; 
+    --accent-color-faded: #1db95420; 
     
-    --primary-color: var(--accent-color); /* Alte Variable nutzt jetzt die neue */
+    --primary-color: var(--accent-color); 
 
     --background-color: #121212;
     --surface-color: #181818;
@@ -33,7 +32,6 @@ body {
 body.is-guest .guest-hidden { display: none !important; }
 body:not(.is-guest) .is-guest { display: none !important; }
 
-/* NEU: Persönlicher Hintergrund-Container */
 .app-background { 
     position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
     z-index: -1; 
@@ -82,7 +80,6 @@ p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 15px; }
 .button-primary { background-color: var(--accent-color); color: var(--background-color); }
 .button-primary:disabled { background-color: var(--medium-grey); color: var(--dark-grey); cursor: not-allowed; opacity: 0.7; }
 
-/* FIX (Punkt 11 - Home-Buttons): Ghost-Style (alt) */
 .button-secondary { 
     background-color: transparent; 
     color: var(--text-color); 
@@ -92,7 +89,6 @@ p { color: var(--text-muted-color); line-height: 1.5; margin-bottom: 15px; }
     background-color: var(--dark-grey);
     border-color: var(--dark-grey);
 }
-/* ENDE FIX */
 
 .button-danger { background-color: var(--danger-color); color: var(--text-color); }
 .button-icon { background: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s ease; flex-shrink: 0; }
@@ -131,14 +127,12 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .username-container { position: relative; display: flex; align-items: center; gap: 8px; cursor: pointer; transition: color 0.3s ease; }
 .username-container h2 { margin-bottom: 0; overflow: visible; text-overflow: clip; font-size: 1.4rem; line-height: 1.3; min-width: 0; }
 
-/* FIX (Punkt 2): Gradienten-Klasse hinzugefügt */
 .gradient-text {
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent !important;
     -webkit-text-fill-color: transparent;
 }
-/* ENDE FIX */
 
 .edit-icon { font-size: 0.8rem; color: var(--text-muted-color); flex-shrink: 0; }
 .profile-title-button { background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
@@ -160,38 +154,43 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .stats-grid-preview .stat-item .stat-label { font-size: 0.7rem; color: var(--text-muted-color); text-transform: uppercase; }
 .home-actions { display: flex; flex-direction: column; gap: 15px; width: 100%; margin-top: 20px; }
 
-/* FIX (Punkt 11): Home-Buttons mit Unschärfe-Effekt */
 .home-actions .button-primary,
 .home-actions .button-secondary {
-    background-color: rgba(24, 24, 24, 0.7); /* Halb-transparentes Schwarz */
+    background-color: rgba(24, 24, 24, 0.7); 
     -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px); /* Unschärfe-Effekt */
+    backdrop-filter: blur(10px); 
     border: 1px solid var(--dark-grey);
-    padding-top: 14px; /* Padding anpassen für Border */
+    padding-top: 14px; 
     padding-bottom: 14px;
 }
+.home-actions .button-primary {
+    background-color: rgba(29, 185, 84, 0.7); 
+    border-color: #1DB954;
+    color: #FFFFFF;
+}
 .home-actions .button-primary:hover {
-    background-color: var(--accent-color);
-    border-color: var(--accent-color);
+    background-color: #1ED760; 
+    border-color: #1ED760;
+}
+.home-actions .button-secondary {
+    border-color: var(--dark-grey);
 }
 .home-actions .button-secondary:hover {
     background-color: var(--dark-grey);
     border-color: var(--medium-grey);
 }
 #spotify-connect-button {
-    background-color: rgba(29, 185, 84, 0.7); /* Spotify Grün mit Unschärfe */
+    background-color: rgba(29, 185, 84, 0.7); 
     border-color: #1DB954;
     color: #FFFFFF;
 }
 #spotify-connect-button:hover {
-    background-color: #1ED760; /* Helleres Grün */
+    background-color: #1ED760; 
     border-color: #1ED760;
 }
-/* ENDE FIX */
 
 .corner-button { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; background-color: var(--dark-grey); color: var(--text-muted-color); border: none; border-radius: 50%; font-size: 1rem; z-index: 100; cursor: pointer; display: flex !important; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 
-/* --- STATS, TITEL & ICON KARTEN --- */
 .stats-full-grid, .selection-grid, .icon-grid { 
     display: grid; 
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
@@ -255,7 +254,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     position: relative;
 }
 .title-card.locked::after, .icon-card.locked::after {
-    content: '\f023'; /* FontAwesome Lock Icon */
+    content: '\f023'; 
     font-family: "Font Awesome 6 Free";
     font-weight: 900;
     position: absolute;
@@ -280,7 +279,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     line-height: 1;
 }
 
-/* Level Fortschritt */
 .level-progress-list { display: flex; flex-direction: column; gap: 15px; }
 .level-progress-item { background-color: var(--surface-color); border: 1px solid var(--dark-grey); border-radius: var(--border-radius); padding: 15px; }
 .level-progress-item.unlocked { border-color: var(--accent-color); background-color: var(--accent-color-faded); }
@@ -294,21 +292,17 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .no-reward { font-size: 0.8rem; color: var(--text-muted-color); font-style: italic; margin-left: 30px;}
 
 
-/* Lobby Screen */
 .lobby-players-container { width: 100%; text-align: left; }
 .lobby-players-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 .player-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 
-/* KORREKTUR: Spieler-Karten-Design (Lobby) */
-/* NEU (Runde 2): Vorbereitung für individuelle Akzentfarben */
 .player-card { 
     background-color: var(--dark-grey); 
     border-radius: var(--border-radius); 
     position: relative; 
     overflow: hidden;
-    min-height: 80px; /* Gib der Karte eine Mindesthöhe */
+    min-height: 80px; 
     border: 1px solid var(--dark-grey);
-    /* Standard-Akzentfarbe (Fallback) */
     --player-accent-color: var(--accent-color);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -321,7 +315,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     top: 0; left: 0; right: 0; bottom: 0;
     background-size: cover;
     background-position: center;
-    opacity: 0.2; /* Damit der Text lesbar bleibt */
+    opacity: 0.2; 
     z-index: 1;
 }
 .player-card-content {
@@ -331,30 +325,28 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     align-items: center;
     gap: 12px;
     padding: 12px;
-    background: linear-gradient(90deg, rgba(40, 40, 40, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%); /* Dunklerer Verlauf für Lesbarkeit */
+    background: linear-gradient(90deg, rgba(40, 40, 40, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%); 
     height: 100%;
     min-height: 80px;
 }
-/* FIX (Host-Krone) - Ersetzt alte .host-Klasse */
 .player-card.is-host .player-card-content {
      border-left: 4px solid var(--player-accent-color);
-     padding-left: 8px; /* Ausgleich für den Border */
+     padding-left: 8px; 
 }
 .player-card .player-icon { 
-    font-size: 1.8rem; /* Größeres Icon */
-    color: var(--text-color); /* Standard-Icon-Farbe */
+    font-size: 1.8rem; 
+    color: var(--text-color); 
     flex-shrink: 0;
     width: 30px;
     text-align: center;
-    position: relative; /* Für Krone */
+    position: relative; 
 }
-/* FIX (Punkt 7): Host-Krone Position */
 .player-card.is-host .player-icon::after {
-    content: '\f521'; /* FontAwesome Crown Icon */
+    content: '\f521'; 
     font-family: "Font Awesome 6 Free";
     font-weight: 900;
     position: absolute;
-    top: -8px; /* HÖHER GESETZT (war -5px) */
+    top: -10px; 
     left: 50%;
     transform: translateX(-50%);
     font-size: 0.8rem;
@@ -362,19 +354,17 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     text-shadow: 0 0 3px #000;
     z-index: 5;
 }
-/* ENDE FIX */
 
 .player-info {
     display: flex;
     flex-direction: column;
     text-align: left;
     gap: 2px;
-    overflow: hidden; /* Verhindert Überlaufen */
+    overflow: hidden; 
 }
 .player-title {
     font-size: 0.75rem;
     font-weight: 700;
-    /* Nutzt jetzt die Spieler-Akzentfarbe */
     color: var(--player-accent-color);
     white-space: nowrap;
     overflow: hidden;
@@ -385,12 +375,11 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     white-space: nowrap; 
     overflow: hidden; 
     text-overflow: ellipsis; 
-    font-size: 1rem; /* Größerer Name */
+    font-size: 1rem; 
     line-height: 1.2;
     transition: color 0.3s ease; 
 }
 
-/* NEU (Runde 2): Unterstützung für Verlaufs-Namen */
 .player-card .player-name[style*="background"] {
     background-clip: text;
     -webkit-background-clip: text;
@@ -400,7 +389,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .player-card.new { animation: slideIn 0.5s ease-out forwards; }
 .player-card.disconnected::after { content: 'Offline'; position: absolute; top:0; left:0; right:0; bottom:0; background: #000000a0; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; z-index: 3; }
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-/* ENDE KORREKTUR */
 
 
 #host-settings { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--dark-grey); width: 100%; display: flex; flex-direction: column; gap: 15px; }
@@ -412,10 +400,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .preset-group { display: flex; gap: 8px; width: 100%; flex-wrap: wrap; }
 .preset-button { flex: 1 1 auto; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); color: var(--text-muted-color); padding: 8px 10px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; min-width: 50px; font-size: 0.8rem; text-align: center; }
 .preset-button:hover { border-color: var(--accent-color); }
-.preset-button:active { transform: scale(0.95); } /* NEU: Animation */
+.preset-button:active { transform: scale(0.95); } 
 .preset-button.active { background-color: var(--accent-color); border-color: var(--accent-color); color: var(--background-color); }
 
-/* FIX (Punkt 6): "Spiel erstellen" Buttons überarbeitet */
 #game-type-selection-screen .preset-button {
     padding: 15px 10px;
     font-size: 1rem;
@@ -433,11 +420,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     color: var(--text-color);
     box-shadow: 0 0 10px var(--accent-color-faded);
 }
-/* ENDE FIX */
 
 .button-start { padding: 15px; font-size: 1.1rem; }
 
-/* --- MODALS --- */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -471,18 +456,18 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     transition: transform 0.3s ease;
     display: flex;
     flex-direction: column;
-    gap: 15px; /* Einheitlicher Abstand im Modal */
+    gap: 15px; 
 }
 .modal-overlay:not(.hidden) .modal {
     transform: scale(1);
 }
 .modal h2 {
     margin-top: 0;
-    margin-bottom: 0; /* Weniger Abstand */
+    margin-bottom: 0; 
     text-align: center;
 }
 .modal p {
-    margin-bottom: 0; /* Weniger Abstand */
+    margin-bottom: 0; 
     text-align: center;
 }
 .button-exit-modal {
@@ -506,12 +491,15 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 
 .selection-modal .selection-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
 
-/* --- Lade-Animation --- */
+#confirm-action-modal-overlay {
+    z-index: 1002;
+}
+
 .loading-overlay { 
     position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-    background: rgba(0,0,0,0.7); /* Etwas dunkler */
+    background: rgba(0,0,0,0.7); 
     display: flex; 
-    flex-direction: column; /* Stapelt Spinner und Text */
+    flex-direction: column; 
     align-items: center; 
     justify-content: center; 
     z-index: 9999; 
@@ -524,21 +512,19 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     color: var(--text-color);
     font-size: 1.1rem;
     font-weight: 700;
-    margin-top: 20px; /* Abstand zum Spinner */
+    margin-top: 20px; 
     text-align: center;
 }
 
 .countdown-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9998; font-size: 8rem; font-weight: 800; color: var(--accent-color); }
 
 
-/* --- TABS (für Freunde & Anpassen-Menü) --- */
 .tabs { display: flex; width: 100%; border-bottom: 1px solid var(--dark-grey); overflow-x: auto; }
 .tab-button { flex: 1; background: none; border: none; color: var(--text-muted-color); padding: 10px; font-size: 1rem; font-weight: 700; cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
 .tab-button.active { color: var(--accent-color); border-bottom-color: var(--accent-color); }
 .tab-content { display: none; margin-top: 15px; }
 .tab-content.active { display: block; }
 
-/* Freunde Modal */
 .friends-modal .add-friend-form { display: flex; gap: 10px; }
 .friends-modal .add-friend-form input { flex-grow: 1; }
 .friends-modal .add-friend-form button { width: auto; padding: 0 15px; }
@@ -551,7 +537,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .friends-modal .friend-actions button { width: 35px; height: 35px; font-size: 0.9rem; padding: 0; }
 .badge { background-color: var(--danger-color); color: white; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-left: 5px; }
 
-/* --- NEU: "Beitreten"-Button in Freundesliste --- */
 .friends-modal li .friend-actions .button-join {
     background-color: var(--accent-color);
     color: var(--background-color);
@@ -565,7 +550,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     filter: brightness(1.2);
 }
 
-/* --- NEU: Popup-Container --- */
 .popup-overlay {
     position: fixed;
     bottom: 90px;
@@ -579,7 +563,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     pointer-events: none;
 }
 
-/* Invite Popup (Angepasst) */
 .invite-popup { 
     width: 100%;
     max-width: 450px;
@@ -600,12 +583,11 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .invite-popup p { margin: 0; font-size: 0.9rem; }
 .invite-popup .invite-actions { display: flex; gap: 10px; }
 
-/* NEU: Freundschaftsanfrage-Popup */
 .friend-request-popup {
     width: 100%;
     max-width: 450px;
     background: var(--surface-color); 
-    border-left: 4px solid var(--success-color); /* Andere Farbe */
+    border-left: 4px solid var(--success-color); 
     padding: 15px; 
     border-radius: 8px; 
     box-shadow: 0 5px 15px rgba(0,0,0,0.3); 
@@ -621,7 +603,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .friend-request-popup .invite-actions { display: flex; gap: 10px; }
 
 
-/* --- ON-PAGE KONSOLE --- */
 .on-page-console {
     position: fixed;
     bottom: 0;
@@ -662,7 +643,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .toggle-console-btn {
     position: fixed;
     bottom: 20px;
-    left: 20px; /* Position unten links */
+    left: 20px; 
     width: 50px;
     height: 50px;
     background-color: var(--dark-grey);
@@ -678,11 +659,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-
-/* ==================
-   Spots & Shop Styles (NEUES DESIGN)
-   ================== */
-
 .header-spots { font-size: 1rem; font-weight: 700; color: var(--accent-color); }
 .header-spots span { font-weight: 800; }
 #shop-screen .container { gap: 25px; }
@@ -694,37 +670,24 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .shop-section h3 { margin-bottom: 15px; padding-bottom: 8px; color: var(--text-muted-color); font-size: 1.1rem; text-align: left; }
 
 .shop-items-container {
-    overflow-x: auto;
-    white-space: nowrap;
     padding-bottom: 15px;
-    margin-left: -20px;
-    margin-right: -20px;
-    padding-left: 20px;
-    padding-right: 20px;
 }
-.shop-items-container { scrollbar-color: var(--medium-grey) var(--dark-grey); scrollbar-width: thin; }
-.shop-items-container::-webkit-scrollbar { height: 8px; }
-.shop-items-container::-webkit-scrollbar-track { background: var(--dark-grey); border-radius: 4px; }
-.shop-items-container::-webkit-scrollbar-thumb { background-color: var(--medium-grey); border-radius: 4px; }
 
-.shop-items-grid.horizontal-scroll {
+.shop-items-grid {
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(150px, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 15px;
-    display: inline-grid;
 }
-.shop-items-grid.horizontal-scroll#shop-icons-list,
-.shop-items-grid.horizontal-scroll#shop-colors-list {
-    grid-auto-columns: minmax(110px, 1fr);
+.shop-items-grid#shop-icons-list,
+.shop-items-grid#shop-colors-list {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
 }
 
-/* NEUES SHOP ITEM DESIGN */
 .shop-item {
     background-color: var(--surface-color); 
-    padding: 0; /* Kein Innenabstand mehr */
+    padding: 0; 
     border-radius: var(--border-radius); 
-    text-align: left; /* Text linksbündig */
+    text-align: left; 
     border: 1px solid var(--dark-grey);
     display: flex; 
     flex-direction: column; 
@@ -736,14 +699,13 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     overflow: hidden;
 }
 .shop-item:hover { 
-    transform: translateY(-4px) scale(1.02); /* NEU: Leichter Zoom-Effekt */
+    transform: translateY(-4px) scale(1.02); 
     box-shadow: 0 6px 15px rgba(0,0,0,0.3);
-    border-color: var(--accent-color); /* Grüner Rand beim Hovern */
+    border-color: var(--accent-color); 
 }
-/* Info-Block unten */
 .shop-item-info {
     padding: 12px;
-    margin-top: auto; /* Schiebt Info nach unten */
+    margin-top: auto; 
     background: var(--surface-color);
     z-index: 2;
 }
@@ -755,13 +717,13 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .shop-item .item-name { font-size: 1rem; font-weight: 700; color: var(--text-color); margin-bottom: 5px; }
 .shop-item .item-description { font-size: 0.75rem; color: var(--text-muted-color); margin-bottom: 10px; line-height: 1.4; }
 .shop-item .item-cost { 
-    font-size: 1.2rem; /* Größer */
+    font-size: 1.2rem; 
     font-weight: 800; 
     color: var(--accent-color); 
 }
 .shop-item .buy-button { 
-    width: auto; /* Nicht mehr volle Breite */
-    position: absolute; /* Oben rechts */
+    width: auto; 
+    position: absolute; 
     top: 10px;
     right: 10px;
     font-size: 0.8rem; 
@@ -771,7 +733,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 }
 .shop-item .buy-button:disabled { background-color: var(--medium-grey); }
 
-/* Shop Item Previews */
 .shop-item .item-preview-icon { 
     font-size: 3rem; 
     margin: 20px auto; 
@@ -782,17 +743,17 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 }
 .shop-item .item-preview-background { 
     width: 100%; 
-    height: 120px; /* Feste Höhe */
+    height: 120px; 
     background-size: cover; 
     background-position: center; 
-    border-radius: 0; /* Keine Rundung oben */
+    border-radius: 0; 
     border-bottom: 1px solid var(--dark-grey); 
     background-color: var(--dark-grey); 
     z-index: 1;
 }
 .shop-item .item-preview-color {
     width: 100%;
-    height: 120px; /* Feste Höhe */
+    height: 120px; 
     border-radius: 0;
     border-bottom: 1px solid var(--dark-grey);
     display: flex;
@@ -803,12 +764,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     text-shadow: 0 0 5px rgba(0,0,0,0.5);
     background-clip: padding-box;
     z-index: 1;
-    /* NEU (Runde 2): Nutzt background statt background-color, um Verläufe zu unterstützen */
     background: var(--dark-grey);
 }
-/* ENDE NEUES SHOP DESIGN */
 
-/* Reaktionen & Gifting */
 .reaction-buttons { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 20px auto 0 auto; max-width: 300px; opacity: 1; transition: opacity 0.2s; }
 .reaction-buttons.cooldown { opacity: 0.5; pointer-events: none; }
 .reaction-btn { font-size: 1.4rem; width: 45px; height: 45px; background-color: var(--dark-grey); transition: transform 0.1s ease; }
@@ -826,7 +784,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 }
 @keyframes floatUpAndFade { 0% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -40px); } }
 
-/* NEU: Reaktion-Pop-up (Clean) */
 .reaction-toast {
     width: 100%;
     max-width: 450px;
@@ -859,17 +816,12 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 
 .button-gift { color: var(--accent-color); width: 35px; height: 35px; font-size: 0.9rem; padding: 0; }
 
-/* Lobby Hintergrund */
 #lobby-screen { 
     background-image: none; 
     background-size: cover; 
     background-position: center; 
     transition: background-image 0.5s ease-in-out, background 0.5s ease-in-out; 
 }
-
-/* ==================
-   Checkbox-Stile
-   ================== */
 
 .guess-types-container {
     display: flex;
@@ -899,11 +851,11 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 .checkbox-custom::after {
-    content: '\f00c'; /* FontAwesome check icon */
+    content: '\f00c'; 
     font-family: "Font Awesome 6 Free";
     font-weight: 900;
     font-size: 0.8rem;
-    color: var(--background-color);
+    color: var(--text-color); 
     position: absolute;
     top: 50%;
     left: 50%;
@@ -927,9 +879,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     text-align: left;
 }
 
-/* ==================
-   iziToast Custom Theme
-   ================== */
 .iziToast.iziToast-layout1 {
     background: var(--dark-grey) !important;
     border-radius: var(--border-radius) !important;
@@ -947,9 +896,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     margin-top: 2px;
 }
 
-/* ==================
-   Anpassungsmenü
-   ================== */
 .color-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
@@ -1005,20 +951,18 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 2rem;
     color: rgba(255, 255, 255, 0.5);
     text-shadow: 0 0 5px rgba(0,0,0,0.5);
-    /* NEU (Runde 2): Nutzt background statt background-color */
     background: var(--dark-grey);
 }
 .color-card .color-name { font-size: 0.8rem; font-weight: 700; }
 .color-card .color-desc { font-size: 0.8rem; color: var(--text-muted-color); }
 
 
-/* FIX (Hintergründe): "Hintergründe"-Menü repariert (aus alter Liste) */
 #owned-backgrounds-list {
     list-style: none;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); /* Angepasst an Kachel-Design */
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); 
     gap: 15px;
-    margin-top: 0 !important; /* Reset von ul */
+    margin-top: 0 !important; 
 }
 .background-card {
     background-color: var(--surface-color);
@@ -1075,16 +1019,12 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 0.8rem;
     color: var(--text-muted-color);
 }
-/* ENDE FIX */
 
 
-/* ==================
-   In-Game Spielerliste (ÜBERARBEITET)
-   ================== */
 .game-player-grid {
     width: 100%;
-    display: grid; /* Geändert von flex zu grid */
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); /* Lässt Karten wachsen */
+    display: grid; 
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
     gap: 8px;
     justify-content: center;
     padding: 10px;
@@ -1095,10 +1035,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     position: relative;
     overflow: hidden;
     border: 1px solid var(--dark-grey);
-    min-height: 70px; /* Höhe angepasst */
+    min-height: 70px; 
     transition: border-color 0.3s ease;
 }
-/* NEU: Visuelles Feedback für "Ready" */
 .game-player-card.is-ready {
     border-color: var(--accent-color);
 }
@@ -1108,14 +1047,13 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     margin-left: auto;
     padding-left: 5px;
 }
-/* --- */
 
 .game-player-card .player-card-background {
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
     background-size: cover;
     background-position: center;
-    opacity: 0.15; /* Etwas dunkler als in der Lobby */
+    opacity: 0.15; 
     z-index: 1;
 }
 .game-player-card .player-card-content {
@@ -1124,32 +1062,30 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 10px; /* Etwas kompakter als Lobby */
+    padding: 8px 10px; 
     background: linear-gradient(90deg, rgba(40, 40, 40, 0.9) 0%, rgba(40, 40, 40, 0.7) 100%);
     height: 100%;
     min-height: 70px;
 }
 .game-player-card .player-icon {
-    font-size: 1.5rem; /* Etwas kleiner als Lobby */
+    font-size: 1.5rem; 
     color: var(--text-color);
     flex-shrink: 0;
     width: 25px;
     text-align: center;
     transition: color 0.3s ease;
-    position: relative; /* Für Krone */
+    position: relative; 
 }
 
-/* FIX (Host-Krone) */
 .game-player-card.is-host {
     border: 1px solid var(--player-accent-color);
 }
-/* FIX (Punkt 7): Host-Krone Position */
 .game-player-card.is-host .player-icon::after {
-    content: '\f521'; /* Crown */
+    content: '\f521'; 
     font-family: "Font Awesome 6 Free";
     font-weight: 900;
     position: absolute;
-    top: -8px; /* HÖHER GESETZT (war -4px) */
+    top: -10px; 
     left: 50%;
     transform: translateX(-50%);
     font-size: 0.7rem;
@@ -1157,18 +1093,17 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     text-shadow: 0 0 3px #000;
     z-index: 5;
 }
-/* ENDE FIX */
 
 .game-player-card .player-info {
     display: flex;
     flex-direction: column;
     text-align: left;
     gap: 1px;
-    overflow: hidden; /* Verhindert Überlaufen */
-    flex-grow: 1; /* Nimmt Platz ein */
+    overflow: hidden; 
+    flex-grow: 1; 
 }
 .game-player-card .player-title {
-    font-size: 0.7rem; /* Kleiner */
+    font-size: 0.7rem; 
     font-weight: 700;
     color: var(--accent-color);
     white-space: nowrap;
@@ -1176,18 +1111,16 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     text-overflow: ellipsis;
 }
 .game-player-card .player-name {
-    font-size: 0.85rem; /* Etwas kleiner */
+    font-size: 0.85rem; 
     font-weight: 700;
     color: var(--text-muted-color);
-    /* NEU (Runde 2): Erlaube Umbruch, um "..." zu verhindern */
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
-    line-height: 1.1; /* Engerer Zeilenabstand */
+    line-height: 1.1; 
     transition: color 0.3s ease;
 }
 
-/* NEU (Runde 2): Unterstützung für Verlaufs-Namen */
 .game-player-card .player-name[style*="background"] {
     background-clip: text;
     -webkit-background-clip: text;
@@ -1198,18 +1131,14 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 1.2rem;
     font-weight: 800;
     color: var(--accent-color);
-    margin-left: auto; /* Schiebt Score nach rechts */
+    margin-left: auto; 
     padding-left: 5px;
 }
 .game-player-card .player-reaction-popup {
      top: -10px;
 }
 
-/* ==================
-   NEU: In-Game Raten & Leaderboard
-   ================== */
 
-/* Timer-Balken (Korrektur) */
 .timer-bar-container {
     width: 100%;
     height: 6px;
@@ -1222,10 +1151,9 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     height: 100%;
     background-color: var(--accent-color);
     border-radius: 3px;
-    transition: width 30s linear; /* Standard, wird von JS überschrieben */
+    transition: width 30s linear; 
 }
 
-/* Raten-UI */
 .guess-container {
     width: 100%;
     display: flex;
@@ -1236,8 +1164,8 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .guess-input {
     font-size: 1.1rem;
     padding: 15px;
-    border-radius: var(--border-radius); /* Runder */
-    background-color: var(--surface-color); /* Dunkler */
+    border-radius: var(--border-radius); 
+    background-color: var(--surface-color); 
     border: 1px solid var(--medium-grey);
 }
 .guess-input::placeholder {
@@ -1250,7 +1178,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     gap: 10px;
 }
 .mc-button-group h3 {
-    grid-column: 1 / -1; /* Titel über volle Breite */
+    grid-column: 1 / -1; 
     text-align: left;
     font-size: 0.9rem;
     color: var(--text-muted-color);
@@ -1262,12 +1190,12 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 0.9rem;
     border-radius: var(--border-radius);
     border: 1px solid var(--medium-grey);
-    background-color: var(--dark-grey); /* Standard-Button-Farbe */
+    background-color: var(--dark-grey); 
     color: var(--text-muted-color);
-    transition: transform 0.1s ease, background-color 0.2s ease; /* NEU: Animation */
+    transition: transform 0.1s ease, background-color 0.2s ease; 
 }
 .mc-button:active {
-    transform: scale(0.97); /* NEU: Animation */
+    transform: scale(0.97); 
 }
 .mc-button.active {
     background-color: var(--accent-color);
@@ -1288,7 +1216,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-weight: 700;
 }
 
-/* Runden-Ergebnis-UI */
 .round-result-container {
     width: 100%;
     display: flex;
@@ -1376,10 +1303,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     color: var(--accent-color);
 }
 
-/* ==================
-   NEU: CSS-Hintergründe
-   ================== */
-
 .app-background.bg-synthwave, .bg-synthwave {
     background: #000020;
     background-image: 
@@ -1437,7 +1360,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     100% { background-position: 0% 50%; }
 }
 
-/* NEU (Runde 2): Modus-Auswahl Animation */
 .mode-box {
     transition: transform 0.2s ease, background-color 0.2s ease;
 }
@@ -1449,7 +1371,6 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     transform: scale(0.98) translateY(0);
 }
 
-/* FIX (Game Over): "Game Over"-Screen Styles */
 #end-screen .container {
     gap: 25px;
 }
@@ -1469,15 +1390,15 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     border: 2px solid var(--dark-grey);
 }
 .end-screen-player.rank-1 {
-    border-color: #FFD700; /* Gold */
+    border-color: #FFD700; 
     background-color: #ffd7001a;
 }
 .end-screen-player.rank-2 {
-    border-color: #C0C0C0; /* Silver */
+    border-color: #C0C0C0; 
     background-color: #c0c0c01a;
 }
 .end-screen-player.rank-3 {
-    border-color: #CD7F32; /* Bronze */
+    border-color: #CD7F32; 
     background-color: #cd7f321a;
 }
 .end-screen-player-info {
@@ -1520,9 +1441,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 #end-screen-rewards p span {
     color: var(--accent-color);
 }
-/* ENDE FIX */
 
-/* FIX (Punkt 1): Gifting-Modal Styles */
 #gift-modal-overlay .modal {
     gap: 20px;
 }
@@ -1530,4 +1449,95 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     color: var(--accent-color);
     font-weight: 800;
 }
-/* ENDE FIX */
+
+.bg-aurora {
+    background: linear-gradient(135deg, #7F00FF, #E100FF, #00BFFF);
+    background-size: 200% 200%;
+    animation: gradientParty 8s ease infinite;
+}
+.bg-comic {
+    background-color: #e0e0e0;
+    background-image: 
+        linear-gradient(90deg, rgba(255,0,0,0.2) 50%, transparent 50%),
+        linear-gradient(rgba(255,0,0,0.2) 50%, transparent 50%);
+    background-size: 50px 50px;
+}
+.bg-matrix {
+    background-color: #000000;
+    background-image: linear-gradient(0deg, transparent 70%, #00FF00 70%);
+    background-size: 2px 15px;
+    animation: matrix 0.5s linear infinite;
+}
+@keyframes matrix {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 0% 100%; }
+}
+.bg-nebula {
+    background: radial-gradient(circle at 20% 30%, #FF00FF 0%, #000000 40%),
+                radial-gradient(circle at 80% 70%, #00FFFF 0%, #000000 40%);
+    background-color: #000010;
+}
+.bg-circuit {
+    background-color: #0a2e36;
+    background-image: linear-gradient(0deg, var(--accent-color-faded) 1px, transparent 1px),
+                      linear-gradient(90deg, var(--accent-color-faded) 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+.bg-lava {
+    background: linear-gradient(45deg, #FF4500, #FFD700, #FF0000);
+    background-size: 200% 200%;
+    animation: gradientParty 5s ease infinite;
+}
+.bg-ice {
+    background: linear-gradient(135deg, #E0FFFF, #B0E0E6, #AFEEEE);
+}
+.bg-desert {
+    background: linear-gradient(180deg, #F0E68C 0%, #D2B48C 70%, #8B4513 100%);
+}
+.bg-metal {
+    background: linear-gradient(90deg, #808080, #C0C0C0, #808080);
+}
+.bg-wood {
+    background-color: #8B4513;
+    background-image: linear-gradient(90deg, rgba(0,0,0,0.1) 50%, transparent 50%);
+    background-size: 50px 50px;
+}
+
+#game-content-area .timeline-container {
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 20px 0;
+    border-top: 2px solid var(--dark-grey);
+    border-bottom: 2px solid var(--dark-grey);
+}
+#game-content-area .timeline-track {
+    display: inline-block;
+    width: 120px;
+    margin: 0 10px;
+    vertical-align: top;
+    text-align: center;
+}
+#game-content-area .timeline-track img {
+    width: 100px;
+    height: 100px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+#game-content-area .timeline-track .track-year {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--accent-color);
+    margin-top: 10px;
+}
+#game-content-area .timeline-track .track-title {
+    font-size: 0.8rem;
+    white-space: normal;
+}
+#game-content-area .song-to-place {
+    margin-top: 20px;
+    background-color: var(--surface-color);
+    border-radius: var(--border-radius);
+    padding: 15px;
+    text-align: center;
+}

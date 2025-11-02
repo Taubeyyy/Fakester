@@ -1,20 +1,8 @@
-// script.js - V2.0 (TEIL 1/2)
-// NEU: Gameplay (Raten, Ready, Leaderboard), Freundes-Popups, Akzentfarben,
-// CSS-Hintergründe, Cooldowns, Level-Spots & alle Bugfixes.
-//
-// --- BRASHKI-FIXES (NEUE LISTE / TEIL 1) ---
-// (Punkt 1, 4, 5, 7) Content-Erweiterung: Alle Item-Listen massiv erweitert.
-// (Punkt 2) Timeline: WebSocket-Handler für 'timeline-start' & 'new-timeline-round' hinzugefügt.
-// (Punkt 5) XP-Fix: showGameOver überarbeitet, ruft End-Screen & updatePlayerProgress() auf.
-// (Punkt 13) Admin-Konsole: initializeApp prüft jetzt auf "Taubey".
-// (Alte Fixes) XSS-Schutz, Host-Krone, Akzentfarben & WS-Reconnect sind implementiert.
-
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
     let pinInput = "", customValueInput = "", currentCustomType = null;
     let currentConfirmAction = null;
 
-    // Globale Speicher für DB-Daten
     let userProfile = {};
     let userUnlockedAchievementIds = [];
     let onlineFriends = []; 
@@ -25,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ownedAccentColorIds = new Set(); 
     let inventory = {};
 
-    let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [], players: [] };
+    let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [], players: [], settings: {} };
     let screenHistory = ['auth-screen'];
 
     let selectedGameMode = null;
@@ -33,14 +21,15 @@ document.addEventListener('DOMContentLoaded', () => {
         gameType: null,
         lives: 3,
         guessTypes: [], 
-        answerType: 'freestyle'
+        answerType: 'freestyle',
+        guessTime: 30
     };
 
     let allPlaylists = [], availableDevices = [], currentPage = 1, itemsPerPage = 10;
     let wsPingInterval = null;
     let guessDebounceTimer = null; 
     let reactionCooldown = false; 
-    let wsRetryCount = 0; // Für Reconnect
+    let wsRetryCount = 0;
     
     let pendingGameInvites = {};
     let inviteCooldowns = {};
@@ -49,7 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
         friendRequest: null
     };
 
-    // --- On-Page Konsole Setup ---
     const consoleOutput = document.getElementById('console-output');
     const onPageConsole = document.getElementById('on-page-console');
     const toggleConsoleBtn = document.getElementById('toggle-console-btn');
@@ -59,7 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const originalConsole = { ...console };
     const formatArg = (arg) => { if (arg instanceof Error) { return `❌ Error: ${arg.message}\nStack:\n${arg.stack || 'No stack trace available'}`; } if (typeof arg === 'object' && arg !== null) { try { return JSON.stringify(arg, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2); } catch (e) { return '[Object (circular structure or stringify failed)]'; } } return String(arg); };
     
-    // (XSS-Fix) 'innerHTML' durch 'textContent' ersetzt für Sicherheit
     const logToPage = (type, args) => { 
         if (!consoleOutput) return; 
         try { 
@@ -70,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const prefix = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: `;
             const pre = document.createElement('pre');
-            pre.textContent = message; // SAFE
+            pre.textContent = message; 
             logEntry.append(prefix, pre);
             
             consoleOutput.appendChild(logEntry); 
@@ -86,9 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
     console.info = (...args) => { originalConsole.info(...args); logToPage('info', args); };
     window.onerror = (message, source, lineno, colno, error) => { const errorArgs = error ? [error] : [message, `at ${source}:${lineno}:${colno}`]; originalConsole.error('Uncaught Error:', ...errorArgs); logToPage('error', ['🚨 Uncaught Error:', ...errorArgs]); return true; };
     window.onunhandledrejection = (event) => { const reason = event.reason instanceof Error ? event.reason : new Error(JSON.stringify(event.reason)); originalConsole.error('Unhandled Promise Rejection:', reason); logToPage('error', ['🚧 Unhandled Promise Rejection:', reason]); };
-    // --- Ende On-Page Konsole ---
 
-    // --- FIX (Punkt 1, 4, 5, 7): ERWEITERTE DATENBANKEN (MEHR CONTENT) ---
     const achievementsList = [ 
         { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, 
         { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' }, 
@@ -116,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 24, name: 'Anpassungs-Künstler', description: 'Ändere dein Icon, Titel und Farbe.' },
         { id: 25, name: 'Willkommen!', description: 'Registriere dein Konto.' },
         { id: 26, name: 'Host-Flucht', description: 'Überlebe ein Spiel, das der Host abgebrochen hat.' },
-        { id: 27, name: 'Schnell-Rater', description: 'Sei der Erste, der in einer Runde auf "Bereit" klickt.' },
+        { id: 27, name: 'Schnell-Rater', description: 'Sei der Erste, der in einer Runde auf "Bereit" klickt.' }, 
         { id: 28, name: 'Bling-Bling', description: 'Rüste eine Gold-Namensfarbe aus.' },
         { id: 29, name: 'Gönner', description: 'Verschenke Spots an einen Freund.' },
         { id: 30, name: 'Loyal', description: 'Spiele 50 Spiele.' },
@@ -220,7 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 216, type: 'icon', name: 'Maske', iconClass: 'fa-masks-theater', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
         { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' } 
     ];
-    // NEU: CSS-Hintergründe statt Bilder
     const backgroundsList = [ 
         { id: 'default', name: 'Standard', cssClass: 'radial-only', cost: 0, unlockType: 'free', type: 'background', backgroundId: 'default'}, 
         { id: '301', name: 'Synthwave', cssClass: 'bg-synthwave', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '301'}, 
@@ -244,7 +228,6 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: '319', name: 'Metall', cssClass: 'bg-metal', cost: 900, unlockType: 'spots', unlockValue: 900, type: 'background', backgroundId: '319'},
         { id: '320', name: 'Holz', cssClass: 'bg-wood', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '320'}
     ];
-    // NEU: Massiv erweiterte Farbliste
     const nameColorsList = [ 
         { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' }, 
         { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' }, 
@@ -258,7 +241,6 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 510, name: 'Schneeweiß', type: 'color', colorHex: '#FFFFFF', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 511, name: 'Tiefschwarz', type: 'color', colorHex: '#010101', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 512, name: 'Feuriges Orange', type: 'color', colorHex: '#ff4500', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
-        // Verläufe
         { id: 550, name: 'Regenbogen', type: 'color', colorHex: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)', cost: 5000, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 551, name: 'Synthwave-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff00ff, #00ffff)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 552, name: 'Sonnen-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
@@ -271,7 +253,6 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 559, name: 'Heller Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #e0e0e0, #ffffff)', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 560, name: 'Metallisch', type: 'color', colorHex: 'linear-gradient(90deg, #808080, #c0c0c0, #808080)', cost: 4000, unlockType: 'spots', description: 'Nur im Shop' }
     ];
-    // NEU: Akzentfarben-Liste
     const accentColorsList = [
         { id: 1, name: 'Fakester Grün', type: 'accent-color', colorHex: '#1DB954', unlockType: 'free', description: 'Standardfarbe' },
         { id: 2, name: 'Spotify Grün', type: 'accent-color', colorHex: '#1ED760', unlockType: 'achievement', unlockValue: 9, description: 'Erfolg: Spotify-Junkie' },
@@ -294,7 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 611, name: 'Dunkle Materie', type: 'accent-color', colorHex: '#010101', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 612, name: 'Lava-Verlauf', type: 'accent-color', colorHex: 'linear-gradient(90deg, #f7b733, #fc4a1a)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' }
     ];
-    // --- ENDE FIX (Punkt 1, 4, 5, 7) ---
     
     const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList, ...accentColorsList];
     window.titlesList = titlesList; window.iconsList = iconsList; window.backgroundsList = backgroundsList; window.nameColorsList = nameColorsList; window.accentColorsList = accentColorsList; window.allItems = allItems;
@@ -335,7 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), }, 
         friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), tabsContainer: document.querySelector('.friends-modal .tabs'), tabs: document.querySelectorAll('.friends-modal .tab-button'), tabContents: document.querySelectorAll('.friends-modal .tab-content') }, 
         inviteFriendsModal: { overlay: document.getElementById('invite-friends-modal-overlay'), closeBtn: document.getElementById('close-invite-modal-button'), list: document.getElementById('online-friends-list') }, 
-        // (Punkt 1) Gifting-Modal Referenzen
         giftModal: { overlay: document.getElementById('gift-modal-overlay'), closeBtn: document.getElementById('close-gift-modal-button'), recipientName: document.getElementById('gift-recipient-name'), spotsAmount: document.getElementById('gift-spots-amount'), sendBtn: document.getElementById('gift-send-button') },
         customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')}, 
         achievements: { grid: document.getElementById('achievement-grid'), screen: document.getElementById('achievements-screen') }, 
@@ -437,7 +416,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const showConfirmModal = (title, text, onConfirm) => { 
-        // (XSS-Fix): Sicherstellen, dass textContent verwendet wird
         elements.confirmActionModal.title.textContent = title; 
         elements.confirmActionModal.text.textContent = text; 
         currentConfirmAction = onConfirm; 
@@ -501,13 +479,11 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Setting up initial UI with fallback data..."); 
         document.body.classList.toggle('is-guest', isGuest); 
         
-        // FIX (Punkt 13): Admin-Konsole anzeigen, wenn "Taubey"
         if (!isGuest && currentUser.username.toLowerCase() === 'taubey') {
             toggleConsoleBtn.classList.remove('hidden');
         }
-        // ENDE FIX
 
-        if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; // SAFE (textContent)
+        if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; 
         if(document.getElementById('profile-title')) equipTitle(userProfile.equipped_title_id || 1, false); 
         if(elements.home.profileIcon) equipIcon(userProfile.equipped_icon_id || 1, false);
         equipColor(userProfile.equipped_color_id, false);
@@ -532,14 +508,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 supabase.from('user_owned_icons').select('icon_id').eq('user_id', user.id), 
                 supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', user.id),
                 supabase.from('user_owned_colors').select('color_id').eq('user_id', user.id),
-                supabase.from('user_owned_accent_colors').select('accent_color_id').eq('user_id', user.id), // NEU
+                supabase.from('user_owned_accent_colors').select('accent_color_id').eq('user_id', user.id), 
                 supabase.from('user_inventory').select('item_id, quantity').eq('user_id', user.id) 
             ]).then((results) => { 
-                const [profileResult, titlesResult, iconsResult, backgroundsResult, colorsResult, accentColorsResult, inventoryResult] = results; // NEU
+                const [profileResult, titlesResult, iconsResult, backgroundsResult, colorsResult, accentColorsResult, inventoryResult] = results; 
                 if (profileResult.error || !profileResult.data) { 
                     console.error("BG Profile Error:", profileResult.error || "No data"); 
                     if (!profileResult.error?.details?.includes("0 rows")) showToast("Fehler beim Laden des Profils.", true); 
-                    document.getElementById('welcome-nickname').textContent = currentUser.username; // SAFE (textContent)
+                    document.getElementById('welcome-nickname').textContent = currentUser.username; 
                     updatePlayerProgressDisplay(); 
                     updateStatsDisplay(); 
                     updateSpotsDisplay(); 
@@ -547,7 +523,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     userProfile = profileResult.data; 
                     currentUser.username = profileResult.data.username; 
                     console.log("BG Profile fetched:", userProfile); 
-                    document.getElementById('welcome-nickname').textContent = currentUser.username; // SAFE (textContent)
+                    document.getElementById('welcome-nickname').textContent = currentUser.username; 
                     equipTitle(userProfile.equipped_title_id || 1, false); 
                     equipIcon(userProfile.equipped_icon_id || 1, false); 
                     equipColor(userProfile.equipped_color_id, false);
@@ -561,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ownedIconIds = new Set(iconsResult.data?.map(i => i.icon_id) || []); 
                 ownedBackgroundIds = new Set(backgroundsResult.data?.map(b => b.background_id) || []);
                 ownedColorIds = new Set(colorsResult.data?.map(c => c.color_id) || []);
-                ownedAccentColorIds = new Set(accentColorsResult.data?.map(a => a.accent_color_id) || []); // NEU
+                ownedAccentColorIds = new Set(accentColorsResult.data?.map(a => a.accent_color_id) || []); 
                 inventory = {}; 
                 inventoryResult.data?.forEach(item => inventory[item.item_id] = item.quantity); 
                 console.log("BG Owned items fetched:", { T: ownedTitleIds.size, I: ownedIconIds.size, B: ownedBackgroundIds.size, C: ownedColorIds.size, A: ownedAccentColorIds.size, Inv: Object.keys(inventory).length }); 
@@ -665,7 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("WebSocket connected successfully.");
             
             showToast("Server verbunden!", false); 
-            wsRetryCount = 0; // (Reconnect-Fix) Retry-Zähler zurücksetzen
+            wsRetryCount = 0; 
 
             if (currentUser && !currentUser.isGuest) {
                 ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id, username: currentUser.username } }));
@@ -692,7 +668,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("WebSocket Error:", error);
         };
 
-        // (Reconnect-Fix): Automatische Reconnect-Logik
         ws.socket.onclose = (event) => {
             console.warn(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
             if (wsPingInterval) clearInterval(wsPingInterval);
@@ -700,14 +675,13 @@ document.addEventListener('DOMContentLoaded', () => {
             ws.socket = null;
             
             const maxRetries = 5;
-            // 1000 = normal close (logout), 1005 = no status
             if (event.code !== 1000 && event.code !== 1005 && wsRetryCount < maxRetries) {
                  wsRetryCount++;
-                 const delay = Math.pow(2, wsRetryCount) * 1000 + (Math.random() * 1000); // Exponential backoff
+                 const delay = Math.pow(2, wsRetryCount) * 1000 + (Math.random() * 1000); 
                  showToast(`Serververbindung verloren. Versuche erneut in ${Math.round(delay/1000)}s...`, true);
                  setTimeout(() => {
                     console.log(`WebSocket: Reconnect attempt ${wsRetryCount}...`);
-                    connectWebSocket(); // Versuche erneut zu verbinden
+                    connectWebSocket(); 
                  }, delay);
             } else if (wsRetryCount >= maxRetries) {
                 showToast("Reconnect fehlgeschlagen. Bitte lade die Seite neu.", true);
@@ -748,31 +722,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 showScreen('game-screen');
                 break;
             
-            // FIX (Punkt 2): Timeline-Events
             case 'timeline-start':
                 setLoading(false);
-                setupTimelineStart(payload); // TODO: Diese Funktion in Teil 2 erstellen
+                setupTimelineStart(payload); 
                 showScreen('game-screen');
                 break;
             case 'new-timeline-round': 
                 setLoading(false);
-                setupTimelineRound(payload); // TODO: Diese Funktion in Teil 2 erstellen
+                setupTimelineRound(payload); 
                 showScreen('game-screen');
                 break;
-            // ENDE FIX
 
             case 'round-result':
-                // TODO (Punkt 2): Hier prüfen, ob gameMode === 'timeline' und ggf. eine andere Funktion aufrufen
-                showRoundResult(payload); 
+                if (currentGame.gameMode === 'timeline') {
+                    showTimelineResult(payload);
+                } else {
+                    showRoundResult(payload); 
+                }
                 break;
             
-            // FIX (Punkt 5): Game Over leitet jetzt zu showGameOver weiter
             case 'game-over':
                 setLoading(false);
                 pendingGameInvites = {};
-                showGameOver(payload); // Diese Funktion zeigt jetzt den End-Screen an
+                showGameOver(payload); 
                 break;
-            // ENDE FIX
 
             case 'player-reacted':
                 displayReaction(payload.playerId, payload.nickname, payload.iconId, payload.reaction);
@@ -799,9 +772,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentGame.isHost = hostId === currentUser.id;
         currentGame.gameMode = gameMode;
         currentGame.players = players; 
+        currentGame.settings = settings; 
         
         gameCreationSettings.guessTypes = settings.guessTypes || [];
         gameCreationSettings.answerType = settings.answerType || 'freestyle';
+        gameCreationSettings.guessTime = settings.guessTime || 30;
 
         if (elements.lobby.pinDisplay) {
             elements.lobby.pinDisplay.textContent = pin;
@@ -824,17 +799,14 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingGameInvites = {};
     }
     
-    // FIX (Punkt 5): Game-Over-Funktion überarbeitet
     function showGameOver(payload) {
         console.log("Game Over. Payload:", payload);
         
-        // (Altes Fix) Musik stoppen, falls sie noch läuft
         if (spotifyToken && currentGame.settings?.deviceId) {
-            spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=$${currentGame.settings.deviceId}`, spotifyToken, null);
+            spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${currentGame.settings.deviceId}`, spotifyToken, null);
         }
 
         if (payload.message) {
-            // Host hat das Spiel verlassen
             const myPlayer = payload.scores.find(p => p.id === currentUser.id);
             const mySpots = myPlayer ? Math.max(1, Math.floor((myPlayer.score || 0) * 0.10)) : 0;
             
@@ -842,21 +814,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 "Spiel beendet", 
                 `Der Host hat das Spiel verlassen.\nDir werden ${mySpots} 🎵 als Trostpreis gutgeschrieben.`, 
                 () => {
-                    updatePlayerProgress(); // Lade Trostpreis-Stats
+                    updatePlayerProgress(); 
                     showScreen('home-screen');
                 }
             );
-            // (Altes Fix) Nur "OK"-Button
             elements.confirmActionModal.cancelBtn.classList.add('hidden'); 
             elements.confirmActionModal.confirmBtn.classList.remove('hidden');
         
         } else {
-            // Normales Spielende - zeige neuen Screen
             const leaderboardEl = elements.endScreen.leaderboard;
             const xpEl = elements.endScreen.xp;
             const spotsEl = elements.endScreen.spots;
             
-            if (leaderboardEl) leaderboardEl.innerHTML = ''; // Clear previous
+            if (leaderboardEl) leaderboardEl.innerHTML = ''; 
             
             const myResult = payload.scores.find(p => p.id === currentUser.id);
             
@@ -865,7 +835,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const playerEl = document.createElement('div');
                 playerEl.className = `end-screen-player rank-${rank}`;
                 
-                // (XSS-Fix): Manuelles DOM-Building
                 const infoEl = document.createElement('div');
                 infoEl.className = 'end-screen-player-info';
                 
@@ -875,7 +844,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 const nameEl = document.createElement('span');
                 nameEl.className = 'end-screen-player-name';
-                nameEl.textContent = player.nickname; // SAFE
+                nameEl.textContent = player.nickname; 
                 
                 infoEl.append(rankEl, nameEl);
                 
@@ -895,16 +864,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(spotsEl) spotsEl.textContent = '0';
             }
             
-            // (Punkt 5) Lade die neuen Stats/XP/Spots vom Server, *nachdem* das Spiel vorbei ist
             updatePlayerProgress(); 
             showScreen('end-screen');
         }
         
         if(elements.game.playerList) elements.game.playerList.innerHTML = '';
     }
-    // ENDE FIX
 
-    // (XSS-Fix, Host-Krone, Akzentfarben): renderPlayerList komplett überarbeitet
     function renderPlayerList(players, hostId) {
         if (!elements.lobby.playerList) return;
         elements.lobby.playerList.innerHTML = ''; 
@@ -915,7 +881,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const isHost = player.id === hostId;
             const playerCard = document.createElement('div');
             playerCard.className = 'player-card';
-            playerCard.classList.toggle('is-host', isHost); // (Host-Krone)
+            playerCard.classList.toggle('is-host', isHost); 
             playerCard.dataset.playerId = player.id;
             
             const iconData = iconsList.find(i => i.id === player.iconId) || iconsList[0];
@@ -928,13 +894,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const backgroundData = backgroundsList.find(b => b.backgroundId === player.backgroundId);
             const backgroundStyle = backgroundData ? backgroundData.cssClass : 'radial-only';
             
-            // (Akzentfarben)
             const accentColorData = accentColorsList.find(c => c.id === player.accentColorId) || accentColorsList[0];
             if (accentColorData) {
                 playerCard.style.setProperty('--player-accent-color', accentColorData.colorHex);
             }
             
-            // --- Manuelles DOM-Building (XSS-Sicher) ---
             const backgroundEl = document.createElement('div');
             backgroundEl.className = `player-card-background ${backgroundStyle}`;
             
@@ -949,12 +913,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const titleEl = document.createElement('span');
             titleEl.className = 'player-title';
-            titleEl.textContent = titleData.name; // SAFE
+            titleEl.textContent = titleData.name; 
             
             const nameEl = document.createElement('span');
             nameEl.className = 'player-name';
             nameEl.style.cssText = colorStyle;
-            nameEl.textContent = player.nickname || 'Unbekannt'; // SAFE
+            nameEl.textContent = player.nickname || 'Unbekannt'; 
             
             infoEl.append(titleEl, nameEl);
             contentEl.append(iconEl, infoEl);
@@ -964,7 +928,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // (XSS-Fix, Host-Krone, Akzentfarben): renderGamePlayerList komplett überarbeitet
     function renderGamePlayerList(players, hostId) { 
         if (!elements.game.playerList) return;
         elements.game.playerList.innerHTML = ''; 
@@ -976,7 +939,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const playerCard = document.createElement('div');
             playerCard.className = 'game-player-card';
             playerCard.classList.toggle('is-ready', player.isReady); 
-            playerCard.classList.toggle('is-host', isHost); // (Host-Krone)
+            playerCard.classList.toggle('is-host', isHost); 
             playerCard.dataset.playerId = player.id;
             
             const iconData = iconsList.find(i => i.id === player.iconId) || iconsList[0];
@@ -989,13 +952,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const backgroundData = backgroundsList.find(b => b.backgroundId === player.backgroundId);
             const backgroundStyle = backgroundData ? backgroundData.cssClass : 'radial-only';
             
-            // (Akzentfarben)
             const accentColorData = accentColorsList.find(c => c.id === player.accentColorId) || accentColorsList[0];
             if (accentColorData) {
                 playerCard.style.setProperty('--player-accent-color', accentColorData.colorHex);
             }
             
-            // --- Manuelles DOM-Building (XSS-Sicher) ---
             const backgroundEl = document.createElement('div');
             backgroundEl.className = `player-card-background ${backgroundStyle}`;
             
@@ -1010,12 +971,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const titleEl = document.createElement('span');
             titleEl.className = 'player-title';
-            titleEl.textContent = titleData.name; // SAFE
+            titleEl.textContent = titleData.name; 
             
             const nameEl = document.createElement('span');
             nameEl.className = 'player-name';
             nameEl.style.cssText = colorStyle;
-            nameEl.textContent = player.nickname || 'Unbekannt'; // SAFE
+            nameEl.textContent = player.nickname || 'Unbekannt'; 
             
             infoEl.append(titleEl, nameEl);
             
@@ -1120,7 +1081,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 rewardText += ` & ${reward.type === 'title' ? 'Titel' : 'Icon'}: ${reward.name || reward.iconClass}`;
             }
 
-            // SAFE: Daten aus hardcodierter achievementsList
             card.innerHTML = `
                 <h3>${isHidden ? '???' : ach.name}</h3>
                 <p>${isHidden ? '???' : ach.description}</p>
@@ -1142,7 +1102,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         userProfile.equipped_title_id = titleId;
         if (elements.home.profileTitleBtn) {
-            elements.home.profileTitleBtn.querySelector('span').textContent = title.name; // SAFE (textContent)
+            elements.home.profileTitleBtn.querySelector('span').textContent = title.name; 
         }
         renderTitles(); 
         renderCustomTitles(); 
@@ -2027,7 +1987,47 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.game.round.textContent = data.round;
         elements.game.totalRounds.textContent = data.totalRounds;
     
-        elements.game.gameContentArea.innerHTML = '<h2>Timeline-Raten (UI STUB)</h2>'; 
+        const trackToGuess = data.trackToGuess;
+        const currentTimeline = data.currentTimeline;
+        
+        const container = document.createElement('div');
+        container.className = 'guess-container';
+        
+        const h2 = document.createElement('h2');
+        h2.textContent = 'Wohin gehört dieser Song?';
+        container.appendChild(h2);
+        
+        const songToPlace = document.createElement('div');
+        songToPlace.className = 'song-to-place';
+        songToPlace.textContent = `${trackToGuess.title} - ${trackToGuess.artist}`;
+        container.appendChild(songToPlace);
+        
+        const timelineContainer = document.createElement('div');
+        timelineContainer.className = 'timeline-container';
+        
+        currentTimeline.forEach(track => {
+            const trackEl = document.createElement('div');
+            trackEl.className = 'timeline-track';
+            
+            const img = document.createElement('img');
+            img.src = track.albumArtUrl || '';
+            
+            const year = document.createElement('span');
+            year.className = 'track-year';
+            year.textContent = track.year;
+            
+            const title = document.createElement('span');
+            title.className = 'track-title';
+            title.textContent = track.title;
+            
+            trackEl.append(img, year, title);
+            timelineContainer.appendChild(trackEl);
+        });
+        
+        container.appendChild(timelineContainer);
+        
+        elements.game.gameContentArea.innerHTML = '';
+        elements.game.gameContentArea.appendChild(container);
         
         elements.game.timerBar.style.transition = 'none';
         elements.game.timerBar.style.width = '100%';
@@ -2129,6 +2129,54 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.game.gameContentArea.innerHTML = '';
         elements.game.gameContentArea.appendChild(container);
         
+        renderGamePlayerList(data.scores, currentGame.isHost ? currentGame.playerId : null); 
+    }
+    
+    function showTimelineResult(data) {
+        console.log("Timeline Round Result", data);
+        
+        elements.game.timerBar.style.transition = 'none';
+        elements.game.timerBar.style.width = '0%';
+        
+        const correct = data.correctTrack;
+        
+        const container = document.createElement('div');
+        container.className = 'round-result-container';
+        
+        const h2 = document.createElement('h2');
+        h2.textContent = 'Runde vorbei!';
+        container.appendChild(h2);
+        
+        const card = document.createElement('div');
+        card.className = 'correct-answer-card';
+        
+        const img = document.createElement('img');
+        img.src = correct.albumArtUrl || '';
+        img.alt = 'Album Art';
+        img.className = 'album-art';
+        
+        const trackInfo = document.createElement('div');
+        trackInfo.className = 'track-info';
+        
+        const title = document.createElement('span');
+        title.className = 'track-title';
+        title.textContent = correct.title; 
+        
+        const artist = document.createElement('span');
+        artist.className = 'track-artist';
+        artist.textContent = correct.artist; 
+        
+        const year = document.createElement('span');
+        year.className = 'track-year';
+        year.textContent = correct.year; 
+        
+        trackInfo.append(title, artist, year);
+        card.append(img, trackInfo);
+        container.appendChild(card);
+        
+        elements.game.gameContentArea.innerHTML = '';
+        elements.game.gameContentArea.appendChild(container);
+
         renderGamePlayerList(data.scores, currentGame.isHost ? currentGame.playerId : null); 
     }
     
@@ -2520,12 +2568,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         elements.giftModal.sendBtn.onclick = () => {
             const amount = parseInt(elements.giftModal.spotsAmount.value, 10);
-            if (!amount || amount <= 0) {
-                showToast("Ungültige Anzahl.", true);
-                return;
-            }
-            if (amount > userProfile.spots) {
-                showToast("Du hast nicht genug Spots.", true);
+            if (!amount || amount <= 0 || amount > userProfile.spots) {
+                showToast("Ungültige Anzahl oder nicht genug Spots.", true);
                 return;
             }
             
@@ -2599,7 +2643,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             elements.leaveGameButton?.addEventListener('click', goBack);
             elements.leaveConfirmModal.cancelBtn?.addEventListener('click', () => elements.leaveConfirmModal.overlay.classList.add('hidden'));
-            elements.leaveConfirmModal.confirmBtn?.addEventListener('click', () => { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type: 'leave-game', payload: { pin: currentGame.pin, playerId: currentGame.playerId } })); } localStorage.removeItem('fakesterGame'); currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [] }; screenHistory = ['auth-screen', 'home-screen']; showScreen('home-screen'); elements.leaveConfirmModal.overlay.classList.add('hidden'); });
+            elements.leaveConfirmModal.confirmBtn?.addEventListener('click', () => { if (ws.socket && ws.socket.readyState === WebSocket.OPEN) { ws.socket.send(JSON.stringify({ type: 'leave-game', payload: { pin: currentGame.pin, playerId: currentGame.playerId } })); } localStorage.removeItem('fakesterGame'); currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [], players: [], settings: {} }; screenHistory = ['auth-screen', 'home-screen']; showScreen('home-screen'); elements.leaveConfirmModal.overlay.classList.add('hidden'); });
 
             elements.auth.loginForm?.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signInWithPassword.bind(supabase.auth), e.target, false); });
             elements.auth.registerForm?.addEventListener('submit', (e) => { e.preventDefault(); handleAuthAction(supabase.auth.signUp.bind(supabase.auth), e.target, true); });
@@ -2635,7 +2679,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     selectedGameMode=mb.dataset.mode; 
                     console.log(`Mode: ${selectedGameMode}`); 
                     
-                    gameCreationSettings = { gameType: null, lives: 3, guessTypes: [], answerType: 'freestyle' };
+                    gameCreationSettings = { gameType: null, lives: 3, guessTypes: [], answerType: 'freestyle', guessTime: 30 };
                     
                     if (elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=true; 
                     if (elements.gameTypeScreen.pointsBtn) elements.gameTypeScreen.pointsBtn.classList.remove('active'); 
@@ -2874,6 +2918,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             });
+
+            elements.giftModal.spotsAmount?.addEventListener('input', () => {
+                try {
+                    const amount = parseInt(elements.giftModal.spotsAmount.value, 10);
+                    const canAfford = amount > 0 && amount <= userProfile.spots;
+                    elements.giftModal.sendBtn.disabled = !canAfford;
+                } catch (e) {
+                    elements.giftModal.sendBtn.disabled = true;
+                }
+            });
             
             elements.inviteFriendsModal.list?.addEventListener('click', (e) => {
                 const btn = e.target.closest('button[data-friend-id]');
@@ -2885,7 +2939,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ws.socket.send(JSON.stringify({ type: 'invite-friend', payload: { friendId: friendId } }));
                     
                     btn.disabled = true;
-                    btn.innerHTML = `${btn.textContent} <span style="color:var(--text-muted-color); font-size: 0.8rem;"> (Warte...)</span>`;
+                    btn.textContent = `${btn.textContent} (Gesendet)`;
                     inviteCooldowns[friendId] = true;
                     
                     setTimeout(() => {
@@ -2893,7 +2947,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const friend = onlineFriends.find(f => f.id === friendId);
                         if (btn) { 
                             btn.disabled = false;
-                            btn.innerHTML = friend ? friend.username : 'Freund';
+                            btn.textContent = friend ? friend.username : 'Freund';
                         }
                     }, 10000); 
                 }
