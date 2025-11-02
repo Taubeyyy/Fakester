@@ -8,10 +8,6 @@
 // NEU: Reaktionen sind kostenlos und senden mehr Spieler-Daten für Pop-up.
 // NEU: Persönliche Hintergründe (Host ändert sie nicht mehr für alle).
 // NEU: Vorbereitet für Akzentfarben (lädt equipped_accent_color_id).
-// ---
-// ÄNDERUNG (Runde 2): 'endRound'-Logik prüft jetzt 'game.settings.answerType' für striktes (MC) vs. tolerantes (Freestyle) Scoring.
-// ÄNDERUNG (Runde 2): 'handlePlayerDisconnect' sendet jetzt eine Toast-Nachricht, wenn ein normaler Spieler geht.
-// ÄNDERUNG (Runde 2): 'shopItems' zurückgesetzt auf Originalzustand (per User-Wunsch).
 
 const WebSocket = require('ws');
 const http = require('http');
@@ -87,7 +83,6 @@ const onlineUsers = new Map(); // Speichert { userId: ws }
 const HEARTBEAT_INTERVAL = 30000;
 
 // --- Shop Data (ERWEITERT) ---
-// HINWEIS: Zurückgesetzt auf Originalzustand (per User-Wunsch)
 const shopItems = [
     // Titel
     { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Zeige allen dein Wissen!' },
@@ -707,17 +702,6 @@ async function handlePlayerDisconnect(ws) {
         console.log(`Game ${pin} deleted because host left.`);
         return; 
     }
-
-    // ÄNDERUNG (Runde 2): Sende "Spieler verlassen" Popup, wenn es NICHT der Host war
-    if (game.gameState !== 'FINISHED') {
-        broadcastToLobby(pin, {
-            type: 'toast',
-            payload: {
-                message: `${player.nickname} hat das Spiel verlassen.`,
-                isError: false 
-            }
-        });
-    }
     
     if (game.gameState === 'PLAYING') {
         const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
@@ -942,9 +926,6 @@ async function endRound(pin) {
     const correctTrack = game.currentTrack;
     const guessTypes = game.settings.guessTypes;
     
-    // ÄNDERUNG (Runde 2): Strikte Prüfung für MC, tolerante für Freestyle
-    const isMultipleChoice = game.settings.answerType === 'multiple';
-    
     Object.values(game.players).forEach(player => {
         if (!player.isConnected || player.isGuest) return; 
 
@@ -953,56 +934,34 @@ async function endRound(pin) {
         let breakdown = {};
 
         if (guessTypes.includes('title')) {
-            if (isMultipleChoice) {
-                // Strikte Prüfung für Multiple Choice
-                if (guess.title === correctTrack.title) {
-                    roundScore += 100;
-                    breakdown.title = { points: 100, text: "Titel (Richtig)" };
-                } else {
-                    breakdown.title = { points: 0, text: "Titel (Falsch)" };
-                }
-            } else {
-                // Tolerante Prüfung für Freestyle
-                const normalizedGuess = normalizeAnswer(guess.title || '');
-                const normalizedAnswer = normalizeAnswer(correctTrack.title);
-                const distance = getLevenshteinDistance(normalizedGuess, normalizedAnswer);
+            const normalizedGuess = normalizeAnswer(guess.title || '');
+            const normalizedAnswer = normalizeAnswer(correctTrack.title);
+            const distance = getLevenshteinDistance(normalizedGuess, normalizedAnswer);
 
-                if (distance === 0) { 
-                    roundScore += 100;
-                    breakdown.title = { points: 100, text: "Titel (Perfekt!)" };
-                } else if (distance <= 2) { 
-                    roundScore += 75;
-                    breakdown.title = { points: 75, text: "Titel (Fast...)" };
-                } else {
-                    breakdown.title = { points: 0, text: "Titel (Falsch)" };
-                }
+            if (distance === 0) { 
+                roundScore += 100;
+                breakdown.title = { points: 100, text: "Titel (Perfekt!)" };
+            } else if (distance <= 2) { 
+                roundScore += 75;
+                breakdown.title = { points: 75, text: "Titel (Fast...)" };
+            } else {
+                breakdown.title = { points: 0, text: "Titel (Falsch)" };
             }
         }
         
         if (guessTypes.includes('artist')) {
-            if (isMultipleChoice) {
-                // Strikte Prüfung für Multiple Choice
-                if (guess.artist === correctTrack.artist) {
-                    roundScore += 50;
-                    breakdown.artist = { points: 50, text: "Künstler (Richtig)" };
-                } else {
-                    breakdown.artist = { points: 0, text: "Künstler (Falsch)" };
-                }
-            } else {
-                // Tolerante Prüfung für Freestyle
-                const normalizedGuess = normalizeAnswer(guess.artist || '');
-                const normalizedAnswer = normalizeAnswer(correctTrack.artist);
-                const distance = getLevenshteinDistance(normalizedGuess, normalizedAnswer);
+            const normalizedGuess = normalizeAnswer(guess.artist || '');
+            const normalizedAnswer = normalizeAnswer(correctTrack.artist);
+            const distance = getLevenshteinDistance(normalizedGuess, normalizedAnswer);
 
-                if (distance === 0) {
-                    roundScore += 50;
-                    breakdown.artist = { points: 50, text: "Künstler (Perfekt!)" };
-                } else if (distance <= 2) {
-                    roundScore += 25;
-                    breakdown.artist = { points: 25, text: "Künstler (Fast...)" };
-                } else {
-                    breakdown.artist = { points: 0, text: "Künstler (Falsch)" };
-                }
+            if (distance === 0) {
+                roundScore += 50;
+                breakdown.artist = { points: 50, text: "Künstler (Perfekt!)" };
+            } else if (distance <= 2) {
+                roundScore += 25;
+                breakdown.artist = { points: 25, text: "Künstler (Fast...)" };
+            } else {
+                breakdown.artist = { points: 0, text: "Künstler (Falsch)" };
             }
         }
         
@@ -1010,28 +969,17 @@ async function endRound(pin) {
             const guessYear = parseInt(guess.year, 10);
             const correctYear = correctTrack.year;
             
-            if (isMultipleChoice) {
-                // Strikte Prüfung für Multiple Choice (Jahr)
-                 if (guessYear === correctYear) {
-                    roundScore += 75;
-                    breakdown.year = { points: 75, text: "Jahr (Richtig)" };
-                 } else {
-                    breakdown.year = { points: 0, text: "Jahr (Falsch)" };
-                 }
+            if (guessYear === correctYear) { 
+                roundScore += 75;
+                breakdown.year = { points: 75, text: "Jahr (Exakt!)" };
+            } else if (Math.abs(guessYear - correctYear) <= 2) { 
+                roundScore += 30;
+                breakdown.year = { points: 30, text: "Jahr (Nah dran)" };
+            } else if (Math.abs(guessYear - correctYear) <= 5) { 
+                roundScore += 10;
+                breakdown.year = { points: 10, text: "Jahr (OK)" };
             } else {
-                // Tolerante Prüfung für Freestyle (Jahr)
-                if (guessYear === correctYear) { 
-                    roundScore += 75;
-                    breakdown.year = { points: 75, text: "Jahr (Exakt!)" };
-                } else if (Math.abs(guessYear - correctYear) <= 2) { 
-                    roundScore += 30;
-                    breakdown.year = { points: 30, text: "Jahr (Nah dran)" };
-                } else if (Math.abs(guessYear - correctYear) <= 5) { 
-                    roundScore += 10;
-                    breakdown.year = { points: 10, text: "Jahr (OK)" };
-                } else {
-                    breakdown.year = { points: 0, text: "Jahr (Falsch)" };
-                }
+                breakdown.year = { points: 0, text: "Jahr (Falsch)" };
             }
         }
         

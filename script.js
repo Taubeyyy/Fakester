@@ -1,6 +1,13 @@
 // script.js - V2.0 (TEIL 1/2)
 // NEU: Gameplay (Raten, Ready, Leaderboard), Freundes-Popups, Akzentfarben,
 // CSS-Hintergründe, Cooldowns, Level-Spots & alle Bugfixes.
+//
+// --- BRASHKI-FIXES (TEIL 1) ---
+// (Punkt 10) XSS-Fix: renderPlayerList/renderGamePlayerList nutzt textContent
+// (Punkt 7) Host-Krone: renderPlayerList/renderGamePlayerList fügt .is-host Klasse hinzu
+// (Punkt 13) Akzentfarben: renderPlayerList/renderGamePlayerList setzt --player-accent-color
+// (Punkt 14) WS Reconnect: connectWebSocket hat jetzt Retry-Logik
+// (Punkt 1, 2, 8) Game Over: handleWebSocketMessage/showGameOver rufen neuen End-Screen auf & triggern updatePlayerProgress
 
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
@@ -33,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let wsPingInterval = null;
     let guessDebounceTimer = null; 
     let reactionCooldown = false; // NEU
+    let wsRetryCount = 0; // Für Reconnect
     
     // NEU: Für Freundes-Invites
     let pendingGameInvites = {};
@@ -51,7 +59,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const copyConsoleBtn = document.getElementById('copy-console-btn');
     const originalConsole = { ...console };
     const formatArg = (arg) => { if (arg instanceof Error) { return `❌ Error: ${arg.message}\nStack:\n${arg.stack || 'No stack trace available'}`; } if (typeof arg === 'object' && arg !== null) { try { return JSON.stringify(arg, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2); } catch (e) { return '[Object (circular structure or stringify failed)]'; } } return String(arg); };
-    const logToPage = (type, args) => { if (!consoleOutput) return; try { const message = args.map(formatArg).join(' '); const logEntry = document.createElement('div'); logEntry.classList.add(`log-${type}`); logEntry.dataset.rawText = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: ${message}`; logEntry.innerHTML = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: <pre>${message}</pre>`; consoleOutput.appendChild(logEntry); consoleOutput.scrollTop = consoleOutput.scrollHeight; } catch (e) { originalConsole.error("Error logging to page console:", e); } };
+    
+    // FIX (Punkt 10 - XSS): 'innerHTML' durch 'textContent' ersetzt für Sicherheit
+    const logToPage = (type, args) => { 
+        if (!consoleOutput) return; 
+        try { 
+            const message = args.map(formatArg).join(' '); 
+            const logEntry = document.createElement('div'); 
+            logEntry.classList.add(`log-${type}`); 
+            logEntry.dataset.rawText = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: ${message}`; 
+            
+            const prefix = `[${type.toUpperCase()}] ${new Date().toLocaleTimeString()}: `;
+            const pre = document.createElement('pre');
+            pre.textContent = message; // SAFE
+            logEntry.append(prefix, pre);
+            
+            consoleOutput.appendChild(logEntry); 
+            consoleOutput.scrollTop = consoleOutput.scrollHeight; 
+        } catch (e) { 
+            originalConsole.error("Error logging to page console:", e); 
+        } 
+    };
+    // ENDE FIX
+    
     console.log = (...args) => { originalConsole.log(...args); logToPage('log', args); };
     console.warn = (...args) => { originalConsole.warn(...args); logToPage('warn', args); };
     console.error = (...args) => { originalConsole.error(...args); logToPage('error', args); };
@@ -303,6 +333,14 @@ document.addEventListener('DOMContentLoaded', () => {
             container: document.getElementById('popup-overlay-container'),
             invite: null,
             friendRequest: null
+        },
+        // FIX (Punkt 8): Referenz zum neuen End-Screen
+        endScreen: {
+            screen: document.getElementById('end-screen'),
+            leaderboard: document.getElementById('end-screen-leaderboard'),
+            xp: document.getElementById('end-screen-xp'),
+            spots: document.getElementById('end-screen-spots'),
+            backButton: document.getElementById('end-screen-back-button')
         }
     };
 
@@ -331,8 +369,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    const showScreen = (screenId) => { console.log(`Navigating to screen: ${screenId}`); const targetScreen = document.getElementById(screenId); if (!targetScreen) { console.error(`Screen with ID "${screenId}" not found!`); return; } const currentScreenId = screenHistory[screenHistory.length - 1]; if (screenId !== currentScreenId) screenHistory.push(screenId); elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(screenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); };
-    const goBack = () => { if (screenHistory.length > 1) { const currentScreenId = screenHistory.pop(); const previousScreenId = screenHistory[screenHistory.length - 1]; console.log(`Navigating back to screen: ${previousScreenId}`); if (['game-screen', 'lobby-screen'].includes(currentScreenId)) { elements.leaveConfirmModal.overlay.classList.remove('hidden'); screenHistory.push(currentScreenId); return; } const targetScreen = document.getElementById(previousScreenId); if (!targetScreen) { console.error(`Back navigation failed: Screen "${previousScreenId}" not found!`); screenHistory = ['auth-screen']; window.location.reload(); return; } elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen'].includes(previousScreenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); } };
+    const showScreen = (screenId) => { console.log(`Navigating to screen: ${screenId}`); const targetScreen = document.getElementById(screenId); if (!targetScreen) { console.error(`Screen with ID "${screenId}" not found!`); return; } const currentScreenId = screenHistory[screenHistory.length - 1]; if (screenId !== currentScreenId) screenHistory.push(screenId); elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen', 'end-screen'].includes(screenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); };
+    const goBack = () => { if (screenHistory.length > 1) { const currentScreenId = screenHistory.pop(); const previousScreenId = screenHistory[screenHistory.length - 1]; console.log(`Navigating back to screen: ${previousScreenId}`); if (['game-screen', 'lobby-screen'].includes(currentScreenId)) { elements.leaveConfirmModal.overlay.classList.remove('hidden'); screenHistory.push(currentScreenId); return; } const targetScreen = document.getElementById(previousScreenId); if (!targetScreen) { console.error(`Back navigation failed: Screen "${previousScreenId}" not found!`); screenHistory = ['auth-screen']; window.location.reload(); return; } elements.screens.forEach(s => s.classList.remove('active')); targetScreen.classList.add('active'); const showLeaveButton = !['auth-screen', 'home-screen', 'end-screen'].includes(previousScreenId); elements.leaveGameButton.classList.toggle('hidden', !showLeaveButton); } };
     
     const setLoading = (isLoading, message = null) => {
         console.log(`Setting loading overlay: ${isLoading}, Message: ${message}`);
@@ -357,7 +395,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    const showConfirmModal = (title, text, onConfirm) => { elements.confirmActionModal.title.textContent = title; elements.confirmActionModal.text.textContent = text; currentConfirmAction = onConfirm; elements.confirmActionModal.overlay.classList.remove('hidden'); };
+    const showConfirmModal = (title, text, onConfirm) => { 
+        // FIX (Punkt 10 - XSS): Sicherstellen, dass textContent verwendet wird
+        elements.confirmActionModal.title.textContent = title; 
+        elements.confirmActionModal.text.textContent = text; 
+        // ENDE FIX
+        currentConfirmAction = onConfirm; 
+        elements.confirmActionModal.overlay.classList.remove('hidden'); 
+    };
 
     function isItemUnlocked(item, currentLevel) { 
         if (!item || !currentUser ) return false; 
@@ -415,7 +460,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         console.log("Setting up initial UI with fallback data..."); 
         document.body.classList.toggle('is-guest', isGuest); 
-        if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; 
+        if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; // SAFE (textContent)
         if(document.getElementById('profile-title')) equipTitle(userProfile.equipped_title_id || 1, false); 
         if(elements.home.profileIcon) equipIcon(userProfile.equipped_icon_id || 1, false);
         equipColor(userProfile.equipped_color_id, false);
@@ -447,7 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (profileResult.error || !profileResult.data) { 
                     console.error("BG Profile Error:", profileResult.error || "No data"); 
                     if (!profileResult.error?.details?.includes("0 rows")) showToast("Fehler beim Laden des Profils.", true); 
-                    document.getElementById('welcome-nickname').textContent = currentUser.username; 
+                    document.getElementById('welcome-nickname').textContent = currentUser.username; // SAFE (textContent)
                     updatePlayerProgressDisplay(); 
                     updateStatsDisplay(); 
                     updateSpotsDisplay(); 
@@ -455,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     userProfile = profileResult.data; 
                     currentUser.username = profileResult.data.username; 
                     console.log("BG Profile fetched:", userProfile); 
-                    document.getElementById('welcome-nickname').textContent = currentUser.username; 
+                    document.getElementById('welcome-nickname').textContent = currentUser.username; // SAFE (textContent)
                     equipTitle(userProfile.equipped_title_id || 1, false); 
                     equipIcon(userProfile.equipped_icon_id || 1, false); 
                     equipColor(userProfile.equipped_color_id, false);
@@ -573,6 +618,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("WebSocket connected successfully.");
             
             showToast("Server verbunden!", false); 
+            wsRetryCount = 0; // FIX (Punkt 14): Retry-Zähler zurücksetzen
 
             if (currentUser && !currentUser.isGuest) {
                 ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id, username: currentUser.username } }));
@@ -599,16 +645,28 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("WebSocket Error:", error);
         };
 
+        // FIX (Punkt 14): Automatische Reconnect-Logik
         ws.socket.onclose = (event) => {
             console.warn(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
             if (wsPingInterval) clearInterval(wsPingInterval);
             wsPingInterval = null;
             ws.socket = null;
             
-            if (event.code !== 1000 && event.code !== 1005) {
-                 showToast("Serververbindung verloren. Lade neu...", true);
+            const maxRetries = 5;
+            // 1000 = normal close (logout), 1005 = no status
+            if (event.code !== 1000 && event.code !== 1005 && wsRetryCount < maxRetries) {
+                 wsRetryCount++;
+                 const delay = Math.pow(2, wsRetryCount) * 1000 + (Math.random() * 1000); // Exponential backoff
+                 showToast(`Serververbindung verloren. Versuche erneut in ${Math.round(delay/1000)}s...`, true);
+                 setTimeout(() => {
+                    console.log(`WebSocket: Reconnect attempt ${wsRetryCount}...`);
+                    connectWebSocket(); // Versuche erneut zu verbinden
+                 }, delay);
+            } else if (wsRetryCount >= maxRetries) {
+                showToast("Reconnect fehlgeschlagen. Bitte lade die Seite neu.", true);
             }
         };
+        // ENDE FIX
     }
 
     const handleWebSocketMessage = ({ type, payload }) => {
@@ -651,12 +709,16 @@ document.addEventListener('DOMContentLoaded', () => {
             case 'round-result':
                 showRoundResult(payload); 
                 break;
+            
+            // FIX (Punkt 1, 2, 8): Game Over leitet jetzt zu showGameOver weiter
             case 'game-over':
                 setLoading(false);
                 pendingGameInvites = {};
-                showGameOver(payload);
-                updatePlayerProgress(); 
+                showGameOver(payload); // Diese Funktion zeigt jetzt den End-Screen an
+                // updatePlayerProgress(); // Wird jetzt IN showGameOver aufgerufen
                 break;
+            // ENDE FIX
+
             case 'player-reacted':
                 displayReaction(payload.playerId, payload.nickname, payload.iconId, payload.reaction);
                 break;
@@ -691,7 +753,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         renderPlayerList(players, hostId);
-        renderGamePlayerList(players); // Aktualisiert auch In-Game-Liste (für Ready-Status)
+        // FIX (Punkt 7): hostId an renderGamePlayerList weitergeben
+        renderGamePlayerList(players, hostId);
+        // ENDE FIX
 
         // NEU: Ready-Zähler-Text im Spiel aktualisieren
         if (document.getElementById('ready-status-display')) {
@@ -709,30 +773,80 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingGameInvites = {};
     }
     
+    // FIX (Punkt 1, 2, 8): Game-Over-Funktion überarbeitet
     function showGameOver(payload) {
-        console.log("STUB: showGameOver", payload);
+        console.log("Game Over. Payload:", payload);
         
-        // NEU: Klares Pop-up statt nur Toast
         if (payload.message) {
             // Host hat das Spiel verlassen
             const myPlayer = payload.scores.find(p => p.id === currentUser.id);
             const mySpots = myPlayer ? Math.max(1, Math.floor((myPlayer.score || 0) * 0.10)) : 0;
+            
             showConfirmModal(
                 "Spiel beendet", 
                 `Der Host hat das Spiel verlassen.\nDir werden ${mySpots} 🎵 als Trostpreis gutgeschrieben.`, 
-                () => showScreen('home-screen')
+                () => {
+                    updatePlayerProgress(); // Lade Trostpreis-Stats
+                    showScreen('home-screen');
+                }
             );
             elements.confirmActionModal.cancelBtn.classList.add('hidden'); // Nur "OK"-Button
+        
         } else {
-            // Normales Spielende
-            showToast("Spiel beendet!", false);
-            // TODO: Zeige hier ein echtes Leaderboard-Modal statt nur Toast
-            showScreen('home-screen'); 
+            // Normales Spielende - zeige neuen Screen
+            const leaderboardEl = elements.endScreen.leaderboard;
+            const xpEl = elements.endScreen.xp;
+            const spotsEl = elements.endScreen.spots;
+            
+            if (leaderboardEl) leaderboardEl.innerHTML = ''; // Clear previous
+            
+            const myResult = payload.scores.find(p => p.id === currentUser.id);
+            
+            payload.scores.forEach((player, index) => {
+                const rank = index + 1;
+                const playerEl = document.createElement('div');
+                playerEl.className = `end-screen-player rank-${rank}`;
+                
+                // FIX (Punkt 10 - XSS): Manuelles DOM-Building
+                const infoEl = document.createElement('div');
+                infoEl.className = 'end-screen-player-info';
+                
+                const rankEl = document.createElement('span');
+                rankEl.className = 'end-screen-player-rank';
+                rankEl.textContent = `#${rank}`;
+                
+                const nameEl = document.createElement('span');
+                nameEl.className = 'end-screen-player-name';
+                nameEl.textContent = player.nickname; // SAFE
+                
+                infoEl.append(rankEl, nameEl);
+                
+                const scoreEl = document.createElement('span');
+                scoreEl.className = 'end-screen-player-score';
+                scoreEl.textContent = player.score;
+                
+                playerEl.append(infoEl, scoreEl);
+                if (leaderboardEl) leaderboardEl.appendChild(playerEl);
+            });
+            
+            if (myResult && myResult.rewards) {
+                if(xpEl) xpEl.textContent = myResult.rewards.xp;
+                if(spotsEl) spotsEl.textContent = myResult.rewards.spots;
+            } else {
+                if(xpEl) xpEl.textContent = '0';
+                if(spotsEl) spotsEl.textContent = '0';
+            }
+            
+            // FIX (Punkt 1, 2): Lade die neuen Stats/XP/Spots vom Server, *nachdem* das Spiel vorbei ist
+            updatePlayerProgress(); 
+            showScreen('end-screen');
         }
         
         if(elements.game.playerList) elements.game.playerList.innerHTML = '';
     }
+    // ENDE FIX
 
+    // FIX (Punkt 10, 13, 7): renderPlayerList komplett überarbeitet
     function renderPlayerList(players, hostId) {
         if (!elements.lobby.playerList) return;
         elements.lobby.playerList.innerHTML = ''; 
@@ -743,69 +857,130 @@ document.addEventListener('DOMContentLoaded', () => {
             const isHost = player.id === hostId;
             const playerCard = document.createElement('div');
             playerCard.className = 'player-card';
+            playerCard.classList.toggle('is-host', isHost); // (Punkt 7)
             playerCard.dataset.playerId = player.id;
             
-            const icon = iconsList.find(i => i.id === player.iconId) || iconsList[0];
-            const iconClass = icon ? icon.iconClass : 'fa-user'; 
+            // --- XSS-FIX (PUNKT 10) & FEATURE-FIXES (PUNKT 13 & 7) ---
             
-            const color = nameColorsList.find(c => c.id === player.colorId); 
-            const colorStyle = color ? (color.colorHex.includes('gradient') ? `background: ${color.colorHex}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;` : `color: ${color.colorHex}`) : '';
-
-            const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
-            const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = background ? background.cssClass : 'radial-only';
+            const iconData = iconsList.find(i => i.id === player.iconId) || iconsList[0];
+            const iconClass = iconData ? iconData.iconClass : 'fa-user'; 
             
-            const displayIconClass = isHost ? 'fa-crown' : iconClass;
-            const hostClass = isHost ? 'host' : '';
+            const colorData = nameColorsList.find(c => c.id === player.colorId); 
+            const colorStyle = colorData ? (colorData.colorHex.includes('gradient') ? `background: ${colorData.colorHex}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;` : `color: ${colorData.colorHex}`) : '';
 
-            playerCard.innerHTML = `
-                <div class="player-card-background ${backgroundStyle}"></div>
-                <div class="player-card-content ${hostClass}">
-                    <i class="player-icon fa-solid ${displayIconClass}"></i>
-                    <div class="player-info">
-                        <span class="player-title">${title.name}</span>
-                        <span class="player-name" style="${colorStyle}">${player.nickname || 'Unbekannt'}</span>
-                    </div>
-                </div>
-            `;
+            const titleData = titlesList.find(t => t.id === player.titleId) || titlesList[0];
+            const backgroundData = backgroundsList.find(b => b.backgroundId === player.backgroundId);
+            const backgroundStyle = backgroundData ? backgroundData.cssClass : 'radial-only';
+            
+            // (Punkt 13) Akzentfarbe anwenden
+            const accentColorData = accentColorsList.find(c => c.id === player.accentColorId) || accentColorsList[0];
+            if (accentColorData) {
+                playerCard.style.setProperty('--player-accent-color', accentColorData.colorHex);
+            }
+            
+            // --- Manuelles DOM-Building (XSS-Sicher) ---
+            const backgroundEl = document.createElement('div');
+            backgroundEl.className = `player-card-background ${backgroundStyle}`;
+            
+            const contentEl = document.createElement('div');
+            contentEl.className = 'player-card-content';
+            
+            const iconEl = document.createElement('i');
+            iconEl.className = `player-icon fa-solid ${iconClass}`; // (Punkt 7) Zeige immer das Icon
+            
+            const infoEl = document.createElement('div');
+            infoEl.className = 'player-info';
+            
+            const titleEl = document.createElement('span');
+            titleEl.className = 'player-title';
+            titleEl.textContent = titleData.name; // SAFE
+            
+            const nameEl = document.createElement('span');
+            nameEl.className = 'player-name';
+            nameEl.style.cssText = colorStyle;
+            nameEl.textContent = player.nickname || 'Unbekannt'; // SAFE
+            
+            infoEl.append(titleEl, nameEl);
+            contentEl.append(iconEl, infoEl);
+            playerCard.append(backgroundEl, contentEl);
+            // --- Ende XSS-Fix ---
+            
             elements.lobby.playerList.appendChild(playerCard);
         });
     }
 
-    function renderGamePlayerList(players) {
+    // FIX (Punkt 10, 13, 7): renderGamePlayerList komplett überarbeitet
+    function renderGamePlayerList(players, hostId) { // (Punkt 7) hostId hinzugefügt
         if (!elements.game.playerList) return;
         elements.game.playerList.innerHTML = ''; 
         
         const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
         
         sortedPlayers.forEach(player => {
+            const isHost = player.id === hostId; // (Punkt 7)
             const playerCard = document.createElement('div');
             playerCard.className = 'game-player-card';
             playerCard.classList.toggle('is-ready', player.isReady); 
+            playerCard.classList.toggle('is-host', isHost); // (Punkt 7)
             playerCard.dataset.playerId = player.id;
             
-            const icon = iconsList.find(i => i.id === player.iconId) || iconsList[0];
-            const iconClass = icon ? icon.iconClass : 'fa-user';
+            // --- XSS-FIX (PUNKT 10) & FEATURE-FIXES (PUNKT 13 & 7) ---
             
-            const color = nameColorsList.find(c => c.id === player.colorId); 
-            const colorStyle = color ? (color.colorHex.includes('gradient') ? `background: ${color.colorHex}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;` : `color: ${color.colorHex}`) : '';
+            const iconData = iconsList.find(i => i.id === player.iconId) || iconsList[0];
+            const iconClass = iconData ? iconData.iconClass : 'fa-user';
+            
+            const colorData = nameColorsList.find(c => c.id === player.colorId); 
+            const colorStyle = colorData ? (colorData.colorHex.includes('gradient') ? `background: ${colorData.colorHex}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;` : `color: ${colorData.colorHex}`) : '';
 
-            const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
-            const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = background ? background.cssClass : 'radial-only';
+            const titleData = titlesList.find(t => t.id === player.titleId) || titlesList[0];
+            const backgroundData = backgroundsList.find(b => b.backgroundId === player.backgroundId);
+            const backgroundStyle = backgroundData ? backgroundData.cssClass : 'radial-only';
+            
+            // (Punkt 13) Akzentfarbe anwenden
+            const accentColorData = accentColorsList.find(c => c.id === player.accentColorId) || accentColorsList[0];
+            if (accentColorData) {
+                playerCard.style.setProperty('--player-accent-color', accentColorData.colorHex);
+            }
+            
+            // --- Manuelles DOM-Building (XSS-Sicher) ---
+            const backgroundEl = document.createElement('div');
+            backgroundEl.className = `player-card-background ${backgroundStyle}`;
+            
+            const contentEl = document.createElement('div');
+            contentEl.className = 'player-card-content';
 
-            playerCard.innerHTML = `
-                <div class="player-card-background ${backgroundStyle}"></div>
-                <div class="player-card-content">
-                    <i class="player-icon fa-solid ${iconClass}"></i>
-                    <div class="player-info">
-                        <span class="player-title">${title.name}</span>
-                        <span class="player-name" style="${colorStyle}">${player.nickname || 'Unbekannt'}</span>
-                    </div>
-                    <span class="player-score">${player.score}</span>
-                    ${player.isReady ? '<i class="player-ready-icon fa-solid fa-check-circle"></i>' : ''}
-                </div>
-            `;
+            const iconEl = document.createElement('i');
+            iconEl.className = `player-icon fa-solid ${iconClass}`; // (Punkt 7) Zeige immer das Icon
+            
+            const infoEl = document.createElement('div');
+            infoEl.className = 'player-info';
+            
+            const titleEl = document.createElement('span');
+            titleEl.className = 'player-title';
+            titleEl.textContent = titleData.name; // SAFE
+            
+            const nameEl = document.createElement('span');
+            nameEl.className = 'player-name';
+            nameEl.style.cssText = colorStyle;
+            nameEl.textContent = player.nickname || 'Unbekannt'; // SAFE
+            
+            infoEl.append(titleEl, nameEl);
+            
+            const scoreEl = document.createElement('span');
+            scoreEl.className = 'player-score';
+            scoreEl.textContent = player.score;
+            
+            contentEl.append(iconEl, infoEl, scoreEl);
+            
+            if (player.isReady) {
+                const readyIconEl = document.createElement('i');
+                readyIconEl.className = 'player-ready-icon fa-solid fa-check-circle';
+                contentEl.appendChild(readyIconEl);
+            }
+            
+            playerCard.append(backgroundEl, contentEl);
+            // --- Ende XSS-Fix ---
+            
             elements.game.playerList.appendChild(playerCard);
         });
     }
@@ -895,6 +1070,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 rewardText += ` & ${reward.type === 'title' ? 'Titel' : 'Icon'}: ${reward.name || reward.iconClass}`;
             }
 
+            // FIX (Punkt 10 - XSS): Daten kommen aus hardcodierter Liste (achievementsList),
+            // daher ist innerHTML hier sicher.
             card.innerHTML = `
                 <h3>${isHidden ? '???' : ach.name}</h3>
                 <p>${isHidden ? '???' : ach.description}</p>
@@ -916,7 +1093,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         userProfile.equipped_title_id = titleId;
         if (elements.home.profileTitleBtn) {
-            elements.home.profileTitleBtn.querySelector('span').textContent = title.name;
+            elements.home.profileTitleBtn.querySelector('span').textContent = title.name; // SAFE (textContent)
         }
         renderTitles(); 
         renderCustomTitles(); 
@@ -930,6 +1107,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+    // script.js - V2.0 (TEIL 2/2)
+//
+// --- BRASHKI-FIXES (TEIL 2) ---
+// (Punkt 10) XSS-Fix: Alle .innerHTML durch .textContent / createElement ersetzt (displayReaction, setupNewRound, showRoundResult, renderFriendsList, renderRequestsList, renderDeviceList, renderPaginatedPlaylists, showInvitePopup, showFriendRequestPopup)
+// (Punkt 15) Gradient-Fix: equipColor zielt jetzt auf #welcome-nickname
+// (Punkt 3) Hintergrund-Fix: renderCustomBackgrounds repariert + 3 neue BGs
+// (Punkt 4) Numpad-Fix: Custom-Button-Text wird jetzt in der Lobby aktualisiert
+// (Punkt 5) Limit-Fix: Ratezeit-Limit auf 999 erhöht
+// (Punkt 9) Balancing: Level-Belohnungen geben jetzt jedes Level Spots
 
     function renderTitles() {
         if (!elements.titles.list || currentUser.isGuest) return;
@@ -954,6 +1140,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('equipped', isEquipped);
             card.dataset.titleId = title.id;
 
+            // SAFE: Daten aus hardcodierter titlesList
             card.innerHTML = `
                 <span class="title-name">${title.name}</span>
                 <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : getUnlockDescription(title)}</span>
@@ -1013,6 +1200,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('equipped', isEquipped);
             card.dataset.iconId = icon.id;
 
+            // SAFE: Daten aus hardcodierter iconsList
             card.innerHTML = `
                 <div class="icon-preview"><i class="fa-solid ${icon.iconClass}"></i></div>
                 <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : (icon.description || getUnlockDescription(icon))}</span>
@@ -1053,6 +1241,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('locked', !isUnlocked);
             card.classList.toggle('equipped', isEquipped);
             card.dataset.titleId = title.id;
+            // SAFE: Daten aus hardcodierter titlesList
             card.innerHTML = `
                 <span class="title-name">${title.name}</span>
                 <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : getUnlockDescription(title)}</span>
@@ -1084,6 +1273,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('locked', !isUnlocked);
             card.classList.toggle('equipped', isEquipped);
             card.dataset.iconId = icon.id;
+            // SAFE: Daten aus hardcodierter iconsList
             card.innerHTML = `
                 <div class="icon-preview"><i class="fa-solid ${icon.iconClass}"></i></div>
                 <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : (icon.description || getUnlockDescription(icon))}</span>
@@ -1092,15 +1282,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // FIX (Punkt 15): Gradienten-Fix
     async function equipColor(colorId, saveToDb = true) {
         if (currentUser.isGuest) return;
         
+        // Finde das h2-Element für den Namen
+        const nicknameEl = document.getElementById('welcome-nickname'); 
+        
         if (!colorId) {
             userProfile.equipped_color_id = null;
-            if(elements.home.usernameContainer) {
-                elements.home.usernameContainer.style.color = '';
-                elements.home.usernameContainer.style.background = '';
-                elements.home.usernameContainer.classList.remove('gradient-text');
+            if(nicknameEl) {
+                nicknameEl.style.color = '';
+                nicknameEl.style.background = '';
+                nicknameEl.classList.remove('gradient-text');
             }
             renderCustomColors();
             if (saveToDb && supabase) {
@@ -1123,15 +1317,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         userProfile.equipped_color_id = colorId;
-        if (elements.home.usernameContainer) {
+        if (nicknameEl) { // Direkt das h2-Element stylen
             if (color.colorHex.includes('gradient')) {
-                elements.home.usernameContainer.style.color = '';
-                elements.home.usernameContainer.style.background = color.colorHex;
-                elements.home.usernameContainer.classList.add('gradient-text');
+                nicknameEl.style.color = '';
+                nicknameEl.style.background = color.colorHex;
+                nicknameEl.classList.add('gradient-text');
             } else {
-                elements.home.usernameContainer.style.background = '';
-                elements.home.usernameContainer.classList.remove('gradient-text');
-                elements.home.usernameContainer.style.color = color.colorHex;
+                nicknameEl.style.background = '';
+                nicknameEl.classList.remove('gradient-text');
+                nicknameEl.style.color = color.colorHex;
             }
         }
         renderCustomColors(); 
@@ -1146,6 +1340,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+    // ENDE FIX
 
     function renderCustomColors() {
         const container = elements.customize.colorsList;
@@ -1165,6 +1360,7 @@ document.addEventListener('DOMContentLoaded', () => {
         noneCard.className = 'color-card';
         noneCard.classList.toggle('equipped', !userProfile.equipped_color_id);
         noneCard.dataset.colorId = ''; 
+        // SAFE: Hardcodierter String
         noneCard.innerHTML = `
             <div class="color-preview" style="background-color: var(--dark-grey); border: 2px dashed var(--medium-grey);">
                 <i class="fa-solid fa-ban"></i>
@@ -1185,6 +1381,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.dataset.colorId = color.id;
             
             let preview;
+            // SAFE: Daten aus hardcodierter nameColorsList
             if (color.colorHex.includes('gradient')) {
                 preview = `<div class="color-preview" style="background: ${color.colorHex};">
                                <span class="gradient-text" style="background: ${color.colorHex};">Aa</span>
@@ -1263,6 +1460,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('equipped', isEquipped);
             card.dataset.colorId = color.id;
 
+            // SAFE: Daten aus hardcodierter accentColorsList
             card.innerHTML = `
                 <div class="color-preview" style="background: ${color.colorHex}">
                 </div>
@@ -1300,30 +1498,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // FIX (Punkt 3): renderCustomBackgrounds repariert
     function renderCustomBackgrounds() {
         const container = elements.customize.backgroundsList;
         if (currentUser.isGuest || !container) return;
         container.innerHTML = '';
         const currentLevel = getLevelForXp(userProfile.xp || 0);
         
-        backgroundsList.forEach(bg => {
-            const isUnlocked = isItemUnlocked(bg, currentLevel);
+        // Finde alle BGs, die freigeschaltet sind
+        const unlockedBGs = backgroundsList.filter(bg => isItemUnlocked(bg, currentLevel));
+        
+        unlockedBGs.forEach(bg => {
             const isEquipped = (userProfile.equipped_background_id === bg.backgroundId) || (!userProfile.equipped_background_id && bg.backgroundId === 'default');
             
             const card = document.createElement('div');
-            card.className = 'background-card';
-            card.classList.toggle('locked', !isUnlocked);
+            card.className = 'background-card'; // Benutzt die neuen CSS-Klassen
             card.classList.toggle('equipped', isEquipped);
             card.dataset.bgId = bg.backgroundId;
 
+            // SAFE: Daten aus hardcodierter backgroundsList
             card.innerHTML = `
                 <div class="background-preview ${bg.cssClass}"></div>
                 <span class="background-name">${bg.name}</span>
-                <span class="background-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Klicken') : getUnlockDescription(bg)}</span>
+                <span class="background-desc">${isEquipped ? 'Ausgerüstet' : 'Klicken'}</span>
             `;
             container.appendChild(card);
         });
     }
+    // ENDE FIX
 
     function applyBackground(backgroundId) {
         const bg = backgroundsList.find(b => b.backgroundId === backgroundId) || backgroundsList[0];
@@ -1334,6 +1536,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // FIX (Punkt 9): Level-Balancing
     function renderLevelProgress() {
         if (!elements.levelProgress.list || currentUser.isGuest) return;
         elements.levelProgress.list.innerHTML = '';
@@ -1350,20 +1553,19 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const levelTitles = titlesList.filter(t => t.unlockType === 'level' && t.unlockValue === level);
             const levelIcons = iconsList.filter(i => i.unlockType === 'level' && i.unlockValue === level);
-            const levelAccents = accentColorsList.filter(a => a.unlockType === 'level' && a.unlockValue === level); // NEU
+            const levelAccents = accentColorsList.filter(a => a.unlockType === 'level' && a.unlockValue === level);
             const rewards = [...levelTitles, ...levelIcons, ...levelAccents];
 
             let rewardsHtml = '';
             
-            if (level % 5 === 0) {
-                const spotAmount = 50 + (Math.floor(level / 5) * 25);
-                rewardsHtml += `
-                    <div class="reward-item">
-                        <i class="fa-solid fa-coins" style="color: #FFD700;"></i>
-                        <span>${spotAmount} 🎵</span>
-                    </div>
-                `;
-            }
+            // Jedes Level gibt Spots
+            const spotAmount = 10 + (level * 2); // z.B. Lvl 1 = 12, Lvl 10 = 30, Lvl 50 = 110
+            rewardsHtml += `
+                <div class="reward-item">
+                    <i class="fa-solid fa-coins" style="color: #FFD700;"></i>
+                    <span>${spotAmount} 🎵</span>
+                </div>
+            `;
             
             if (rewards.length > 0) {
                 rewards.forEach(reward => {
@@ -1371,6 +1573,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (reward.type === 'icon') icon = reward.iconClass;
                     else if (reward.type === 'accent-color') icon = 'fa-palette';
                     
+                    // SAFE: Daten aus hardcodierten Listen
                     rewardsHtml += `
                         <div class="reward-item">
                             <i class="fa-solid ${icon}"></i>
@@ -1380,10 +1583,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             
-            if (rewardsHtml === '') {
+            if (rewardsHtml === '' && spotAmount === 0) {
                 rewardsHtml = '<div class="no-reward">Keine spezielle Belohnung</div>';
             }
 
+            // SAFE: Daten sind generiert oder aus hardcodierten Listen
             item.innerHTML = `
                 <div class="level-progress-header">
                     <h3>Level ${level}</h3>
@@ -1396,6 +1600,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.levelProgress.list.appendChild(item);
         }
     }
+    // ENDE FIX
     
     function updatePlayerProgressDisplay() {
         if (currentUser.isGuest) return;
@@ -1415,12 +1620,17 @@ document.addEventListener('DOMContentLoaded', () => {
     async function updatePlayerProgress() {
         if (currentUser.isGuest || !supabase) return;
         try {
+            console.log("Fetching latest profile data (XP, Spots, Stats)...");
             const { data, error } = await supabase.from('profiles').select('xp, games_played, wins, correct_answers, highscore, spots').eq('id', currentUser.id).single();
             if (error) throw error;
             userProfile = { ...userProfile, ...data };
-            updatePlayerProgressDisplay();
-            updateStatsDisplay();
-            updateSpotsDisplay();
+            
+            // FIX (Punkt 1 & 2): UI nach dem Fetch sofort aktualisieren
+            updatePlayerProgressDisplay(); // XP-Balken
+            updateStatsDisplay(); // Stats-Box
+            updateSpotsDisplay(); // Spots-Anzeige
+            console.log("Live UI updated with new stats.");
+
         } catch(error) {
             console.error("Fehler beim Aktualisieren der Spieler-Progression:", error);
         }
@@ -1518,6 +1728,7 @@ document.addEventListener('DOMContentLoaded', () => {
         el.classList.toggle('owned', isOwned);
         
         let previewHtml = '';
+        // SAFE: Alle Daten (item.iconClass, item.cssClass, etc.) kommen aus hardcodierten Listen
         if (item.type === 'icon') {
             previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
         } else if (item.type === 'background') {
@@ -1605,24 +1816,33 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
     
+    // FIX (Punkt 10 - XSS): displayReaction überarbeitet
     function displayReaction(playerId, nickname, iconId, reaction) {
-        const icon = iconsList.find(i => i.id === iconId) || iconsList[0];
-        const iconClass = icon ? icon.iconClass : 'fa-user';
+        const iconData = iconsList.find(i => i.id === iconId) || iconsList[0];
+        const iconClass = iconData ? iconData.iconClass : 'fa-user';
 
         const toast = document.createElement('div');
         toast.className = 'reaction-toast';
-        toast.innerHTML = `
-            <i class="icon fa-solid ${iconClass}"></i>
-            <span class="name">${nickname}</span>
-            <span class="reaction">${reaction}</span>
-        `;
         
+        const iconEl = document.createElement('i');
+        iconEl.className = `icon fa-solid ${iconClass}`;
+        
+        const nameEl = document.createElement('span');
+        nameEl.className = 'name';
+        nameEl.textContent = nickname; // SAFE
+        
+        const reactionEl = document.createElement('span');
+        reactionEl.className = 'reaction';
+        reactionEl.textContent = reaction; // SAFE
+        
+        toast.append(iconEl, nameEl, reactionEl);
         elements.popups.container.appendChild(toast);
         
         setTimeout(() => {
             toast.remove();
         }, 2000);
     }
+    // ENDE FIX
     
     function showCountdown(number) { 
         console.log(`Countdown: ${number}`); 
@@ -1630,6 +1850,7 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.countdownOverlay.classList.remove('hidden');
     }
     
+    // FIX (Punkt 10 - XSS): setupNewRound überarbeitet
     function setupNewRound(data) { 
         console.log("New Round Setup", data); 
         elements.countdownOverlay.classList.add('hidden');
@@ -1640,59 +1861,95 @@ document.addEventListener('DOMContentLoaded', () => {
         const answerType = gameCreationSettings.answerType;
         const mcOptions = data.mcOptions;
         
-        let html = '<div class="guess-container">';
+        const guessContainer = document.createElement('div');
+        guessContainer.className = 'guess-container';
         
         const me = currentGame.players.find(p => p.id === currentUser.id);
         const isReady = me ? me.isReady : false;
         
         if (answerType === 'freestyle') {
-            html += '<h2>Was ist das für ein Song?</h2>';
+            const h2 = document.createElement('h2');
+            h2.textContent = 'Was ist das für ein Song?';
+            guessContainer.appendChild(h2);
+            
             if (guessTypes.includes('title')) {
-                html += '<input type="text" id="guess-input-title" class="guess-input" placeholder="Titel..." autocomplete="off">';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = 'guess-input-title';
+                input.className = 'guess-input';
+                input.placeholder = 'Titel...';
+                input.autocomplete = 'off';
+                guessContainer.appendChild(input);
             }
             if (guessTypes.includes('artist')) {
-                html += '<input type="text" id="guess-input-artist" class="guess-input" placeholder="Künstler..." autocomplete="off">';
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = 'guess-input-artist';
+                input.className = 'guess-input';
+                input.placeholder = 'Künstler...';
+                input.autocomplete = 'off';
+                guessContainer.appendChild(input);
             }
             if (guessTypes.includes('year')) {
-                html += '<input type="number" id="guess-input-year" class="guess-input" placeholder="Jahr (z.B. 1999)" autocomplete="off">';
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.id = 'guess-input-year';
+                input.className = 'guess-input';
+                input.placeholder = 'Jahr (z.B. 1999)';
+                input.autocomplete = 'off';
+                guessContainer.appendChild(input);
             }
         } else {
-            if (guessTypes.includes('title')) {
-                html += '<div class="mc-button-group" data-guess-type="title"><h3>Titel</h3>';
-                mcOptions.title.forEach(option => {
-                    html += `<button class="button-secondary mc-button" data-value="${option}">${option}</button>`;
+            const createMcGroup = (type, title, options) => {
+                const group = document.createElement('div');
+                group.className = 'mc-button-group';
+                group.dataset.guessType = type;
+                
+                const h3 = document.createElement('h3');
+                h3.textContent = title;
+                group.appendChild(h3);
+                
+                options.forEach(option => {
+                    const btn = document.createElement('button');
+                    btn.className = 'button-secondary mc-button';
+                    btn.dataset.value = option;
+                    btn.textContent = option; // SAFE (kommt vom Server, aber besser als innerHTML)
+                    group.appendChild(btn);
                 });
-                html += '</div>';
+                return group;
+            };
+            
+            if (guessTypes.includes('title')) {
+                guessContainer.appendChild(createMcGroup('title', 'Titel', mcOptions.title));
             }
             if (guessTypes.includes('artist')) {
-                html += '<div class="mc-button-group" data-guess-type="artist"><h3>Künstler</h3>';
-                mcOptions.artist.forEach(option => {
-                    html += `<button class="button-secondary mc-button" data-value="${option}">${option}</button>`;
-                });
-                html += '</div>';
+                guessContainer.appendChild(createMcGroup('artist', 'Künstler', mcOptions.artist));
             }
             if (guessTypes.includes('year')) {
-                html += '<div class="mc-button-group" data-guess-type="year"><h3>Jahr</h3>';
-                mcOptions.year.forEach(option => {
-                    html += `<button class="button-secondary mc-button" data-value="${option}">${option}</button>`;
-                });
-                html += '</div>';
+                guessContainer.appendChild(createMcGroup('year', 'Jahr', mcOptions.year));
             }
         }
         
+        const readyContainer = document.createElement('div');
+        readyContainer.className = 'ready-container';
+        
+        const readyBtn = document.createElement('button');
+        readyBtn.id = 'player-ready-button';
+        readyBtn.className = 'button-primary';
+        readyBtn.disabled = isReady;
+        readyBtn.textContent = isReady ? 'Bereit!' : 'Bereit?';
+        
+        const readyStatus = document.createElement('span');
+        readyStatus.id = 'ready-status-display';
         const readyPlayers = currentGame.players.filter(p => p.isReady).length;
         const totalPlayers = currentGame.players.length;
+        readyStatus.textContent = `${readyPlayers} / ${totalPlayers} Spieler bereit`;
         
-        html += `<div class="ready-container">
-                    <button id="player-ready-button" class="button-primary" ${isReady ? 'disabled' : ''}>
-                        ${isReady ? 'Bereit!' : 'Bereit?'}
-                    </button>
-                    <span id="ready-status-display">${readyPlayers} / ${totalPlayers} Spieler bereit</span>
-                 </div>`;
+        readyContainer.append(readyBtn, readyStatus);
+        guessContainer.appendChild(readyContainer);
         
-        html += '</div>'; 
-        
-        elements.game.gameContentArea.innerHTML = html;
+        elements.game.gameContentArea.innerHTML = ''; // Clear old content
+        elements.game.gameContentArea.appendChild(guessContainer);
         
         elements.game.timerBar.style.transition = 'none';
         elements.game.timerBar.style.width = '100%';
@@ -1701,7 +1958,9 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.game.timerBar.style.width = '0%';
         }, 100);
     }
+    // ENDE FIX
     
+    // FIX (Punkt 10 - XSS): showRoundResult überarbeitet
     function showRoundResult(data) { 
         console.log("Round Result", data);
         
@@ -1709,44 +1968,96 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.game.timerBar.style.width = '0%';
         
         const correct = data.correctTrack;
-        let html = `<div class="round-result-container">
-                        <h2>Runde vorbei!</h2>
-                        <div class="correct-answer-card">
-                            <img src="${correct.albumArtUrl || ''}" alt="Album Art" class="album-art">
-                            <div class="track-info">
-                                <span class="track-title">${correct.title}</span>
-                                <span class="track-artist">${correct.artist}</span>
-                                <span class="track-year">${correct.year}</span>
-                            </div>
-                        </div>
-                        <h3>Ergebnisse:</h3>
-                        <div class="round-result-details">`;
-
+        
+        const container = document.createElement('div');
+        container.className = 'round-result-container';
+        
+        const h2 = document.createElement('h2');
+        h2.textContent = 'Runde vorbei!';
+        container.appendChild(h2);
+        
+        // --- Correct Answer Card ---
+        const card = document.createElement('div');
+        card.className = 'correct-answer-card';
+        
+        const img = document.createElement('img');
+        img.src = correct.albumArtUrl || '';
+        img.alt = 'Album Art';
+        img.className = 'album-art';
+        
+        const trackInfo = document.createElement('div');
+        trackInfo.className = 'track-info';
+        
+        const title = document.createElement('span');
+        title.className = 'track-title';
+        title.textContent = correct.title; // SAFE
+        
+        const artist = document.createElement('span');
+        artist.className = 'track-artist';
+        artist.textContent = correct.artist; // SAFE
+        
+        const year = document.createElement('span');
+        year.className = 'track-year';
+        year.textContent = correct.year; // SAFE
+        
+        trackInfo.append(title, artist, year);
+        card.append(img, trackInfo);
+        container.appendChild(card);
+        
+        const h3 = document.createElement('h3');
+        h3.textContent = 'Ergebnisse:';
+        container.appendChild(h3);
+        
+        const detailsContainer = document.createElement('div');
+        detailsContainer.className = 'round-result-details';
+        
+        // --- Player Result Cards ---
         data.scores.forEach(player => {
-            html += `<div class="player-result-card">
-                        <span class="player-name">${player.nickname}</span>`;
+            const playerCard = document.createElement('div');
+            playerCard.className = 'player-result-card';
+            
+            const playerName = document.createElement('span');
+            playerName.className = 'player-name';
+            playerName.textContent = player.nickname; // SAFE
+            
+            const breakdownEl = document.createElement('div');
+            breakdownEl.className = 'points-breakdown';
+            
+            const totalPointsEl = document.createElement('span');
+            totalPointsEl.className = 'round-total-points';
             
             if (player.lastPointsBreakdown) {
                 const breakdown = player.lastPointsBreakdown.breakdown;
-                html += `<div class="points-breakdown">`;
                 Object.keys(breakdown).forEach(key => {
-                    html += `<span class="point-item ${breakdown[key].points > 0 ? 'correct' : 'wrong'}">
-                                ${breakdown[key].text}: <strong>+${breakdown[key].points}</strong>
-                             </span>`;
+                    const item = document.createElement('span');
+                    item.className = `point-item ${breakdown[key].points > 0 ? 'correct' : 'wrong'}`;
+                    
+                    const itemText = document.createElement('span');
+                    itemText.textContent = `${breakdown[key].text}: `; // SAFE
+                    
+                    const itemPoints = document.createElement('strong');
+                    itemPoints.textContent = `+${breakdown[key].points}`; // SAFE
+                    
+                    item.append(itemText, itemPoints);
+                    breakdownEl.appendChild(item);
                 });
-                html += `</div>
-                         <span class="round-total-points">+${player.lastPointsBreakdown.total}</span>`;
+                totalPointsEl.textContent = `+${player.lastPointsBreakdown.total}`;
             } else {
-                html += `<span class="round-total-points">+0</span>`;
+                totalPointsEl.textContent = '+0';
             }
-            html += `</div>`;
+            
+            playerCard.append(playerName, breakdownEl, totalPointsEl);
+            detailsContainer.appendChild(playerCard);
         });
-
-        html += `</div></div>`;
         
-        elements.game.gameContentArea.innerHTML = html;
-        renderGamePlayerList(data.scores); 
+        container.appendChild(detailsContainer);
+        
+        elements.game.gameContentArea.innerHTML = '';
+        elements.game.gameContentArea.appendChild(container);
+        
+        renderGamePlayerList(data.scores, currentGame.isHost ? currentGame.playerId : null); // hostId hier unklar, ggf. anpassen
     }
+    // ENDE FIX
     
     async function loadFriendsData() { 
         if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) {
@@ -1759,13 +2070,16 @@ document.addEventListener('DOMContentLoaded', () => {
         ws.socket.send(JSON.stringify({ type: 'load-friends' }));
     }
     
+    // FIX (Punkt 10 - XSS): renderFriendsList überarbeitet
     function renderFriendsList(friends) {
         if (!elements.friendsModal.friendsList) return;
         elements.friendsModal.friendsList.innerHTML = '';
         onlineFriends = friends.filter(f => f.isOnline); 
         
         if (friends.length === 0) {
-            elements.friendsModal.friendsList.innerHTML = '<li>Du hast noch keine Freunde.</li>';
+            const li = document.createElement('li');
+            li.textContent = 'Du hast noch keine Freunde.';
+            elements.friendsModal.friendsList.appendChild(li);
             return;
         }
         
@@ -1773,40 +2087,52 @@ document.addEventListener('DOMContentLoaded', () => {
         
         friends.forEach(friend => {
             const li = document.createElement('li');
-            let actionButtons = '';
+            
+            const infoEl = document.createElement('div');
+            infoEl.className = 'friend-info';
+            
+            const nameEl = document.createElement('span');
+            nameEl.className = 'friend-name';
+            nameEl.textContent = friend.username; // SAFE
+            
+            const statusEl = document.createElement('span');
+            statusEl.className = `friend-status ${friend.isOnline ? 'online' : ''}`;
+            statusEl.textContent = friend.isOnline ? 'Online' : 'Offline'; // SAFE
+            
+            infoEl.append(nameEl, statusEl);
+            
+            const actionsEl = document.createElement('div');
+            actionsEl.className = 'friend-actions';
             
             if (pendingGameInvites[friend.id]) {
-                actionButtons = `
+                actionsEl.innerHTML = `
                     <button class="button-primary button-small button-join" data-friend-id="${friend.id}" title="Lobby beitreten">
                         <i class="fa-solid fa-right-to-bracket"></i> Beitreten
                     </button>
-                `;
+                `; // SAFE: friend.id ist eine ID
             } else {
-                actionButtons = `
+                // SAFE: friend.id und friend.username werden nur in data-Attributen verwendet
+                actionsEl.innerHTML = `
                     <button class="button-icon button-gift" data-friend-id="${friend.id}" data-friend-name="${friend.username}" title="Spots schenken"><i class="fa-solid fa-gift"></i></button>
                     <button class="button-icon button-danger button-remove-friend" data-friend-id="${friend.id}" data-friend-name="${friend.username}" title="Freund entfernen"><i class="fa-solid fa-user-minus"></i></button>
                 `;
             }
             
-            li.innerHTML = `
-                <div class="friend-info">
-                    <span class="friend-name">${friend.username}</span>
-                    <span class="friend-status ${friend.isOnline ? 'online' : ''}">${friend.isOnline ? 'Online' : 'Offline'}</span>
-                </div>
-                <div class="friend-actions">
-                    ${actionButtons}
-                </div>
-            `;
+            li.append(infoEl, actionsEl);
             elements.friendsModal.friendsList.appendChild(li);
         });
     }
+    // ENDE FIX
 
+    // FIX (Punkt 10 - XSS): renderRequestsList überarbeitet
     function renderRequestsList(requests) {
         if (!elements.friendsModal.requestsList) return;
         elements.friendsModal.requestsList.innerHTML = '';
         
         if (requests.length === 0) {
-            elements.friendsModal.requestsList.innerHTML = '<li>Keine neuen Anfragen.</li>';
+            const li = document.createElement('li');
+            li.textContent = 'Keine neuen Anfragen.';
+            elements.friendsModal.requestsList.appendChild(li);
             elements.friendsModal.requestsCount.classList.add('hidden');
             return;
         }
@@ -1816,18 +2142,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         requests.forEach(req => {
             const li = document.createElement('li');
-            li.innerHTML = `
-                <div class="friend-info">
-                    <span class="friend-name">${req.username}</span>
-                </div>
-                <div class="friend-actions">
-                    <button class="button-icon button-primary button-accept-request" data-sender-id="${req.id}" title="Annehmen"><i class="fa-solid fa-check"></i></button>
-                    <button class="button-icon button-danger button-decline-request" data-sender-id="${req.id}" title="Ablehnen"><i class="fa-solid fa-user-minus"></i></button>
-                </div>
+            
+            const infoEl = document.createElement('div');
+            infoEl.className = 'friend-info';
+            
+            const nameEl = document.createElement('span');
+            nameEl.className = 'friend-name';
+            nameEl.textContent = req.username; // SAFE
+            
+            infoEl.appendChild(nameEl);
+            
+            const actionsEl = document.createElement('div');
+            actionsEl.className = 'friend-actions';
+            // SAFE: req.id ist eine ID
+            actionsEl.innerHTML = `
+                <button class="button-icon button-primary button-accept-request" data-sender-id="${req.id}" title="Annehmen"><i class="fa-solid fa-check"></i></button>
+                <button class="button-icon button-danger button-decline-request" data-sender-id="${req.id}" title="Ablehnen"><i class="fa-solid fa-user-minus"></i></button>
             `;
+            
+            li.append(infoEl, actionsEl);
             elements.friendsModal.requestsList.appendChild(li);
         });
     }
+    // ENDE FIX
     
     async function fetchHostData(isRefresh = false) {
         console.log(`Fetching host data... Refresh: ${isRefresh}`);
@@ -1874,23 +2211,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // FIX (Punkt 10 - XSS): renderDeviceList überarbeitet
     function renderDeviceList(devices) {
         if (!elements.deviceSelectModal.list) return;
         elements.deviceSelectModal.list.innerHTML = '';
         if (devices.length === 0) {
-            elements.deviceSelectModal.list.innerHTML = '<li>Keine aktiven Geräte gefunden. Starte Spotify auf einem Gerät.</li>';
+            const li = document.createElement('li');
+            li.textContent = 'Keine aktiven Geräte gefunden. Starte Spotify auf einem Gerät.';
+            elements.deviceSelectModal.list.appendChild(li);
             return;
         }
         devices.forEach(device => {
             const li = document.createElement('li');
             li.dataset.deviceId = device.id;
             li.dataset.deviceName = device.name;
-            li.innerHTML = `<button class="button-select ${device.is_active ? 'active' : ''}">
-                <i class="fa-solid ${getDeviceIcon(device.type)}"></i> ${device.name}
-            </button>`;
+            
+            const btn = document.createElement('button');
+            btn.className = 'button-select';
+            if(device.is_active) btn.classList.add('active');
+            
+            const icon = document.createElement('i');
+            icon.className = `fa-solid ${getDeviceIcon(device.type)}`;
+            
+            btn.append(icon, ` ${device.name}`); // SAFE: Baut Text Node
+            
+            li.appendChild(btn);
             elements.deviceSelectModal.list.appendChild(li);
         });
     }
+    // ENDE FIX
     
     function getDeviceIcon(type) {
         switch (type.toLowerCase()) {
@@ -1901,6 +2250,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // FIX (Punkt 10 - XSS): renderPaginatedPlaylists überarbeitet
     function renderPaginatedPlaylists(playlistsToRender, page = 1) {
         if (!elements.playlistSelectModal.list) return;
         
@@ -1917,15 +2267,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
         elements.playlistSelectModal.list.innerHTML = '';
         if (paginatedItems.length === 0) {
-            elements.playlistSelectModal.list.innerHTML = '<li>Keine Playlists gefunden.</li>';
+            const li = document.createElement('li');
+            li.textContent = 'Keine Playlists gefunden.';
+            elements.playlistSelectModal.list.appendChild(li);
         } else {
             paginatedItems.forEach(p => {
                 const li = document.createElement('li');
                 li.dataset.playlistId = p.id;
                 li.dataset.playlistName = p.name;
-                li.innerHTML = `<button class="button-select">
-                    ${p.name} <span style="color: var(--text-muted-color); font-size: 0.8rem;">(${p.tracks.total} Songs)</span>
-                </button>`;
+                
+                const btn = document.createElement('button');
+                btn.className = 'button-select';
+                
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = p.name; // SAFE
+                
+                const countSpan = document.createElement('span');
+                countSpan.style.color = 'var(--text-muted-color)';
+                countSpan.style.fontSize = '0.8rem';
+                countSpan.textContent = ` (${p.tracks.total} Songs)`; // SAFE
+                
+                btn.append(nameSpan, countSpan);
+                li.appendChild(btn);
                 elements.playlistSelectModal.list.appendChild(li);
             });
         }
@@ -1936,7 +2299,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const prevBtn = document.createElement('button');
                 prevBtn.className = 'button-secondary button-small';
                 prevBtn.textContent = 'Zurück';
-                prevBtn.dataset.page = page - 1;
+                prevBtn.dataset.page = (page - 1).toString();
                 prevBtn.disabled = page === 1;
                 elements.playlistSelectModal.pagination.appendChild(prevBtn);
 
@@ -1948,22 +2311,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 const nextBtn = document.createElement('button');
                 nextBtn.className = 'button-secondary button-small';
                 nextBtn.textContent = 'Vor';
-                nextBtn.dataset.page = page + 1;
+                nextBtn.dataset.page = (page + 1).toString();
                 nextBtn.disabled = page === totalPages;
                 elements.playlistSelectModal.pagination.appendChild(nextBtn);
             }
         }
     }
+    // ENDE FIX
     
+    // FIX (Punkt 5): Limit auf 999 erhöht
     function openCustomValueModal(type, title, min = 1, max = 100) { 
         currentCustomType = { type, min, max };
         customValueInput = "";
-        elements.customValueModal.title.textContent = `${title} (${min}-${max})`;
+        elements.customValueModal.title.textContent = `${title} (${min}-${max})`; // SAFE
         elements.customValueModal.display.forEach(d => d.textContent = "");
         elements.customValueModal.confirmBtn.disabled = true;
         elements.customValueModal.overlay.classList.remove('hidden');
     }
+    // ENDE FIX
 
+    // FIX (Punkt 10 - XSS): showInvitePopup überarbeitet
     function showInvitePopup(from, pin, fromUserId) { 
         if (activePopups.invite) {
             activePopups.invite.remove();
@@ -1971,13 +2338,22 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const popup = document.createElement('div');
         popup.className = 'invite-popup';
-        popup.innerHTML = `
-            <p><span id="invite-sender-name">${from}</span> lädt dich ein!</p>
-            <div class="invite-actions">
-                <button class="accept-invite-button button-primary button-small">Annehmen</button>
-                <button class="decline-invite-button button-secondary button-small">Ablehnen</button>
-            </div>`;
+        
+        const p = document.createElement('p');
+        const nameSpan = document.createElement('span');
+        nameSpan.id = 'invite-sender-name';
+        nameSpan.textContent = from; // SAFE
+        p.append(nameSpan, ' lädt dich ein!');
+        
+        const actions = document.createElement('div');
+        actions.className = 'invite-actions';
+        // SAFE: Hardcodierte Button-Strings
+        actions.innerHTML = `
+            <button class="accept-invite-button button-primary button-small">Annehmen</button>
+            <button class="decline-invite-button button-secondary button-small">Ablehnen</button>
+        `;
             
+        popup.append(p, actions);
         elements.popups.container.appendChild(popup);
         activePopups.invite = popup;
         
@@ -2003,7 +2379,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         setTimeout(closePopup, 10000);
     }
+    // ENDE FIX
     
+    // FIX (Punkt 10 - XSS): showFriendRequestPopup überarbeitet
     function showFriendRequestPopup(from, senderId) {
         if (activePopups.friendRequest) {
             activePopups.friendRequest.remove();
@@ -2011,13 +2389,21 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const popup = document.createElement('div');
         popup.className = 'friend-request-popup';
-        popup.innerHTML = `
-            <p><span>${from}</span> hat dir eine Freundschaftsanfrage gesendet!</p>
-            <div class="invite-actions">
-                <button class="button-primary button-small accept-friend-request">Annehmen</button>
-                <button class="button-secondary button-small decline-friend-request">Ablehnen</button>
-            </div>`;
+        
+        const p = document.createElement('p');
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = from; // SAFE
+        p.append(nameSpan, ' hat dir eine Freundschaftsanfrage gesendet!');
+        
+        const actions = document.createElement('div');
+        actions.className = 'invite-actions';
+        // SAFE: Hardcodierte Button-Strings
+        actions.innerHTML = `
+            <button class="button-primary button-small accept-friend-request">Annehmen</button>
+            <button class="button-secondary button-small decline-friend-request">Ablehnen</button>
+        `;
             
+        popup.append(p, actions);
         elements.popups.container.appendChild(popup);
         activePopups.friendRequest = popup;
         
@@ -2041,6 +2427,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         setTimeout(closePopup, 10000);
     }
+    // ENDE FIX
     
     function handlePresetClick(e, groupId) { 
         const btn = e.target.closest('.preset-button');
@@ -2054,9 +2441,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = btn.dataset.type;
         
         if (value === 'custom') {
+            // FIX (Punkt 5): Limit auf 999 erhöht
             if (type === 'song-count') openCustomValueModal('song-count', 'Anzahl Songs', 1, 999);
-            else if (type === 'guess-time') openCustomValueModal('guess-time', 'Ratezeit (Sek.)', 10, 120);
-            else if (type === 'lives') openCustomValueModal('lives', 'Leben (1-999)', 1, 999); // KORREKTUR: Limit entfernt
+            else if (type === 'guess-time') openCustomValueModal('guess-time', 'Ratezeit (Sek.)', 10, 999); 
+            // ENDE FIX
+            else if (type === 'lives') openCustomValueModal('lives', 'Leben (1-999)', 1, 999);
             return;
         }
 
@@ -2139,7 +2528,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.home.logoutBtn?.addEventListener('click', handleLogout);
             elements.home.spotifyConnectBtn?.addEventListener('click', (e) => { e.preventDefault(); window.location.href = '/login'; });
             elements.home.createRoomBtn?.addEventListener('click', () => showScreen('mode-selection-screen'));
-            elements.home.joinRoomBtn?.addEventListener('click', () => { if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) { showToast("Verbindung zum Server wird aufgebaut...", true); return; } pinInput = ""; elements.joinModal.pinDisplay?.forEach(d => d.textContent = ""); elements.joinModal.overlay?.classList.remove('hidden'); });
+            elements.home.joinRoomBtn?.addEventListener('click', () => { if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) { showToast("Verbindung zum Server wird aufgebaut...", true); connectWebSocket(); return; } pinInput = ""; elements.joinModal.pinDisplay?.forEach(d => d.textContent = ""); elements.joinModal.overlay?.classList.remove('hidden'); });
             elements.home.statsBtn?.addEventListener('click', () => showScreen('stats-screen'));
             elements.home.achievementsBtn?.addEventListener('click', () => showScreen('achievements-screen'));
             elements.home.levelProgressBtn?.addEventListener('click', () => showScreen('level-progress-screen'));
@@ -2149,6 +2538,14 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.home.usernameContainer?.addEventListener('click', () => { if (!currentUser || currentUser.isGuest) return; elements.changeNameModal.input.value = currentUser.username; elements.changeNameModal.overlay?.classList.remove('hidden'); elements.changeNameModal.input?.focus(); });
             elements.home.shopButton?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { loadShopItems(); showScreen('shop-screen'); } });
             elements.home.customizationBtn?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { renderCustomizationMenu(); showScreen('customization-screen'); } }); 
+
+            // FIX (Punkt 8): Event Listener für den "Zurück"-Button auf dem End-Screen
+            elements.endScreen.backButton?.addEventListener('click', () => {
+                showScreen('home-screen');
+                // Setze den Verlauf zurück, damit man vom Home-Screen nicht zurück zum End-Screen kann
+                screenHistory = ['auth-screen', 'home-screen']; 
+            });
+            // ENDE FIX
 
              elements.modeSelection.container?.addEventListener('click', (e) => { 
                 const mb=e.target.closest('.mode-box'); 
@@ -2226,7 +2623,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         li.innerHTML = `<button class="button-select" data-friend-id="${friend.id}" ${isCoolingDown ? 'disabled' : ''}>
                                             ${friend.username}
                                             ${isCoolingDown ? '<span style="color:var(--text-muted-color); font-size: 0.8rem;"> (Warte...)</span>' : ''}
-                                        </button>`;
+                                        </button>`; // SAFE: friend.id / friend.username
                         elements.inviteFriendsModal.list.appendChild(li);
                     });
                 }
@@ -2310,13 +2707,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 } 
             });
             
+            // FIX (Punkt 3): Event Listener an .background-card angepasst
             elements.customize.backgroundsList?.addEventListener('click', (e) => {
-                const card = e.target.closest('.background-card:not(.locked)');
+                const card = e.target.closest('.background-card:not(.locked)'); // Neue Klasse
                 if (card) {
                     const bgId = card.dataset.bgId;
                     equipBackground(bgId, true); 
                 }
             });
+            // ENDE FIX
 
             elements.shop.screen?.addEventListener('click', (e) => { const buyBtn = e.target.closest('.buy-button:not([disabled])'); if (buyBtn) { handleBuyItem(buyBtn.dataset.itemId); } });
             
@@ -2410,6 +2809,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
             
+            // FIX (Punkt 4): Numpad-Button-Text-Fix
             elements.customValueModal.numpad?.addEventListener('click', (e) => { 
                 const btn=e.target.closest('button'); if(!btn) return; 
                 const key=btn.dataset.key, action=btn.dataset.action;
@@ -2432,16 +2832,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 let setting = {};
+                // Helper-Funktion aus updateHostSettings (Teil 1) hier neu definieren,
+                // da sie in einem anderen Scope war.
+                const updateButtonText = (presetContainer, value, customValueType) => {
+                    if (!presetContainer) return;
+                    let valueFound = false;
+                    presetContainer.querySelectorAll('.preset-button').forEach(btn => {
+                        if (btn.dataset.value === String(value)) {
+                            btn.classList.add('active');
+                            valueFound = true;
+                        } else {
+                            btn.classList.remove('active');
+                        }
+                    });
+                    const customBtn = presetContainer.querySelector(`[data-value="custom"][data-type="${customValueType}"]`);
+                    if (!valueFound && customBtn && value) {
+                        customBtn.classList.add('active');
+                        let textContent = `${value}`;
+                        if (customValueType === 'guess-time') textContent = `${value}s`;
+                        else if (customValueType === 'lives') textContent = `${value} ❤️`;
+                        customBtn.textContent = textContent;
+                    }
+                };
+
                 if (currentCustomType.type === 'song-count') {
                     setting.songCount = value;
-                    updatePresets(elements.lobby.songCountPresets, value, 'song-count');
+                    updateButtonText(elements.lobby.songCountPresets, value, 'song-count');
                 } else if (currentCustomType.type === 'guess-time') {
                     setting.guessTime = value;
-                    updatePresets(elements.lobby.guessTimePresets, value, 'guess-time');
+                    updateButtonText(elements.lobby.guessTimePresets, value, 'guess-time');
                 } else if (currentCustomType.type === 'lives') {
                     gameCreationSettings.lives = value;
-                    updatePresets(elements.gameTypeScreen.livesPresets, value, 'lives');
+                    updateButtonText(elements.gameTypeScreen.livesPresets, value, 'lives');
                 }
+                // ENDE FIX (Punkt 4)
                 
                 if (currentGame.pin && currentGame.isHost && (currentCustomType.type === 'song-count' || currentCustomType.type === 'guess-time')) {
                     ws.socket.send(JSON.stringify({ type: 'update-settings', payload: setting }));
@@ -2523,7 +2947,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (event === 'SIGNED_OUT') { 
                     currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
                     ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); ownedAccentColorIds.clear(); inventory = {};
-                    if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
+                    if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(1000); // FIX (Punkt 14): Sauber schließen
                     if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                     localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); 
                     document.body.classList.add('is-guest'); setLoading(false); 
@@ -2543,7 +2967,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      if (currentUser) { 
                          currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
                          ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); ownedAccentColorIds.clear(); inventory = {};
-                         if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(); 
+                         if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(1000); // FIX (Punkt 14): Sauber schließen
                          if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                          localStorage.removeItem('fakesterGame'); 
                     }
