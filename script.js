@@ -446,6 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function getUnlockDescription(item) { if (!item) return ''; if (item.unlockType === 'spots') return `Kosten: ${item.cost} 🎵`; switch (item.unlockType) { case 'level': return `Erreiche Level ${item.unlockValue}`; case 'achievement': const ach = achievementsList.find(a => a.id === item.unlockValue); return `Erfolg: ${ach ? ach.name : 'Unbekannt'}`; case 'special': return 'Spezial'; case 'free': return 'Standard'; default: return ''; } }
     function updateSpotsDisplay() { const spots = userProfile?.spots ?? 0; if (elements.home.spotsBalance) elements.home.spotsBalance.textContent = spots; if (elements.shop.spotsBalance) elements.shop.spotsBalance.textContent = spots; }
 
+
     async function equipTitle(titleId, saveToDb = true) {
         if (currentUser.isGuest) return;
         const title = titlesList.find(t => t.id === titleId);
@@ -1253,4 +1254,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 elements.lobby.startGameBtn.title = "";
             }
         }
+    }
+
+    function renderAchievements() {
+        if (!elements.achievements.grid || currentUser.isGuest) return;
+        elements.achievements.grid.innerHTML = '';
+        
+        const sortedAchievements = [...achievementsList].sort((a, b) => {
+            const aUnlocked = userUnlockedAchievementIds.includes(a.id);
+            const bUnlocked = userUnlockedAchievementIds.includes(b.id);
+            if (aUnlocked && !bUnlocked) return -1;
+            if (!aUnlocked && bUnlocked) return 1;
+            return a.id - b.id; 
+        });
+        
+        sortedAchievements.forEach(ach => { 
+            const isUnlocked = userUnlockedAchievementIds.includes(ach.id);
+            const isHidden = ach.hidden && !isUnlocked;
+            
+            const card = document.createElement('div');
+            card.className = 'achievement-card';
+            card.classList.toggle('unlocked', isUnlocked);
+            card.classList.toggle('hidden-achievement', isHidden);
+            
+            const reward = allItems.find(item => item.unlockType === 'achievement' && item.unlockValue === ach.id);
+            let rewardText = '<span class="reward">+50 🎵</span>'; 
+            if (reward) {
+                rewardText += ` & ${reward.type === 'title' ? 'Titel' : 'Icon'}: ${reward.name || reward.iconClass}`;
+            }
+
+            card.innerHTML = `
+                <h3>${isHidden ? '???' : ach.name}</h3>
+                <p>${isHidden ? '???' : ach.description}</p>
+                ${isUnlocked ? `<span class="reward">Freigeschaltet!</span>` : (isHidden ? '' : rewardText)}
+            `;
+            elements.achievements.grid.appendChild(card);
+        });
     }
