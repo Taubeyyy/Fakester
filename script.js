@@ -1291,3 +1291,4 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.achievements.grid.appendChild(card);
         });
     }
+});
