@@ -1,4 +1,4 @@
-// script.js - FINAL VERSION (Mit allen Features & Bugfixes)
+// script.js - V2.0 (TEIL 1/2)
 // NEU: Gameplay (Raten, Ready, Leaderboard), Freundes-Popups, Akzentfarben,
 // CSS-Hintergründe, Cooldowns, Level-Spots & alle Bugfixes.
 
@@ -88,11 +88,15 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 24, name: 'Anpassungs-Künstler', description: 'Ändere dein Icon, Titel und Farbe.' },
         { id: 25, name: 'Willkommen!', description: 'Registriere dein Konto.' },
         { id: 26, name: 'Host-Flucht', description: 'Überlebe ein Spiel, das der Host abgebrochen hat.' },
-        // --- NEUE ERFOLGE (Beispiele) ---
         { id: 27, name: 'Schnell-Rater', description: 'Sei der Erste, der in einer Runde auf "Bereit" klickt.' },
         { id: 28, name: 'Bling-Bling', description: 'Rüste eine Gold-Namensfarbe aus.' },
-        { id: 29, name: '???', description: '???', hidden: true }, // Versteckter Erfolg
-        { id: 30, name: 'Loyal', description: 'Spiele 50 Spiele.' }
+        { id: 29, name: '???', description: '???', hidden: true },
+        { id: 30, name: 'Loyal', description: 'Spiele 50 Spiele.' },
+        { id: 31, name: 'Spam-König', description: 'Sende 5 Reaktionen in 15 Sekunden.' },
+        { id: 32, name: 'Fashionista', description: 'Ändere deine Akzentfarbe.'},
+        { id: 33, name: 'Vollgas', description: 'Beende eine Runde (Quiz) in unter 5 Sekunden.'},
+        { id: 34, name: '???', description: '???', hidden: true },
+        { id: 35, name: 'Streber', description: 'Gewinne ein Spiel mit über 2000 Punkten.' }
     ];
     const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100));
     const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
@@ -120,12 +124,19 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 21, name: 'Shopper', unlockType: 'achievement', unlockValue: 21, type:'title' },
         { id: 25, name: 'Neuzugang', unlockType: 'achievement', unlockValue: 25, type:'title', description: 'Erfolg: Willkommen!' },
         { id: 26, name: 'Überlebender', unlockType: 'achievement', unlockValue: 26, type:'title', description: 'Erfolg: Host-Flucht' },
+        { id: 27, name: 'Schnell-Rater', unlockType: 'achievement', unlockValue: 27, type:'title', description: 'Erfolg: Schnell-Rater' },
         { id: 101, name: 'Musik-Guru', unlockType: 'spots', cost: 100, unlockValue: 100, description: 'Nur im Shop', type:'title' }, 
         { id: 102, name: 'Playlist-Meister', unlockType: 'spots', cost: 150, unlockValue: 150, description: 'Nur im Shop', type:'title' }, 
         { id: 103, name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
         { id: 104, name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
         { id: 105, name: 'Gold-Kehlchen', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
         { id: 106, name: 'Platin', cost: 1000, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 107, name: 'Rockstar', cost: 500, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 108, name: 'Pop-Prinzessin', cost: 500, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 109, name: 'Hip-Hop-Head', cost: 500, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 110, name: 'DJ', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 111, name: 'Oldtimer', cost: 250, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 112, name: 'One-Hit-Wonder', cost: 50, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
         { id: 99, name: 'Entwickler', iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Titel', type:'title' } 
     ];
     const iconsList = [ 
@@ -148,6 +159,12 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, 
         { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 500, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, 
         { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 207, type: 'icon', name: 'Anker', iconClass: 'fa-anchor', cost: 200, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 208, type: 'icon', name: 'Kaffeetasse', iconClass: 'fa-coffee', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 209, type: 'icon', name: 'Mond', iconClass: 'fa-moon', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 210, type: 'icon', name: 'Sonne', iconClass: 'fa-sun', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 211, type: 'icon', name: 'Herz', iconClass: 'fa-heart', cost: 100, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 212, type: 'icon', name: 'Pflanze', iconClass: 'fa-leaf', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
         { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' } 
     ];
     // NEU: CSS-Hintergründe statt Bilder
@@ -164,11 +181,32 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: '309', name: 'Studio', cssClass: 'bg-studio', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '309'},
         { id: '310', name: 'Party', cssClass: 'bg-party', cost: 1000, unlockType: 'spots', unlockValue: 1000, type: 'background', backgroundId: '310'}
     ];
+    // NEU: Massiv erweiterte Farbliste
     const nameColorsList = [ 
         { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' }, 
         { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' }, 
         { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' }, 
-        { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' } 
+        { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' },
+        { id: 505, name: 'Blutrot', type: 'color', colorHex: '#DC143C', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 506, name: 'Sonnengelb', type: 'color', colorHex: '#FFC700', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 507, name: 'Himmelblau', type: 'color', colorHex: '#87CEEB', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 508, name: 'Lavendel', type: 'color', colorHex: '#E6E6FA', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 509, name: 'Königs-Lila', type: 'color', colorHex: '#8a2be2', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 510, name: 'Schneeweiß', type: 'color', colorHex: '#FFFFFF', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 511, name: 'Tiefschwarz', type: 'color', colorHex: '#010101', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 512, name: 'Feuriges Orange', type: 'color', colorHex: '#ff4500', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+        // Verläufe
+        { id: 550, name: 'Regenbogen', type: 'color', colorHex: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)', cost: 5000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 551, name: 'Synthwave-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff00ff, #00ffff)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 552, name: 'Sonnen-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 553, name: 'Ozean-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #005c97, #363795)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 554, name: 'Wald-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #136a8a, #267871)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 555, name: 'Feuer-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #ff4500, #ffd700)', cost: 3000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 556, name: 'Kaugummi', type: 'color', colorHex: 'linear-gradient(90deg, #ff7eb9, #a0c2ff)', cost: 2000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 557, name: 'Gift-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #00ff00, #8a2be2)', cost: 3000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 558, name: 'Dunkel-Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #434343, #000000)', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 559, name: 'Heller Verlauf', type: 'color', colorHex: 'linear-gradient(90deg, #e0e0e0, #ffffff)', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 560, name: 'Metallisch', type: 'color', colorHex: 'linear-gradient(90deg, #808080, #c0c0c0, #808080)', cost: 4000, unlockType: 'spots', description: 'Nur im Shop' }
     ];
     // NEU: Akzentfarben-Liste
     const accentColorsList = [
@@ -198,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingOverlay: document.getElementById('loading-overlay'), 
         loadingOverlayMessage: document.getElementById('loading-overlay-message'),
         countdownOverlay: document.getElementById('countdown-overlay'), 
-        appBackground: document.querySelector('.app-background'), // NEU
+        appBackground: document.querySelector('.app-background'), 
         auth: { loginForm: document.getElementById('login-form'), registerForm: document.getElementById('register-form'), showRegister: document.getElementById('show-register-form'), showLogin: document.getElementById('show-login-form') }, 
         home: { logoutBtn: document.getElementById('corner-logout-button'), achievementsBtn: document.getElementById('achievements-button'), createRoomBtn: document.getElementById('show-create-button-action'), joinRoomBtn: document.getElementById('show-join-button'), usernameContainer: document.getElementById('username-container'), profileTitleBtn: document.querySelector('.profile-title-button'), friendsBtn: document.getElementById('friends-button'), statsBtn: document.getElementById('stats-button'), profilePictureBtn: document.getElementById('profile-picture-button'), profileIcon: document.getElementById('profile-icon'), profileLevel: document.getElementById('profile-level'), profileXpFill: document.getElementById('profile-xp-fill'), levelProgressBtn: document.getElementById('level-progress-button'), profileXpText: document.getElementById('profile-xp-text'), spotsBalance: document.getElementById('header-spots-balance'), shopButton: document.getElementById('shop-button'), spotifyConnectBtn: document.getElementById('spotify-connect-button'), customizationBtn: document.getElementById('customization-button') }, 
         modeSelection: { container: document.getElementById('mode-selection-screen')?.querySelector('.mode-selection-container') }, 
@@ -221,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
             timerBar: document.getElementById('timer-bar'), 
             gameContentArea: document.getElementById('game-content-area'), 
             playerList: document.getElementById('game-player-list'),
-            reactionButtons: document.getElementById('reaction-buttons') // NEU
+            reactionButtons: document.getElementById('reaction-buttons') 
         }, 
         guestModal: { overlay: document.getElementById('guest-modal-overlay'), closeBtn: document.getElementById('close-guest-modal-button'), submitBtn: document.getElementById('guest-nickname-submit'), openBtn: document.getElementById('guest-mode-button'), input: document.getElementById('guest-nickname-input') }, 
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), }, 
@@ -259,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
             iconsList: document.getElementById('customize-icon-list'), 
             colorsList: document.getElementById('customize-color-list'),
             backgroundsList: document.getElementById('owned-backgrounds-list'),
-            accentColorsList: document.getElementById('customize-accent-color-list') // NEU
+            accentColorsList: document.getElementById('customize-accent-color-list') 
         }, 
         popups: {
             container: document.getElementById('popup-overlay-container'),
@@ -313,7 +351,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (overlay) {
                 overlay.classList.add('hidden');
             }
-            elements.countdownOverlay?.classList.add('hidden');
             if (overlayMessage) {
                 overlayMessage.textContent = '';
             }
@@ -332,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item.type === 'icon') return ownedIconIds.has(item.id); 
             if (item.type === 'background') return ownedBackgroundIds.has(item.backgroundId); 
             if (item.type === 'color') return ownedColorIds.has(item.id);
-            if (item.type === 'accent-color') return ownedAccentColorIds.has(item.id); // NEU
+            if (item.type === 'accent-color') return ownedAccentColorIds.has(item.id); 
         } 
         
         switch (item.unlockType) { 
@@ -598,11 +635,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 setLoading(true, "Spiel startet...");
                 break;
             case 'countdown':
+                setLoading(false); // NEU: Loading-Screen ausblenden
                 showCountdown(payload.number); 
                 break;
             case 'new-round':
                 setLoading(false);
                 setupNewRound(payload); 
+                showScreen('game-screen');
+                break;
+            case 'new-timeline-round': // NEU
+                setLoading(false);
+                setupTimelineRound(payload);
                 showScreen('game-screen');
                 break;
             case 'round-result':
@@ -640,7 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentGame.gameMode = gameMode;
         currentGame.players = players; 
         
-        gameCreationSettings.guessTypes = settings.guessTypes || ['title', 'artist'];
+        gameCreationSettings.guessTypes = settings.guessTypes || [];
         gameCreationSettings.answerType = settings.answerType || 'freestyle';
 
         if (elements.lobby.pinDisplay) {
@@ -648,7 +691,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         renderPlayerList(players, hostId);
-        renderGamePlayerList(players); 
+        renderGamePlayerList(players); // Aktualisiert auch In-Game-Liste (für Ready-Status)
+
+        // NEU: Ready-Zähler-Text im Spiel aktualisieren
+        if (document.getElementById('ready-status-display')) {
+            const readyPlayers = players.filter(p => p.isReady).length;
+            const totalPlayers = players.length;
+            document.getElementById('ready-status-display').textContent = `${readyPlayers} / ${totalPlayers} Spieler bereit`;
+        }
 
         elements.lobby.hostSettings?.classList.toggle('hidden', !currentGame.isHost);
         elements.lobby.guestWaitingMessage?.classList.toggle('hidden', currentGame.isHost);
@@ -661,12 +711,25 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function showGameOver(payload) {
         console.log("STUB: showGameOver", payload);
+        
+        // NEU: Klares Pop-up statt nur Toast
         if (payload.message) {
-            showToast(payload.message, true);
+            // Host hat das Spiel verlassen
+            const myPlayer = payload.scores.find(p => p.id === currentUser.id);
+            const mySpots = myPlayer ? Math.max(1, Math.floor((myPlayer.score || 0) * 0.10)) : 0;
+            showConfirmModal(
+                "Spiel beendet", 
+                `Der Host hat das Spiel verlassen.\nDir werden ${mySpots} 🎵 als Trostpreis gutgeschrieben.`, 
+                () => showScreen('home-screen')
+            );
+            elements.confirmActionModal.cancelBtn.classList.add('hidden'); // Nur "OK"-Button
         } else {
+            // Normales Spielende
             showToast("Spiel beendet!", false);
+            // TODO: Zeige hier ein echtes Leaderboard-Modal statt nur Toast
+            showScreen('home-screen'); 
         }
-        showScreen('home-screen'); 
+        
         if(elements.game.playerList) elements.game.playerList.innerHTML = '';
     }
 
@@ -686,11 +749,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const iconClass = icon ? icon.iconClass : 'fa-user'; 
             
             const color = nameColorsList.find(c => c.id === player.colorId); 
-            const colorStyle = color ? `style="color: ${color.colorHex}"` : '';
+            const colorStyle = color ? (color.colorHex.includes('gradient') ? `background: ${color.colorHex}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;` : `color: ${color.colorHex}`) : '';
 
             const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
             const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = background ? `bg-${background.cssClass}` : 'radial-only';
+            const backgroundStyle = background ? background.cssClass : 'radial-only';
             
             const displayIconClass = isHost ? 'fa-crown' : iconClass;
             const hostClass = isHost ? 'host' : '';
@@ -701,7 +764,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <i class="player-icon fa-solid ${displayIconClass}"></i>
                     <div class="player-info">
                         <span class="player-title">${title.name}</span>
-                        <span class="player-name" ${colorStyle}>${player.nickname || 'Unbekannt'}</span>
+                        <span class="player-name" style="${colorStyle}">${player.nickname || 'Unbekannt'}</span>
                     </div>
                 </div>
             `;
@@ -725,19 +788,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const iconClass = icon ? icon.iconClass : 'fa-user';
             
             const color = nameColorsList.find(c => c.id === player.colorId); 
-            const colorStyle = color ? `style="color: ${color.colorHex}"` : '';
+            const colorStyle = color ? (color.colorHex.includes('gradient') ? `background: ${color.colorHex}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;` : `color: ${color.colorHex}`) : '';
 
             const title = titlesList.find(t => t.id === player.titleId) || titlesList[0];
             const background = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = background ? `bg-${background.cssClass}` : 'radial-only';
+            const backgroundStyle = background ? background.cssClass : 'radial-only';
 
             playerCard.innerHTML = `
                 <div class="player-card-background ${backgroundStyle}"></div>
                 <div class="player-card-content">
-                    <i class="player-icon fa-solid ${iconClass}" ${colorStyle}></i>
+                    <i class="player-icon fa-solid ${iconClass}"></i>
                     <div class="player-info">
                         <span class="player-title">${title.name}</span>
-                        <span class="player-name" ${colorStyle}>${player.nickname || 'Unbekannt'}</span>
+                        <span class="player-name" style="${colorStyle}">${player.nickname || 'Unbekannt'}</span>
                     </div>
                     <span class="player-score">${player.score}</span>
                     ${player.isReady ? '<i class="player-ready-icon fa-solid fa-check-circle"></i>' : ''}
@@ -840,7 +903,6 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.achievements.grid.appendChild(card);
         });
     }
-
     async function equipTitle(titleId, saveToDb = true) {
         if (currentUser.isGuest) return;
         const title = titlesList.find(t => t.id === titleId);
@@ -1035,7 +1097,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!colorId) {
             userProfile.equipped_color_id = null;
-            if(elements.home.usernameContainer) elements.home.usernameContainer.style.color = ''; 
+            if(elements.home.usernameContainer) {
+                elements.home.usernameContainer.style.color = '';
+                elements.home.usernameContainer.style.background = '';
+                elements.home.usernameContainer.classList.remove('gradient-text');
+            }
             renderCustomColors();
             if (saveToDb && supabase) {
                 const { error } = await supabase.from('profiles').update({ equipped_color_id: null }).eq('id', currentUser.id);
@@ -1058,7 +1124,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         userProfile.equipped_color_id = colorId;
         if (elements.home.usernameContainer) {
-            elements.home.usernameContainer.style.color = color.colorHex;
+            if (color.colorHex.includes('gradient')) {
+                elements.home.usernameContainer.style.color = '';
+                elements.home.usernameContainer.style.background = color.colorHex;
+                elements.home.usernameContainer.classList.add('gradient-text');
+            } else {
+                elements.home.usernameContainer.style.background = '';
+                elements.home.usernameContainer.classList.remove('gradient-text');
+                elements.home.usernameContainer.style.color = color.colorHex;
+            }
         }
         renderCustomColors(); 
 
@@ -1109,19 +1183,27 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('locked', !isUnlocked);
             card.classList.toggle('equipped', isEquipped);
             card.dataset.colorId = color.id;
+            
+            let preview;
+            if (color.colorHex.includes('gradient')) {
+                preview = `<div class="color-preview" style="background: ${color.colorHex};">
+                               <span class="gradient-text" style="background: ${color.colorHex};">Aa</span>
+                           </div>`;
+            } else {
+                preview = `<div class="color-preview" style="background-color: ${color.colorHex}">
+                               <i class="fa-solid fa-font" style="color: ${color.colorHex}; filter: invert(1);"></i>
+                           </div>`;
+            }
 
             card.innerHTML = `
-                <div class="color-preview" style="background-color: ${color.colorHex}">
-                    <i class="fa-solid fa-font"></i>
-                </div>
+                ${preview}
                 <span class="color-name">${color.name}</span>
-                <span class="color-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : getUnlockDescription(color)}</span>
+                <span class="color-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Klicken') : getUnlockDescription(color)}</span>
             `;
             container.appendChild(card);
         });
     }
 
-    // NEU: Logik für Akzentfarben
     async function equipAccentColor(colorId, saveToDb = true) {
         if (currentUser.isGuest) return;
         
@@ -1144,7 +1226,7 @@ document.addEventListener('DOMContentLoaded', () => {
              document.documentElement.style.setProperty('--accent-color-faded', color.colorHex + '20');
         }
 
-        renderCustomAccentColors(); // UI im Menü aktualisieren
+        renderCustomAccentColors(); 
 
         if (saveToDb && supabase) {
             const { error } = await supabase.from('profiles').update({ equipped_accent_color_id: colorId }).eq('id', currentUser.id);
@@ -1191,7 +1273,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // NEU: Logik für persönliche CSS-Hintergründe
     async function equipBackground(backgroundId, saveToDb = true) {
         if (currentUser.isGuest) return;
         
@@ -1227,15 +1308,20 @@ document.addEventListener('DOMContentLoaded', () => {
         
         backgroundsList.forEach(bg => {
             const isUnlocked = isItemUnlocked(bg, currentLevel);
-            const isEquipped = userProfile.equipped_background_id === bg.backgroundId;
+            const isEquipped = (userProfile.equipped_background_id === bg.backgroundId) || (!userProfile.equipped_background_id && bg.backgroundId === 'default');
             
-            const li = document.createElement('li');
-            li.dataset.bgId = bg.backgroundId;
-            li.innerHTML = `<button class="button-select ${isEquipped ? 'active' : ''} ${!isUnlocked ? 'locked' : ''}">
-                                ${bg.name}
-                                ${!isUnlocked ? `<span style="font-size: 0.8rem; color: var(--text-muted-color); margin-left: auto;">(${getUnlockDescription(bg)})</span>` : ''}
-                            </button>`;
-            container.appendChild(li);
+            const card = document.createElement('div');
+            card.className = 'background-card';
+            card.classList.toggle('locked', !isUnlocked);
+            card.classList.toggle('equipped', isEquipped);
+            card.dataset.bgId = bg.backgroundId;
+
+            card.innerHTML = `
+                <div class="background-preview ${bg.cssClass}"></div>
+                <span class="background-name">${bg.name}</span>
+                <span class="background-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Klicken') : getUnlockDescription(bg)}</span>
+            `;
+            container.appendChild(card);
         });
     }
 
@@ -1243,18 +1329,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const bg = backgroundsList.find(b => b.backgroundId === backgroundId) || backgroundsList[0];
         
         if (elements.appBackground) {
-            // Entferne alle alten bg-Klassen
             elements.appBackground.className = 'app-background';
-            // Füge die neue Klasse hinzu
             elements.appBackground.classList.add(bg.cssClass || 'radial-only');
         }
     }
-
-    // KORREKTUR: Funktion entfernt, da Host-Hintergrund nicht mehr geteilt wird
-    // function applyLobbyBackground(backgroundId) { ... }
     
-    // --- ENDE: "Anpassen"-Menü Funktionen ---
-
     function renderLevelProgress() {
         if (!elements.levelProgress.list || currentUser.isGuest) return;
         elements.levelProgress.list.innerHTML = '';
@@ -1276,7 +1355,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let rewardsHtml = '';
             
-            // NEU: Spot-Belohnungen alle 5 Level
             if (level % 5 === 0) {
                 const spotAmount = 50 + (Math.floor(level / 5) * 25);
                 rewardsHtml += `
@@ -1412,7 +1490,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (item.type === 'icon') ownedIconIds.add(item.id);
                     else if (item.type === 'background') ownedBackgroundIds.add(item.backgroundId);
                     else if (item.type === 'color') ownedColorIds.add(item.id);
-                    else if (item.type === 'accent-color') ownedAccentColorIds.add(item.id); // NEU
+                    else if (item.type === 'accent-color') ownedAccentColorIds.add(item.id); 
                 }
 
                 if (item.type === 'title') {
@@ -1424,7 +1502,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (item.type === 'color') {
                     colorsListEl.appendChild(renderShopItem(item, userProfile.spots, isOwned));
                 }
-                 // TODO: Akzentfarben zum Shop hinzufügen
             });
 
         } catch (error) {
@@ -1444,10 +1521,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (item.type === 'icon') {
             previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
         } else if (item.type === 'background') {
-            // NEU: CSS-Hintergrund-Vorschau
             previewHtml = `<div class="item-preview-background ${item.cssClass || 'radial-only'}"></div>`;
         } else if (item.type === 'color') {
-            previewHtml = `<div class="item-preview-color" style="background-color: ${item.colorHex}"><i class="fa-solid fa-font"></i></div>`;
+             if (item.colorHex.includes('gradient')) {
+                previewHtml = `<div class="item-preview-color" style="background: ${item.colorHex};">
+                               <span class="gradient-text" style="background: ${item.colorHex};">Aa</span>
+                           </div>`;
+            } else {
+                previewHtml = `<div class="item-preview-color" style="background-color: ${item.colorHex}">
+                               <i class="fa-solid fa-font" style="color: ${item.colorHex}; filter: invert(1);"></i>
+                           </div>`;
+            }
         } else if (item.type === 'accent-color') {
              previewHtml = `<div class="item-preview-color" style="background: ${item.colorHex}"></div>`;
         } else {
@@ -1507,7 +1591,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     else if (result.itemType === 'icon') ownedIconIds.add(item.id);
                     else if (result.itemType === 'background') ownedBackgroundIds.add(item.backgroundId);
                     else if (result.itemType === 'color') ownedColorIds.add(item.id);
-                    else if (result.itemType === 'accent-color') ownedAccentColorIds.add(item.id); // NEU
+                    else if (result.itemType === 'accent-color') ownedAccentColorIds.add(item.id); 
                     loadShopItems(); 
                     
                     awardClientSideAchievement(21);
@@ -1521,7 +1605,6 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
     
-    // NEU: Clean Reaction Popup
     function displayReaction(playerId, nickname, iconId, reaction) {
         const icon = iconsList.find(i => i.id === iconId) || iconsList[0];
         const iconClass = icon ? icon.iconClass : 'fa-user';
@@ -1973,7 +2056,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (value === 'custom') {
             if (type === 'song-count') openCustomValueModal('song-count', 'Anzahl Songs', 1, 999);
             else if (type === 'guess-time') openCustomValueModal('guess-time', 'Ratezeit (Sek.)', 10, 120);
-            else if (type === 'lives') openCustomValueModal('lives', 'Leben (1-10)', 1, 10);
+            else if (type === 'lives') openCustomValueModal('lives', 'Leben (1-999)', 1, 999); // KORREKTUR: Limit entfernt
             return;
         }
 
@@ -2088,7 +2171,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             elements.gameTypeScreen.pointsBtn?.addEventListener('click', () => { gameCreationSettings.gameType='points'; elements.gameTypeScreen.pointsBtn.classList.add('active'); elements.gameTypeScreen.livesBtn?.classList.remove('active'); elements.gameTypeScreen.livesSettings?.classList.add('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
             elements.gameTypeScreen.livesBtn?.addEventListener('click', () => { gameCreationSettings.gameType='lives'; elements.gameTypeScreen.pointsBtn?.classList.remove('active'); elements.gameTypeScreen.livesBtn.classList.add('active'); elements.gameTypeScreen.livesSettings?.classList.remove('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
-            elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const btn=e.target.closest('.preset-button'); if(btn){ elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const v=btn.dataset.value; if(v==='custom'){ openCustomValueModal('lives', 'Leben (1-10)', 1, 10); } else { gameCreationSettings.lives=parseInt(v); console.log(`Lives: ${gameCreationSettings.lives}`); } } });
+            elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const btn=e.target.closest('.preset-button'); if(btn){ elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const v=btn.dataset.value; if(v==='custom'){ openCustomValueModal('lives', 'Leben (1-999)', 1, 999); } else { gameCreationSettings.lives=parseInt(v); console.log(`Lives: ${gameCreationSettings.lives}`); } } });
             
             elements.gameTypeScreen.guessTypesCheckboxes.forEach(cb => {
                 cb.addEventListener('change', () => {
@@ -2219,7 +2302,6 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.customize.iconsList?.addEventListener('click', (e) => { const card = e.target.closest('.icon-card:not(.locked)'); if (card) { equipIcon(parseInt(card.dataset.iconId), true); } });
             elements.customize.colorsList?.addEventListener('click', (e) => { const card = e.target.closest('.color-card:not(.locked)'); if (card) { const colorId = card.dataset.colorId === '' ? null : parseInt(card.dataset.colorId); equipColor(colorId, true); } });
             
-            // NEU: Listener für Akzentfarben
             elements.customize.accentColorsList?.addEventListener('click', (e) => { 
                 const card = e.target.closest('.color-card:not(.locked)'); 
                 if (card) { 
@@ -2229,11 +2311,10 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             elements.customize.backgroundsList?.addEventListener('click', (e) => {
-                const li = e.target.closest('li[data-bg-id]');
-                const btn = e.target.closest('button:not(.locked)');
-                if (li && btn) {
-                    const bgId = li.dataset.bgId;
-                    equipBackground(bgId, true); // NEU: Speichert den persönlichen Hintergrund
+                const card = e.target.closest('.background-card:not(.locked)');
+                if (card) {
+                    const bgId = card.dataset.bgId;
+                    equipBackground(bgId, true); 
                 }
             });
 
