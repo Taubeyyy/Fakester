@@ -2486,4 +2486,3 @@ document.addEventListener('DOMContentLoaded', () => {
     addEventListeners(); 
     initializeSupabase(); 
 
-});

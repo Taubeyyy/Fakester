@@ -249,6 +249,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .player-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 
 /* KORREKTUR: Spieler-Karten-Design (Lobby) */
+/* NEU (Runde 2): Vorbereitung für individuelle Akzentfarben */
 .player-card { 
     background-color: var(--dark-grey); 
     border-radius: var(--border-radius); 
@@ -256,6 +257,13 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     overflow: hidden;
     min-height: 80px; /* Gib der Karte eine Mindesthöhe */
     border: 1px solid var(--dark-grey);
+    /* Standard-Akzentfarbe (Fallback) */
+    --player-accent-color: var(--accent-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.player-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
 }
 .player-card-background {
     position: absolute;
@@ -277,7 +285,8 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     min-height: 80px;
 }
 .player-card-content.host {
-     border-left: 4px solid var(--accent-color);
+     /* Nutzt jetzt die Spieler-Akzentfarbe */
+     border-left: 4px solid var(--player-accent-color);
      padding-left: 8px; /* Ausgleich für den Border */
 }
 .player-card .player-icon { 
@@ -288,7 +297,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     text-align: center;
 }
 .player-card-content.host .player-icon {
-    color: var(--accent-color); /* Host-Krone-Farbe */
+    color: var(--player-accent-color); /* Host-Krone-Farbe (dynamisch) */
 }
 .player-info {
     display: flex;
@@ -300,7 +309,8 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .player-title {
     font-size: 0.75rem;
     font-weight: 700;
-    color: var(--accent-color);
+    /* Nutzt jetzt die Spieler-Akzentfarbe */
+    color: var(--player-accent-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -314,6 +324,14 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     line-height: 1.2;
     transition: color 0.3s ease; 
 }
+
+/* NEU (Runde 2): Unterstützung für Verlaufs-Namen */
+.player-card .player-name[style*="background"] {
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent !important;
+}
+
 .player-card.new { animation: slideIn 0.5s ease-out forwards; }
 .player-card.disconnected::after { content: 'Offline'; position: absolute; top:0; left:0; right:0; bottom:0; background: #000000a0; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; z-index: 3; }
 @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -329,6 +347,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
 .preset-group { display: flex; gap: 8px; width: 100%; flex-wrap: wrap; }
 .preset-button { flex: 1 1 auto; background-color: var(--dark-grey); border: 1px solid var(--medium-grey); color: var(--text-muted-color); padding: 8px 10px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; min-width: 50px; font-size: 0.8rem; text-align: center; }
 .preset-button:hover { border-color: var(--accent-color); }
+.preset-button:active { transform: scale(0.95); } /* NEU: Animation */
 .preset-button.active { background-color: var(--accent-color); border-color: var(--accent-color); color: var(--background-color); }
 
 .button-start { padding: 15px; font-size: 1.1rem; }
@@ -632,7 +651,7 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     overflow: hidden;
 }
 .shop-item:hover { 
-    transform: translateY(-4px); 
+    transform: translateY(-4px) scale(1.02); /* NEU: Leichter Zoom-Effekt */
     box-shadow: 0 6px 15px rgba(0,0,0,0.3);
     border-color: var(--accent-color); /* Grüner Rand beim Hovern */
 }
@@ -699,6 +718,8 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     text-shadow: 0 0 5px rgba(0,0,0,0.5);
     background-clip: padding-box;
     z-index: 1;
+    /* NEU (Runde 2): Nutzt background statt background-color, um Verläufe zu unterstützen */
+    background: var(--dark-grey);
 }
 /* ENDE NEUES SHOP DESIGN */
 
@@ -899,9 +920,55 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 2rem;
     color: rgba(255, 255, 255, 0.5);
     text-shadow: 0 0 5px rgba(0,0,0,0.5);
+    /* NEU (Runde 2): Nutzt background statt background-color */
+    background: var(--dark-grey);
 }
 .color-card .color-name { font-size: 0.8rem; font-weight: 700; }
 .color-card .color-desc { font-size: 0.8rem; color: var(--text-muted-color); }
+
+/* NEU (Runde 2): "Cleaneres" Hintergrund-Menü */
+#owned-backgrounds-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+}
+#owned-backgrounds-list li {
+    padding: 0;
+    background: none;
+}
+#owned-backgrounds-list li .button-select {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 10px;
+    height: 100px;
+    border: 2px solid var(--dark-grey);
+    background-color: var(--background-color);
+    background-size: cover;
+    background-position: center;
+    text-align: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-color);
+    text-shadow: 0 0 5px rgba(0,0,0,0.7);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+#owned-backgrounds-list li .button-select.active {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 10px var(--accent-color-faded);
+}
+#owned-backgrounds-list li .button-select.locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+    color: var(--text-muted-color);
+}
+#owned-backgrounds-list li .button-select span {
+    font-size: 0.7rem;
+    font-weight: 400;
+    margin: 0;
+}
 
 
 /* ==================
@@ -983,12 +1050,21 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     font-size: 0.85rem; /* Etwas kleiner */
     font-weight: 700;
     color: var(--text-muted-color);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    line-height: 1.2;
+    /* NEU (Runde 2): Erlaube Umbruch, um "..." zu verhindern */
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    line-height: 1.1; /* Engerer Zeilenabstand */
     transition: color 0.3s ease;
 }
+
+/* NEU (Runde 2): Unterstützung für Verlaufs-Namen */
+.game-player-card .player-name[style*="background"] {
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent !important;
+}
+
 .game-player-card .player-score {
     font-size: 1.2rem;
     font-weight: 800;
@@ -1059,6 +1135,10 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     border: 1px solid var(--medium-grey);
     background-color: var(--dark-grey); /* Standard-Button-Farbe */
     color: var(--text-muted-color);
+    transition: transform 0.1s ease, background-color 0.2s ease; /* NEU: Animation */
+}
+.mc-button:active {
+    transform: scale(0.97); /* NEU: Animation */
 }
 .mc-button.active {
     background-color: var(--accent-color);
@@ -1171,33 +1251,33 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
    NEU: CSS-Hintergründe
    ================== */
 
-.app-background.bg-synthwave {
+.app-background.bg-synthwave, .bg-synthwave {
     background: #000020;
     background-image: 
         radial-gradient(ellipse at 50% 0%, rgba(255, 0, 150, 0.4) 0%, rgba(0, 0, 0, 0) 60%),
         radial-gradient(ellipse at 50% 100%, rgba(0, 200, 255, 0.4) 0%, rgba(0, 0, 0, 0) 60%);
 }
-.app-background.bg-concert {
+.app-background.bg-concert, .bg-concert {
     background: #110a0f;
     background-image: 
         radial-gradient(ellipse at 50% 100%, rgba(255, 100, 0, 0.5) 0%, rgba(0, 0, 0, 0) 70%),
         radial-gradient(ellipse at 20% 0%, rgba(100, 0, 255, 0.6) 0%, rgba(0, 0, 0, 0) 50%),
         radial-gradient(ellipse at 80% 0%, rgba(255, 0, 100, 0.6) 0%, rgba(0, 0, 0, 0) 50%);
 }
-.app-background.bg-vinyl {
+.app-background.bg-vinyl, .bg-vinyl {
     background-color: #3a2e28;
     background-image: linear-gradient(135deg, #3a2e28 0%, #1e1a18 100%);
 }
-.app-background.bg-sunset {
+.app-background.bg-sunset, .bg-sunset {
     background: linear-gradient(170deg, #ff7e5f, #feb47b, #121212 70%);
 }
-.app-background.bg-ocean {
+.app-background.bg-ocean, .bg-ocean {
     background: linear-gradient(170deg, #005c97, #363795, #121212 70%);
 }
-.app-background.bg-forest {
+.app-background.bg-forest, .bg-forest {
     background: linear-gradient(170deg, #136a8a, #267871, #121212 70%);
 }
-.app-background.bg-stars {
+.app-background.bg-stars, .bg-stars {
     background-color: #00001a;
     background-image: radial-gradient(circle at 10% 20%, rgba(200, 200, 255, 0.3), transparent 20%),
                       radial-gradient(circle at 80% 30%, rgba(200, 200, 255, 0.3), transparent 20%),
@@ -1206,18 +1286,18 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     background-size: 1px 1px;
     background-repeat: repeat;
 }
-.app-background.bg-retro {
+.app-background.bg-retro, .bg-retro {
     background-color: #3D0000;
     background-image: linear-gradient(135deg, #3D0000 0%, #6A0000 50%, #B20000 100%);
 }
-.app-background.bg-studio {
+.app-background.bg-studio, .bg-studio {
     background-color: #444;
     background-image: linear-gradient(45deg, #333 25%, transparent 25%, transparent 75%, #333 75%, #333), 
                       linear-gradient(45deg, #333 25%, transparent 25%, transparent 75%, #333 75%, #333);
     background-size: 20px 20px;
     background-position: 0 0, 10px 10px;
 }
-.app-background.bg-party {
+.app-background.bg-party, .bg-party {
     background: linear-gradient(45deg, #ff00ff, #00ffff, #ffff00, #ff00ff);
     background-size: 400% 400%;
     animation: gradientParty 10s ease infinite;
@@ -1226,4 +1306,16 @@ input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:foc
     0% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
     100% { background-position: 0% 50%; }
+}
+
+/* NEU (Runde 2): Modus-Auswahl Animation */
+.mode-box {
+    transition: transform 0.2s ease, background-color 0.2s ease;
+}
+.mode-box:not(:disabled):hover {
+    background-color: var(--dark-grey) !important;
+    transform: translateY(-3px);
+}
+.mode-box:not(:disabled):active {
+    transform: scale(0.98) translateY(0);
 }
