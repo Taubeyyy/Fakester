@@ -71,42 +71,97 @@ const onlineUsers = new Map();
 const HEARTBEAT_INTERVAL = 30000;
 
 const shopItems = [
-    { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Zeige allen dein Wissen!' },
-    { id: 102, type: 'title', name: 'Playlist-Meister', cost: 150, unlockType: 'spots', description: 'Für echte Kenner.' },
-    { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Für Rhythmus-Fanatiker.' },
-    { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Synth-Pop-Liebhaber.' },
-    { id: 105, type: 'title', name: 'Gold-Kehlchen', cost: 300, unlockType: 'spots', description: 'Für die Gesangs-Profis.' },
-    { id: 106, type: 'title', name: 'Platin', cost: 1000, unlockType: 'spots', description: 'Mehr Platin als die Wand.' },
-    { id: 107, type: 'title', name: 'Lyriker', cost: 250, unlockType: 'spots', description: 'Poet an den Mics.' },
-    { id: 108, type: 'title', name: 'Nacht-Eule', cost: 300, unlockType: 'spots', description: 'Für lange Nächte.' },
-    { id: 109, type: 'title', name: 'Groove-Meister', cost: 400, unlockType: 'spots', description: 'Immer im Takt.' },
-    { id: 110, type: 'title', name: 'Harmonisch', cost: 150, unlockType: 'spots', description: 'Für den perfekten Klang.' },
+    { id: 101, type: 'title', name: 'Musik-Guru', cost: 100, unlockType: 'spots', description: 'Nur im Shop', unlockValue: 100 },
+    { id: 102, type: 'title', name: 'Playlist-Meister', cost: 150, unlockType: 'spots', description: 'Nur im Shop', unlockValue: 150 },
+    { id: 103, type: 'title', name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 104, type: 'title', name: '80er-Kind', cost: 150, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 105, type: 'title', name: 'Gold-Kehlchen', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 106, type: 'title', name: 'Platin', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 107, type: 'title', name: 'Rockstar', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 108, type: 'title', name: 'Pop-Prinzessin', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 109, type: 'title', name: 'Hip-Hop-Head', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 110, type: 'title', name: 'DJ', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 111, type: 'title', name: 'Oldtimer', cost: 250, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 112, type: 'title', name: 'One-Hit-Wonder', cost: 50, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 113, type: 'title', name: 'Vinyl-Junkie', cost: 400, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 114, type: 'title', name: 'Festivalgänger', cost: 350, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 115, type: 'title', name: 'Audiophil', cost: 600, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 116, type: 'title', name: 'Klassiker', cost: 250, unlockType: 'spots', description: 'Nur im Shop' },
     
-    { id: 201, type: 'icon', name: 'Diamant', iconClass: 'fa-diamond', cost: 250, unlockType: 'spots', description: 'Ein glänzendes Icon.' },
-    { id: 202, type: 'icon', name: 'Zauberhut', iconClass: 'fa-hat-wizard', cost: 300, unlockType: 'spots', description: 'Magisch!' },
-    { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Zum Mond!' },
-    { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Explosiv.' },
-    { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 500, unlockType: 'spots', description: 'Still und leise.' },
-    { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Feurig!' },
-    { id: 207, type: 'icon', name: 'Anker', iconClass: 'fa-anchor', cost: 200, unlockType: 'spots', description: 'Sicherer Hafen.' },
-    { id: 208, type: 'icon', name: 'Mond', iconClass: 'fa-moon', cost: 300, unlockType: 'spots', description: 'Für die Nacht.' },
-    { id: 209, type: 'icon', name: 'Sonne', iconClass: 'fa-sun', cost: 300, unlockType: 'spots', description: 'Für den Tag.' },
-    { id: 210, type: 'icon', name: 'Herz', iconClass: 'fa-heart', cost: 100, unlockType: 'spots', description: 'Mit Liebe.' },
+    { id: 201, type: 'icon', name: 'Diamant', iconClass: 'fa-diamond', cost: 250, unlockType: 'spots', description: 'Nur im Shop', unlockValue: 250 },
+    { id: 202, type: 'icon', name: 'Zauberhut', iconClass: 'fa-hat-wizard', cost: 300, unlockType: 'spots', description: 'Nur im Shop', unlockValue: 300 },
+    { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 204, type: 'icon', name: 'Bombe', iconClass: 'fa-bomb', cost: 350, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 205, type: 'icon', name: 'Ninja', iconClass: 'fa-user-secret', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 206, type: 'icon', name: 'Drache', iconClass: 'fa-dragon', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 207, type: 'icon', name: 'Anker', iconClass: 'fa-anchor', cost: 200, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 208, type: 'icon', name: 'Kaffeetasse', iconClass: 'fa-coffee', cost: 150, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 209, type: 'icon', name: 'Mond', iconClass: 'fa-moon', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 210, type: 'icon', name: 'Sonne', iconClass: 'fa-sun', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 211, type: 'icon', name: 'Herz', iconClass: 'fa-heart', cost: 100, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 212, type: 'icon', name: 'Pflanze', iconClass: 'fa-leaf', cost: 150, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 213, type: 'icon', name: 'Saturn', iconClass: 'fa-satellite', cost: 450, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 214, type: 'icon', name: 'Kamera', iconClass: 'fa-camera-retro', cost: 300, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 215, type: 'icon', name: 'Schneeflocke', iconClass: 'fa-snowflake', cost: 350, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 216, type: 'icon', name: 'Maske', iconClass: 'fa-masks-theater', cost: 400, unlockType: 'spots', description: 'Nur im Shop' },
 
-    { id: 301, type: 'background', name: 'Synthwave', cssClass: 'bg-synthwave', cost: 500, unlockType: 'spots', description: 'Retro-Vibes.', backgroundId: '301' },
-    { id: 302, type: 'background', name: 'Konzertbühne', cssClass: 'bg-concert', cost: 600, unlockType: 'spots', description: 'Fühl dich wie ein Star.', backgroundId: '302' },
-    { id: 303, type: 'background', name: 'Plattenladen', cssClass: 'bg-vinyl', cost: 700, unlockType: 'spots', description: 'Klassisches Stöbern.', backgroundId: '303' },
-    { id: 304, type: 'background', name: 'Sternenhimmel', cssClass: 'bg-stars', cost: 750, unlockType: 'spots', description: 'Unendliche Weiten.', backgroundId: '304' },
-    { id: 305, type: 'background', name: 'Party-Lichter', cssClass: 'bg-party', cost: 1000, unlockType: 'spots', description: 'Es geht ab!', backgroundId: '305' },
-    { id: 306, type: 'background', name: 'Wald-Stimmung', cssClass: 'bg-forest', cost: 600, unlockType: 'spots', description: 'Ruhig und tief.', backgroundId: '306' },
-    { id: 307, type: 'background', name: 'Matrix', cssClass: 'bg-matrix', cost: 1500, unlockType: 'spots', description: 'Folge dem Kaninchen.', backgroundId: '307' },
-    { id: 308, type: 'background', name: 'Nebula', cssClass: 'bg-nebula', cost: 1500, unlockType: 'spots', description: 'Galaktisch.', backgroundId: '308' },
+    { id: '301', type: 'background', name: 'Synthwave', cssClass: 'bg-synthwave', cost: 500, unlockType: 'spots', unlockValue: 500, backgroundId: '301' },
+    { id: '302', type: 'background', name: 'Konzertbühne', cssClass: 'bg-concert', cost: 600, unlockType: 'spots', unlockValue: 600, backgroundId: '302' },
+    { id: '303', type: 'background', name: 'Plattenladen', cssClass: 'bg-vinyl', cost: 700, unlockType: 'spots', unlockValue: 700, backgroundId: '303' },
+    { id: '304', type: 'background', name: 'Sonnenuntergang', cssClass: 'bg-sunset', cost: 500, unlockType: 'spots', unlockValue: 500, backgroundId: '304' },
+    { id: '305', type: 'background', name: 'Ozean', cssClass: 'bg-ocean', cost: 500, unlockType: 'spots', unlockValue: 500, backgroundId: '305' },
+    { id: '306', type: 'background', name: 'Wald', cssClass: 'bg-forest', cost: 500, unlockType: 'spots', unlockValue: 500, backgroundId: '306' },
+    { id: '307', type: 'background', name: 'Sternenhimmel', cssClass: 'bg-stars', cost: 750, unlockType: 'spots', unlockValue: 750, backgroundId: '307' },
+    { id: '308', type: 'background', name: 'Retro-Rot', cssClass: 'bg-retro', cost: 500, unlockType: 'spots', unlockValue: 500, backgroundId: '308' },
+    { id: '309', type: 'background', name: 'Studio', cssClass: 'bg-studio', cost: 600, unlockType: 'spots', unlockValue: 600, backgroundId: '309' },
+    { id: '310', type: 'background', name: 'Party', cssClass: 'bg-party', cost: 1000, unlockType: 'spots', unlockValue: 1000, backgroundId: '310' },
+    { id: '311', type: 'background', name: 'Aurora', cssClass: 'bg-aurora', cost: 1200, unlockType: 'spots', unlockValue: 1200, backgroundId: '311' },
+    { id: '312', type: 'background', name: 'Comic', cssClass: 'bg-comic', cost: 800, unlockType: 'spots', unlockValue: 800, backgroundId: '312' },
+    { id: '313', type: 'background', name: 'Matrix', cssClass: 'bg-matrix', cost: 1500, unlockType: 'spots', unlockValue: 1500, backgroundId: '313' },
+    { id: '314', type: 'background', name: 'Nebula', cssClass: 'bg-nebula', cost: 1500, unlockType: 'spots', unlockValue: 1500, backgroundId: '314' },
+    { id: '315', type: 'background', name: 'Schaltkreis', cssClass: 'bg-circuit', cost: 1000, unlockType: 'spots', unlockValue: 1000, backgroundId: '315' },
+    { id: '316', type: 'background', name: 'Lava', cssClass: 'bg-lava', cost: 800, unlockType: 'spots', unlockValue: 800, backgroundId: '316' },
+    { id: '317', type: 'background', name: 'Eis', cssClass: 'bg-ice', cost: 800, unlockType: 'spots', unlockValue: 800, backgroundId: '317' },
+    { id: '318', type: 'background', name: 'Wüste', cssClass: 'bg-desert', cost: 600, unlockType: 'spots', unlockValue: 600, backgroundId: '318' },
+    { id: '319', type: 'background', name: 'Metall', cssClass: 'bg-metal', cost: 900, unlockType: 'spots', unlockValue: 900, backgroundId: '319' },
+    { id: '320', type: 'background', name: 'Holz', cssClass: 'bg-wood', cost: 500, unlockType: 'spots', unlockValue: 500, backgroundId: '320' },
     
-    { id: 501, name: 'Giftgrün', type: 'color', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' },
-    { id: 502, name: 'Leuchtend Pink', type: 'color', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' },
-    { id: 503, name: 'Gold', type: 'color', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' },
-    { id: 504, name: 'Cyber-Blau', type: 'color', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' },
-    { id: 505, name: 'Feuer-Orange', type: 'color', colorHex: '#ff4500', cost: 800, unlockType: 'spots', description: 'Heiß!' }
+    { id: 501, type: 'color', name: 'Giftgrün', colorHex: '#00FF00', cost: 750, unlockType: 'spots', description: 'Ein knalliges Grün.' },
+    { id: 502, type: 'color', name: 'Leuchtend Pink', colorHex: '#FF00FF', cost: 750, unlockType: 'spots', description: 'Ein echter Hingucker.' },
+    { id: 503, type: 'color', name: 'Gold', colorHex: '#FFD700', cost: 1500, unlockType: 'spots', description: 'Zeig deinen Status.' },
+    { id: 504, type: 'color', name: 'Cyber-Blau', colorHex: '#00FFFF', cost: 1000, unlockType: 'spots', description: 'Neon-Look.' },
+    { id: 505, type: 'color', name: 'Blutrot', colorHex: '#DC143C', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 506, type: 'color', name: 'Sonnengelb', colorHex: '#FFC700', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 507, type: 'color', name: 'Himmelblau', colorHex: '#87CEEB', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 508, type: 'color', name: 'Lavendel', colorHex: '#E6E6FA', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 509, type: 'color', name: 'Königs-Lila', colorHex: '#8a2be2', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 510, type: 'color', name: 'Schneeweiß', colorHex: '#FFFFFF', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 511, type: 'color', name: 'Tiefschwarz', colorHex: '#010101', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 512, type: 'color', name: 'Feuriges Orange', colorHex: '#ff4500', cost: 750, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 550, type: 'color', name: 'Regenbogen', colorHex: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)', cost: 5000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 551, type: 'color', name: 'Synthwave-Verlauf', colorHex: 'linear-gradient(90deg, #ff00ff, #00ffff)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 552, type: 'color', name: 'Sonnen-Verlauf', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 553, type: 'color', name: 'Ozean-Verlauf', colorHex: 'linear-gradient(90deg, #005c97, #363795)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 554, type: 'color', name: 'Wald-Verlauf', colorHex: 'linear-gradient(90deg, #136a8a, #267871)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 555, type: 'color', name: 'Feuer-Verlauf', colorHex: 'linear-gradient(90deg, #ff4500, #ffd700)', cost: 3000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 556, type: 'color', name: 'Kaugummi', colorHex: 'linear-gradient(90deg, #ff7eb9, #a0c2ff)', cost: 2000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 557, type: 'color', name: 'Gift-Verlauf', colorHex: 'linear-gradient(90deg, #00ff00, #8a2be2)', cost: 3000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 558, type: 'color', name: 'Dunkel-Verlauf', colorHex: 'linear-gradient(90deg, #434343, #000000)', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 559, type: 'color', name: 'Heller Verlauf', colorHex: 'linear-gradient(90deg, #e0e0e0, #ffffff)', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 560, type: 'color', name: 'Metallisch', colorHex: 'linear-gradient(90deg, #808080, #c0c0c0, #808080)', cost: 4000, unlockType: 'spots', description: 'Nur im Shop' },
+
+    { id: 601, type: 'accent-color', name: 'Dynamisches Pink', colorHex: '#FF00FF', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 602, type: 'accent-color', name: 'Dynamisches Blau', colorHex: '#00FFFF', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 603, type: 'accent-color', name: 'Feuriges Orange', colorHex: '#ff4500', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 604, type: 'accent-color', name: 'Reines Gold', colorHex: '#FFD700', cost: 2000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 605, type: 'accent-color', name: 'Regenbogen', colorHex: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)', cost: 5000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 606, type: 'accent-color', name: 'Synthwave-Verlauf', colorHex: 'linear-gradient(90deg, #ff00ff, #00ffff)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 607, type: 'accent-color', name: 'Sonnen-Verlauf', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 608, type: 'accent-color', name: 'Matrix-Grün', colorHex: '#39FF14', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 609, type: 'accent-color', name: 'Blutmond', colorHex: '#FF4500', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 610, type: 'accent-color', name: 'Geist-Weiß', colorHex: '#F8F8FF', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 611, type: 'accent-color', name: 'Dunkle Materie', colorHex: '#010101', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+    { id: 612, type: 'accent-color', name: 'Lava-Verlauf', colorHex: 'linear-gradient(90deg, #f7b733, #fc4a1a)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' }
 ];
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -301,19 +356,21 @@ app.get('/api/devices', async (req, res) => { const token = req.headers.authoriz
 
 apiRouter.get('/shop/items', async (req, res) => {
     const userId = req.userId;
-    let ownedItems = { titles: new Set(), icons: new Set(), backgrounds: new Set(), colors: new Set() };
+    let ownedItems = { titles: new Set(), icons: new Set(), backgrounds: new Set(), colors: new Set(), accentColors: new Set() };
     if (userId) {
         try {
-            const [titles, icons, backgrounds, colors] = await Promise.all([
+            const [titles, icons, backgrounds, colors, accentColors] = await Promise.all([
                 supabase.from('user_owned_titles').select('title_id').eq('user_id', userId),
                 supabase.from('user_owned_icons').select('icon_id').eq('user_id', userId),
                 supabase.from('user_owned_backgrounds').select('background_id').eq('user_id', userId),
-                supabase.from('user_owned_colors').select('color_id').eq('user_id', userId)
+                supabase.from('user_owned_colors').select('color_id').eq('user_id', userId),
+                supabase.from('user_owned_accent_colors').select('accent_color_id').eq('user_id', userId)
             ]);
             titles.data?.forEach(t => ownedItems.titles.add(t.title_id));
             icons.data?.forEach(i => ownedItems.icons.add(i.icon_id));
             backgrounds.data?.forEach(b => ownedItems.backgrounds.add(b.background_id));
             colors.data?.forEach(c => ownedItems.colors.add(c.color_id));
+            accentColors.data?.forEach(a => ownedItems.accentColors.add(a.accent_color_id));
         } catch (e) {
             console.error("Error fetching owned items for shop:", e);
         }
@@ -324,6 +381,7 @@ apiRouter.get('/shop/items', async (req, res) => {
         else if (item.type === 'icon') isOwned = ownedItems.icons.has(item.id);
         else if (item.type === 'background') isOwned = ownedItems.backgrounds.has(item.backgroundId);
         else if (item.type === 'color') isOwned = ownedItems.colors.has(item.id);
+        else if (item.type === 'accent-color') isOwned = ownedItems.accentColors.has(item.id);
         return { ...item, isOwned };
     });
     res.json({ items: itemsWithOwnership });
@@ -346,7 +404,7 @@ apiRouter.post('/shop/buy', async (req, res) => {
             p_item_id: itemToBuy.id.toString(),
             p_item_type: itemToBuy.type,
             p_item_cost: itemToBuy.cost,
-            p_storage_id: itemToBuy.itemId || itemToBuy.id.toString()
+            p_storage_id: itemToBuy.backgroundId || itemToBuy.id.toString()
         });
         if (error) {
             console.error(`Supabase RPC 'purchase_item' Error:`, error.message);
@@ -454,8 +512,49 @@ async function handleWebSocketMessage(ws, data) {
         }
         
         if (type === 'handle-gift') {
-            console.log(`Gifting-Versuch von ${playerId} (STUB)`);
-            showToastToPlayer(ws, "Gifting-System kommt bald!", false);
+            if (!payload || !payload.recipientId || !payload.itemType || !payload.amount) {
+                return showToastToPlayer(ws, "Fehlende Daten für Geschenk.", true);
+            }
+            if (payload.itemType === 'spots') {
+                console.log(`GIFTING: ${playerId} will ${payload.amount} Spots an ${payload.recipientId} senden.`);
+                
+                showToastToPlayer(ws, `Geschenk gesendet (STUB)!`, false);
+            }
+            return;
+        }
+
+        if (type === 'admin-kick' || type === 'admin-grant' || type === 'admin-revoke') {
+            const isAdmin = (ws.nickname || '').toLowerCase() === 'taubey';
+            const isHost = game && ws.playerId === game.hostId;
+
+            if (type === 'admin-kick') {
+                if (!game || !(isHost || isAdmin)) {
+                    return showToastToPlayer(ws, "Keine Berechtigung.", true);
+                }
+                const playerToKickId = payload.playerId;
+                if (playerToKickId === game.hostId) {
+                    return showToastToPlayer(ws, "Host kann nicht gekickt werden.", true);
+                }
+                const playerToKick = game.players[playerToKickId];
+                if (playerToKick && playerToKick.ws) {
+                    showToastToPlayer(playerToKick.ws, "Du wurdest vom Host gekickt.", true);
+                    playerToKick.ws.close(1000, "Vom Host gekickt");
+                    
+                    showToastToPlayer(ws, `${playerToKick.nickname} wurde gekickt.`, false);
+                }
+            } else {
+                if (!isAdmin) {
+                    return showToastToPlayer(ws, "Keine Berechtigung.", true);
+                }
+                if (type === 'admin-grant') {
+                    console.log(`ADMIN: ${ws.nickname} granting ${payload.itemType} to ${payload.username}`);
+                    showToastToPlayer(ws, "Admin-Befehl (Grant) gesendet (STUB).", false);
+                }
+                if (type === 'admin-revoke') {
+                    console.log(`ADMIN: ${ws.nickname} revoking ${payload.itemType} from ${payload.username}`);
+                    showToastToPlayer(ws, "Admin-Befehl (Revoke) gesendet (STUB).", false);
+                }
+            }
             return;
         }
 
@@ -583,6 +682,19 @@ async function handleWebSocketMessage(ws, data) {
                 }
                 break;
             
+            case 'submit-timeline-guess':
+                 if (game && game.players[playerId] && game.gameState === 'PLAYING') {
+                    game.players[playerId].currentGuess = payload.guess; 
+                    game.players[playerId].isReady = true; 
+                    broadcastLobbyUpdate(pin);
+                    
+                    const allReady = Object.values(game.players).every(p => p.isReady || !p.isConnected);
+                    if (allReady) {
+                        endTimelineRound(pin).catch(err => console.error(`[FATAL] Error in endTimelineRound (player-ready) for ${pin}:`, err));
+                    }
+                }
+                break;
+            
             case 'player-ready':
                 if (game && game.players[playerId] && game.gameState === 'PLAYING') {
                     game.players[playerId].isReady = true;
@@ -670,7 +782,6 @@ async function handlePlayerDisconnect(ws) {
                 if (error) throw error;
                 
                 console.log(`Awarded ${xpBonus} XP and ${spotBonus} Spots to ${p.id} (consolation).`);
-                showToastToPlayer(p.ws, `Spiel abgebrochen. +${xpBonus} XP & +${spotBonus} 🎵 (Trostpreis)`, false);
                 
                 awardAchievement(p.ws, p.id, 26);
 
@@ -840,6 +951,13 @@ async function startTimelineRound(pin) {
         const baseTrack = game.tracks[0];
         game.timeline = [baseTrack]; 
         
+        const success = await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
+            uris: [`spotify:track:${baseTrack.spotifyId}`] 
+        });
+        if (!success) {
+             broadcastToLobby(pin, { type: 'toast', payload: { message: "Fehler bei Spotify-Wiedergabe.", isError: true } });
+        }
+        
         broadcastToLobby(pin, { 
             type: 'timeline-start', 
             payload: { 
@@ -866,6 +984,12 @@ async function startTimelineRound(pin) {
         game.gameState = 'PLAYING';
         const trackToGuess = game.tracks[game.currentRound]; 
         game.currentTrack = trackToGuess; 
+
+        Object.values(game.players).forEach(p => {
+            p.isReady = false;
+            p.currentGuess = {}; 
+            p.lastPointsBreakdown = null; 
+        });
 
         const success = await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/play?device_id=${game.settings.deviceId}`, game.spotifyToken, { 
             uris: [`spotify:track:${trackToGuess.spotifyId}`] 
@@ -905,6 +1029,13 @@ async function endTimelineRound(pin) {
     
     await spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${game.settings.deviceId}`, game.spotifyToken, null);
 
+    Object.values(game.players).forEach(player => {
+        if (!player.isConnected || player.isGuest) return; 
+        
+        let roundScore = 100; 
+        player.score += roundScore; 
+        player.lastPointsBreakdown = { total: roundScore, breakdown: { timeline: { points: 100, text: "Platziert!"} } };
+    });
     
     const correctTrack = game.currentTrack;
     game.timeline.push(correctTrack);
@@ -921,9 +1052,13 @@ async function endTimelineRound(pin) {
     
     setTimeout(() => {
         if (games[pin]) { 
-            startTimelineRound(pin); 
+            if (game.currentRound >= game.tracks.length) {
+                endGame(pin).catch(err => console.error(`[FATAL] Error in endTimelineRound->endGame for ${pin}:`, err));
+            } else {
+                startTimelineRound(pin).catch(err => console.error(`[FATAL] Error in endTimelineRound->startTimelineRound for ${pin}:`, err));
+            }
         }
-    }, 8000); 
+    }, 8000);
 }
 
 
@@ -980,16 +1115,17 @@ async function startNewRound(pin) {
         };
             
         if (guessTypes.includes('title')) {
-            const falseTitles = getFalseOptions(allTitles, track.title);
+            let falseTitles = getFalseOptions(allTitles, track.title);
+            while (falseTitles.length < 3) { falseTitles.push(`Titel ${falseTitles.length + 1}`); }
             mcOptions.title = shuffleArray([track.title, ...falseTitles]);
         }
         if (guessTypes.includes('artist')) {
-            const falseArtists = getFalseOptions(allArtists, track.artist);
+            let falseArtists = getFalseOptions(allArtists, track.artist);
+            while (falseArtists.length < 3) { falseArtists.push(`Künstler ${falseArtists.length + 1}`); }
             mcOptions.artist = shuffleArray([track.artist, ...falseArtists]);
         }
         if (guessTypes.includes('year')) {
             let falseYears = getFalseOptions(allYears, track.year);
-            
             while (falseYears.length < 3) {
                 const randomOffset = (Math.floor(Math.random() * 10) + 1) * (Math.random() < 0.5 ? 1 : -1);
                 const newYear = track.year + randomOffset;
@@ -1103,8 +1239,12 @@ async function endRound(pin) {
     });
     
     setTimeout(() => {
-        if (games[pin]) { 
-            startNewRound(pin);
+        if (games[pin]) {
+            if (game.currentRound >= game.tracks.length) {
+                endGame(pin).catch(err => console.error(`[FATAL] Error in endRound->endGame for ${pin}:`, err));
+            } else {
+                startNewRound(pin).catch(err => console.error(`[FATAL] Error in endRound->startNewRound for ${pin}:`, err));
+            }
         }
     }, 8000); 
 }

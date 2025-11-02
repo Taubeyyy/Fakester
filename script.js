@@ -125,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
     const titlesList = [ 
         { id: 1, name: 'Neuling', unlockType: 'level', unlockValue: 1, type:'title' }, 
+        { id: 2, name: 'Anfänger', unlockType: 'level', unlockValue: 2, type:'title' }, 
         { id: 10, name: 'Kenner', unlockType: 'level', unlockValue: 5, type:'title' }, 
         { id: 11, name: 'Experte', unlockType: 'level', unlockValue: 10, type:'title' }, 
         { id: 12, name: 'Meister', unlockType: 'level', unlockValue: 15, type:'title' }, 
@@ -133,10 +134,9 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 15, name: 'Großmeister', unlockType: 'level', unlockValue: 30, type:'title' }, 
         { id: 16, name: 'Orakel', unlockType: 'level', unlockValue: 40, type:'title' }, 
         { id: 17, name: 'Musikgott', unlockType: 'level', unlockValue: 50, type:'title' },
-        { id: 2, name: 'Besserwisser', unlockType: 'achievement', unlockValue: 2, type:'title' }, 
-        { id: 3, name: 'Legende', unlockType: 'achievement', unlockValue: 3, type:'title' }, 
-        { id: 4, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4, type:'title' }, 
-        { id: 5, name: 'Star-Experte', unlockType: 'achievement', unlockValue: 5, type:'title' }, 
+        { id: 3, name: 'Besserwisser', unlockType: 'achievement', unlockValue: 2, type:'title' }, 
+        { id: 4, name: 'Legende', unlockType: 'achievement', unlockValue: 3, type:'title' }, 
+        { id: 5, name: 'Zeitreisender', unlockType: 'achievement', unlockValue: 4, type:'title' }, 
         { id: 6, name: 'Pechvogel', unlockType: 'achievement', unlockValue: 12, type:'title' }, 
         { id: 7, name: 'Präzise', unlockType: 'achievement', unlockValue: 13, type:'title' }, 
         { id: 8, name: 'Gesellig', unlockType: 'achievement', unlockValue: 14, type:'title' }, 
@@ -171,14 +171,14 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     const iconsList = [ 
         { id: 1, iconClass: 'fa-user', unlockType: 'level', unlockValue: 1, description: 'Standard-Icon', type:'icon' }, 
-        { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 5, description: 'Erreiche Level 5', type:'icon' }, 
-        { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 10, description: 'Erreiche Level 10', type:'icon' }, 
-        { id: 7, iconClass: 'fa-guitar', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15', type:'icon' }, 
-        { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20', type:'icon' }, 
-        { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 25, description: 'Erreiche Level 25', type:'icon' }, 
-        { id: 9, iconClass: 'fa-record-vinyl', unlockType: 'level', unlockValue: 30, description: 'Erreiche Level 30', type:'icon' }, 
-        { id: 10, name: 'Feuer', iconClass: 'fa-fire', unlockType: 'level', unlockValue: 40, description: 'Erreiche Level 40', type:'icon' }, 
-        { id: 11, name: 'Geist', iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 45, description: 'Erreiche Level 45', type:'icon' }, 
+        { id: 2, iconClass: 'fa-music', unlockType: 'level', unlockValue: 3, description: 'Erreiche Level 3', type:'icon' }, 
+        { id: 3, iconClass: 'fa-star', unlockType: 'level', unlockValue: 7, description: 'Erreiche Level 7', type:'icon' }, 
+        { id: 7, iconClass: 'fa-guitar', unlockType: 'level', unlockValue: 12, description: 'Erreiche Level 12', type:'icon' }, 
+        { id: 5, iconClass: 'fa-crown', unlockType: 'level', unlockValue: 18, description: 'Erreiche Level 18', type:'icon' }, 
+        { id: 8, iconClass: 'fa-bolt', unlockType: 'level', unlockValue: 22, description: 'Erreiche Level 22', type:'icon' }, 
+        { id: 9, iconClass: 'fa-record-vinyl', unlockType: 'level', unlockValue: 28, description: 'Erreiche Level 28', type:'icon' }, 
+        { id: 10, name: 'Feuer', iconClass: 'fa-fire', unlockType: 'level', unlockValue: 35, description: 'Erreiche Level 35', type:'icon' }, 
+        { id: 11, name: 'Geist', iconClass: 'fa-ghost', unlockType: 'level', unlockValue: 42, description: 'Erreiche Level 42', type:'icon' }, 
         { id: 12, name: 'Meteor', iconClass: 'fa-meteor', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50', type:'icon' },
         { id: 4, iconClass: 'fa-trophy', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger', type:'icon' }, 
         { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser', type:'icon' }, 
@@ -480,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.classList.toggle('is-guest', isGuest); 
         
         if (!isGuest && currentUser.username.toLowerCase() === 'taubey') {
-            toggleConsoleBtn.classList.remove('hidden');
+            if (toggleConsoleBtn) toggleConsoleBtn.classList.remove('hidden');
         }
 
         if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; 
@@ -732,6 +732,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 setupTimelineRound(payload); 
                 showScreen('game-screen');
                 break;
+            case 'new-popularity-round': 
+                setLoading(false);
+                setupPopularityRound(payload); 
+                showScreen('game-screen');
+                break;
 
             case 'round-result':
                 if (currentGame.gameMode === 'timeline') {
@@ -762,360 +767,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn(`Unhandled WS message type: ${type}`);
         }
     };
-    
-    function handleLobbyUpdate(data) {
-        console.log("Handling lobby update", data);
-        const { pin, hostId, players, settings, gameMode } = data;
-        
-        currentGame.pin = pin;
-        currentGame.playerId = currentUser.id;
-        currentGame.isHost = hostId === currentUser.id;
-        currentGame.gameMode = gameMode;
-        currentGame.players = players; 
-        currentGame.settings = settings; 
-        
-        gameCreationSettings.guessTypes = settings.guessTypes || [];
-        gameCreationSettings.answerType = settings.answerType || 'freestyle';
-        gameCreationSettings.guessTime = settings.guessTime || 30;
-
-        if (elements.lobby.pinDisplay) {
-            elements.lobby.pinDisplay.textContent = pin;
-        }
-
-        renderPlayerList(players, hostId);
-        renderGamePlayerList(players, hostId);
-
-        if (document.getElementById('ready-status-display')) {
-            const readyPlayers = players.filter(p => p.isReady).length;
-            const totalPlayers = players.length;
-            document.getElementById('ready-status-display').textContent = `${readyPlayers} / ${totalPlayers} Spieler bereit`;
-        }
-
-        elements.lobby.hostSettings?.classList.toggle('hidden', !currentGame.isHost);
-        elements.lobby.guestWaitingMessage?.classList.toggle('hidden', currentGame.isHost);
-
-        updateHostSettings(settings, currentGame.isHost);
-        
-        pendingGameInvites = {};
-    }
-    
-    function showGameOver(payload) {
-        console.log("Game Over. Payload:", payload);
-        
-        if (spotifyToken && currentGame.settings?.deviceId) {
-            spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=${currentGame.settings.deviceId}`, spotifyToken, null);
-        }
-
-        if (payload.message) {
-            const myPlayer = payload.scores.find(p => p.id === currentUser.id);
-            const mySpots = myPlayer ? Math.max(1, Math.floor((myPlayer.score || 0) * 0.10)) : 0;
-            
-            showConfirmModal(
-                "Spiel beendet", 
-                `Der Host hat das Spiel verlassen.\nDir werden ${mySpots} 🎵 als Trostpreis gutgeschrieben.`, 
-                () => {
-                    updatePlayerProgress(); 
-                    showScreen('home-screen');
-                }
-            );
-            elements.confirmActionModal.cancelBtn.classList.add('hidden'); 
-            elements.confirmActionModal.confirmBtn.classList.remove('hidden');
-        
-        } else {
-            const leaderboardEl = elements.endScreen.leaderboard;
-            const xpEl = elements.endScreen.xp;
-            const spotsEl = elements.endScreen.spots;
-            
-            if (leaderboardEl) leaderboardEl.innerHTML = ''; 
-            
-            const myResult = payload.scores.find(p => p.id === currentUser.id);
-            
-            payload.scores.forEach((player, index) => {
-                const rank = index + 1;
-                const playerEl = document.createElement('div');
-                playerEl.className = `end-screen-player rank-${rank}`;
-                
-                const infoEl = document.createElement('div');
-                infoEl.className = 'end-screen-player-info';
-                
-                const rankEl = document.createElement('span');
-                rankEl.className = 'end-screen-player-rank';
-                rankEl.textContent = `#${rank}`;
-                
-                const nameEl = document.createElement('span');
-                nameEl.className = 'end-screen-player-name';
-                nameEl.textContent = player.nickname; 
-                
-                infoEl.append(rankEl, nameEl);
-                
-                const scoreEl = document.createElement('span');
-                scoreEl.className = 'end-screen-player-score';
-                scoreEl.textContent = player.score;
-                
-                playerEl.append(infoEl, scoreEl);
-                if (leaderboardEl) leaderboardEl.appendChild(playerEl);
-            });
-            
-            if (myResult && myResult.rewards) {
-                if(xpEl) xpEl.textContent = myResult.rewards.xp;
-                if(spotsEl) spotsEl.textContent = myResult.rewards.spots;
-            } else {
-                if(xpEl) xpEl.textContent = '0';
-                if(spotsEl) spotsEl.textContent = '0';
-            }
-            
-            updatePlayerProgress(); 
-            showScreen('end-screen');
-        }
-        
-        if(elements.game.playerList) elements.game.playerList.innerHTML = '';
-    }
-
-    function renderPlayerList(players, hostId) {
-        if (!elements.lobby.playerList) return;
-        elements.lobby.playerList.innerHTML = ''; 
-        
-        const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
-
-        sortedPlayers.forEach(player => {
-            const isHost = player.id === hostId;
-            const playerCard = document.createElement('div');
-            playerCard.className = 'player-card';
-            playerCard.classList.toggle('is-host', isHost); 
-            playerCard.dataset.playerId = player.id;
-            
-            const iconData = iconsList.find(i => i.id === player.iconId) || iconsList[0];
-            const iconClass = iconData ? iconData.iconClass : 'fa-user'; 
-            
-            const colorData = nameColorsList.find(c => c.id === player.colorId); 
-            const colorStyle = colorData ? (colorData.colorHex.includes('gradient') ? `background: ${colorData.colorHex}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;` : `color: ${colorData.colorHex}`) : '';
-
-            const titleData = titlesList.find(t => t.id === player.titleId) || titlesList[0];
-            const backgroundData = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = backgroundData ? backgroundData.cssClass : 'radial-only';
-            
-            const accentColorData = accentColorsList.find(c => c.id === player.accentColorId) || accentColorsList[0];
-            if (accentColorData) {
-                playerCard.style.setProperty('--player-accent-color', accentColorData.colorHex);
-            }
-            
-            const backgroundEl = document.createElement('div');
-            backgroundEl.className = `player-card-background ${backgroundStyle}`;
-            
-            const contentEl = document.createElement('div');
-            contentEl.className = 'player-card-content';
-            
-            const iconEl = document.createElement('i');
-            iconEl.className = `player-icon fa-solid ${iconClass}`; 
-            
-            const infoEl = document.createElement('div');
-            infoEl.className = 'player-info';
-            
-            const titleEl = document.createElement('span');
-            titleEl.className = 'player-title';
-            titleEl.textContent = titleData.name; 
-            
-            const nameEl = document.createElement('span');
-            nameEl.className = 'player-name';
-            nameEl.style.cssText = colorStyle;
-            nameEl.textContent = player.nickname || 'Unbekannt'; 
-            
-            infoEl.append(titleEl, nameEl);
-            contentEl.append(iconEl, infoEl);
-            playerCard.append(backgroundEl, contentEl);
-            
-            elements.lobby.playerList.appendChild(playerCard);
-        });
-    }
-
-    function renderGamePlayerList(players, hostId) { 
-        if (!elements.game.playerList) return;
-        elements.game.playerList.innerHTML = ''; 
-        
-        const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
-        
-        sortedPlayers.forEach(player => {
-            const isHost = player.id === hostId; 
-            const playerCard = document.createElement('div');
-            playerCard.className = 'game-player-card';
-            playerCard.classList.toggle('is-ready', player.isReady); 
-            playerCard.classList.toggle('is-host', isHost); 
-            playerCard.dataset.playerId = player.id;
-            
-            const iconData = iconsList.find(i => i.id === player.iconId) || iconsList[0];
-            const iconClass = iconData ? iconData.iconClass : 'fa-user';
-            
-            const colorData = nameColorsList.find(c => c.id === player.colorId); 
-            const colorStyle = colorData ? (colorData.colorHex.includes('gradient') ? `background: ${colorData.colorHex}; -webkit-background-clip: text; -webkit-text-fill-color: transparent;` : `color: ${colorData.colorHex}`) : '';
-
-            const titleData = titlesList.find(t => t.id === player.titleId) || titlesList[0];
-            const backgroundData = backgroundsList.find(b => b.backgroundId === player.backgroundId);
-            const backgroundStyle = backgroundData ? backgroundData.cssClass : 'radial-only';
-            
-            const accentColorData = accentColorsList.find(c => c.id === player.accentColorId) || accentColorsList[0];
-            if (accentColorData) {
-                playerCard.style.setProperty('--player-accent-color', accentColorData.colorHex);
-            }
-            
-            const backgroundEl = document.createElement('div');
-            backgroundEl.className = `player-card-background ${backgroundStyle}`;
-            
-            const contentEl = document.createElement('div');
-            contentEl.className = 'player-card-content';
-
-            const iconEl = document.createElement('i');
-            iconEl.className = `player-icon fa-solid ${iconClass}`; 
-            
-            const infoEl = document.createElement('div');
-            infoEl.className = 'player-info';
-            
-            const titleEl = document.createElement('span');
-            titleEl.className = 'player-title';
-            titleEl.textContent = titleData.name; 
-            
-            const nameEl = document.createElement('span');
-            nameEl.className = 'player-name';
-            nameEl.style.cssText = colorStyle;
-            nameEl.textContent = player.nickname || 'Unbekannt'; 
-            
-            infoEl.append(titleEl, nameEl);
-            
-            const scoreEl = document.createElement('span');
-            scoreEl.className = 'player-score';
-            scoreEl.textContent = player.score;
-            
-            contentEl.append(iconEl, infoEl, scoreEl);
-            
-            if (player.isReady) {
-                const readyIconEl = document.createElement('i');
-                readyIconEl.className = 'player-ready-icon fa-solid fa-check-circle';
-                contentEl.appendChild(readyIconEl);
-            }
-            
-            playerCard.append(backgroundEl, contentEl);
-            
-            elements.game.playerList.appendChild(playerCard);
-        });
-    }
-
-    function updateHostSettings(settings, isHost) {
-        console.log("Updating host settings display", settings);
-
-        const updatePresets = (presetContainer, value, customValueType) => {
-            if (!presetContainer) return;
-            let valueFound = false;
-            presetContainer.querySelectorAll('.preset-button').forEach(btn => {
-                if (btn.dataset.value === String(value)) {
-                    btn.classList.add('active');
-                    valueFound = true;
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-            
-            const customBtn = presetContainer.querySelector(`[data-value="custom"][data-type="${customValueType}"]`);
-            if (!valueFound && customBtn && value) {
-                customBtn.classList.add('active');
-                
-                let textContent = `${value}`;
-                if (customValueType === 'guess-time') textContent = `${value}s`;
-                else if (customValueType === 'lives') textContent = `${value} ❤️`;
-                customBtn.textContent = textContent;
-        
-            } else if (customBtn) {
-                if (customValueType === 'guess-time') customBtn.textContent = 'Custom';
-                else if (customValueType === 'lives') customBtn.textContent = 'Custom';
-                else customBtn.textContent = 'Custom';
-                if (valueFound) {
-                    customBtn.classList.remove('active');
-                }
-            }
-        };
-
-        if (elements.lobby.deviceSelectBtn) {
-            elements.lobby.deviceSelectBtn.textContent = settings.deviceName || 'Gerät auswählen';
-        }
-        if (elements.lobby.playlistSelectBtn) {
-            elements.lobby.playlistSelectBtn.textContent = settings.playlistName || 'Playlist auswählen';
-        }
-        
-        updatePresets(elements.lobby.songCountPresets, settings.songCount, 'song-count');
-        updatePresets(elements.lobby.guessTimePresets, settings.guessTime, 'guess-time');
-        
-        if (isHost && elements.lobby.startGameBtn) {
-            const canStart = settings.deviceName && settings.playlistName;
-            elements.lobby.startGameBtn.disabled = !canStart;
-            if (!canStart) {
-                elements.lobby.startGameBtn.title = "Wähle zuerst Gerät und Playlist.";
-            } else {
-                elements.lobby.startGameBtn.title = "";
-            }
-        }
-    }
-
-    
-    function renderAchievements() {
-        if (!elements.achievements.grid || currentUser.isGuest) return;
-        elements.achievements.grid.innerHTML = '';
-        
-        const sortedAchievements = [...achievementsList].sort((a, b) => {
-            const aUnlocked = userUnlockedAchievementIds.includes(a.id);
-            const bUnlocked = userUnlockedAchievementIds.includes(b.id);
-            if (aUnlocked && !bUnlocked) return -1;
-            if (!aUnlocked && bUnlocked) return 1;
-            return a.id - b.id; 
-        });
-        
-        sortedAchievements.forEach(ach => { 
-            const isUnlocked = userUnlockedAchievementIds.includes(ach.id);
-            const isHidden = ach.hidden && !isUnlocked;
-            
-            const card = document.createElement('div');
-            card.className = 'achievement-card';
-            card.classList.toggle('unlocked', isUnlocked);
-            card.classList.toggle('hidden-achievement', isHidden);
-            
-            const reward = allItems.find(item => item.unlockType === 'achievement' && item.unlockValue === ach.id);
-            let rewardText = '<span class="reward">+50 🎵</span>'; 
-            if (reward) {
-                rewardText += ` & ${reward.type === 'title' ? 'Titel' : 'Icon'}: ${reward.name || reward.iconClass}`;
-            }
-
-            card.innerHTML = `
-                <h3>${isHidden ? '???' : ach.name}</h3>
-                <p>${isHidden ? '???' : ach.description}</p>
-                ${isUnlocked ? `<span class="reward">Freigeschaltet!</span>` : (isHidden ? '' : rewardText)}
-            `;
-            elements.achievements.grid.appendChild(card);
-        });
-    }
-    async function equipTitle(titleId, saveToDb = true) {
-        if (currentUser.isGuest) return;
-        const title = titlesList.find(t => t.id === titleId);
-        if (!title) return;
-        
-        const currentLevel = getLevelForXp(userProfile.xp || 0);
-        if (!isItemUnlocked(title, currentLevel)) {
-            showToast("Du hast diesen Titel noch nicht freigeschaltet.", true);
-            return;
-        }
-
-        userProfile.equipped_title_id = titleId;
-        if (elements.home.profileTitleBtn) {
-            elements.home.profileTitleBtn.querySelector('span').textContent = title.name; 
-        }
-        renderTitles(); 
-        renderCustomTitles(); 
-
-        if (saveToDb && supabase) {
-            const { error } = await supabase.from('profiles').update({ equipped_title_id: titleId }).eq('id', currentUser.id);
-            if (error) {
-                showToast("Fehler beim Speichern des Titels.", true);
-            } else {
-                showToast(`Titel "${title.name}" ausgerüstet!`, false);
-            }
-        }
-    }
     function renderTitles() {
         if (!elements.titles.list || currentUser.isGuest) return;
         elements.titles.list.innerHTML = '';
@@ -1280,15 +931,18 @@ document.addEventListener('DOMContentLoaded', () => {
     async function equipColor(colorId, saveToDb = true) {
         if (currentUser.isGuest) return;
         
-        const nicknameEl = document.getElementById('welcome-nickname'); 
-        
+        const nicknameEl = document.getElementById('welcome-nickname');
+        if (!nicknameEl) {
+            console.error("Konnte #welcome-nickname nicht finden!");
+            return;
+        }
+
         if (!colorId) {
             userProfile.equipped_color_id = null;
-            if(nicknameEl) {
-                nicknameEl.style.color = '';
-                nicknameEl.style.background = '';
-                nicknameEl.classList.remove('gradient-text');
-            }
+            nicknameEl.style.color = '';
+            nicknameEl.style.background = '';
+            nicknameEl.classList.remove('gradient-text');
+            
             renderCustomColors();
             if (saveToDb && supabase) {
                 const { error } = await supabase.from('profiles').update({ equipped_color_id: null }).eq('id', currentUser.id);
@@ -1310,17 +964,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         userProfile.equipped_color_id = colorId;
-        if (nicknameEl) { 
-            if (color.colorHex.includes('gradient')) {
-                nicknameEl.style.color = '';
-                nicknameEl.style.background = color.colorHex;
-                nicknameEl.classList.add('gradient-text');
-            } else {
-                nicknameEl.style.background = '';
-                nicknameEl.classList.remove('gradient-text');
-                nicknameEl.style.color = color.colorHex;
-            }
+        
+        if (color.colorHex.includes('gradient')) {
+            nicknameEl.style.color = '';
+            nicknameEl.style.background = color.colorHex;
+            nicknameEl.classList.add('gradient-text');
+        } else {
+            nicknameEl.style.background = '';
+            nicknameEl.classList.remove('gradient-text');
+            nicknameEl.style.color = color.colorHex;
         }
+        
         renderCustomColors(); 
 
         if (saveToDb && supabase) {
@@ -1406,11 +1060,23 @@ document.addEventListener('DOMContentLoaded', () => {
         userProfile.equipped_accent_color_id = colorId;
         
         document.documentElement.style.setProperty('--accent-color', color.colorHex);
-        if (color.colorHex.includes('linear-gradient')) {
+        
+        const isGradient = color.colorHex.includes('linear-gradient');
+        
+        if (isGradient) {
              document.documentElement.style.setProperty('--accent-color-faded', color.colorHex.replace('linear-gradient(90deg, ', 'linear-gradient(90deg, #ffffff20, '));
         } else {
              document.documentElement.style.setProperty('--accent-color-faded', color.colorHex + '20');
         }
+
+        document.querySelectorAll('.stat-value').forEach(el => {
+            el.classList.toggle('gradient-text', isGradient);
+            if (isGradient) {
+                el.style.background = color.colorHex;
+            } else {
+                el.style.background = '';
+            }
+        });
 
         renderCustomAccentColors(); 
 
@@ -1670,7 +1336,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .filter(item => item.unlockType === 'spots');
 
             allShopItems.forEach(item => {
-                const serverItem = shopItemsFromServer.find(si => si.id === item.id);
+                const serverItem = shopItemsFromServer.find(si => si.id === item.id || si.id === item.backgroundId);
                 const isOwned = serverItem ? serverItem.isOwned : false;
                 
                 if (isOwned) {
@@ -1728,23 +1394,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const canAfford = userSpots >= item.cost;
         el.classList.toggle('cannot-afford', !canAfford && !isOwned);
+        el.classList.toggle('can-afford', canAfford && !isOwned);
 
         el.innerHTML = `
             ${previewHtml}
             <div class="shop-item-info">
-                <div class="item-name">${item.name}</div>
-                <div class="item-description">${item.description || getUnlockDescription(item)}</div>
-                <div class="item-cost">${item.cost} 🎵</div>
+                <span class="item-name">${item.name}</span>
+                <span class="item-description">${item.description || getUnlockDescription(item)}</span>
+                <div class="buy-button-container">
+                    <span class="item-cost">${item.cost} 🎵</span>
+                    <button class="button-primary buy-button" data-item-id="${item.id}" ${isOwned || !canAfford ? 'disabled' : ''}>
+                        ${isOwned ? 'Besitzt' : 'Kaufen'}
+                    </button>
+                </div>
             </div>
-            <button class="button-primary buy-button" data-item-id="${item.id}" ${isOwned || !canAfford ? 'disabled' : ''}>
-                ${isOwned ? 'Besitzt du' : 'Kaufen'}
-            </button>
         `;
         return el;
     }
 
     async function handleBuyItem(itemId) {
-        const item = allItems.find(i => i.id == itemId);
+        const item = allItems.find(i => i.id == itemId || i.backgroundId == itemId);
         if (!item) return;
 
         showConfirmModal(
@@ -2028,6 +1697,22 @@ document.addEventListener('DOMContentLoaded', () => {
         
         elements.game.gameContentArea.innerHTML = '';
         elements.game.gameContentArea.appendChild(container);
+        
+        elements.game.timerBar.style.transition = 'none';
+        elements.game.timerBar.style.width = '100%';
+        setTimeout(() => {
+            elements.game.timerBar.style.transition = `width ${gameCreationSettings.guessTime}s linear`;
+            elements.game.timerBar.style.width = '0%';
+        }, 100);
+    }
+    
+    function setupPopularityRound(data) {
+        console.log("Neue Beliebtheit-Runde:", data);
+        elements.countdownOverlay.classList.add('hidden');
+        elements.game.round.textContent = data.round;
+        elements.game.totalRounds.textContent = data.totalRounds;
+        
+        elements.game.gameContentArea.innerHTML = '<h2>Beliebtheit-Raten (UI STUB)</h2>'; 
         
         elements.game.timerBar.style.transition = 'none';
         elements.game.timerBar.style.width = '100%';
@@ -3001,6 +2686,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateButtonText(elements.lobby.songCountPresets, value, 'song-count');
                 } else if (currentCustomType.type === 'guess-time') {
                     setting.guessTime = value;
+                    gameCreationSettings.guessTime = value; 
                     updateButtonText(elements.lobby.guessTimePresets, value, 'guess-time');
                 } else if (currentCustomType.type === 'lives') {
                     gameCreationSettings.lives = value;
