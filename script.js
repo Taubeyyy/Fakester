@@ -2,12 +2,12 @@
 // NEU: Gameplay (Raten, Ready, Leaderboard), Freundes-Popups, Akzentfarben,
 // CSS-Hintergründe, Cooldowns, Level-Spots & alle Bugfixes.
 //
-// --- BRASHKI-FIXES (TEIL 1) ---
-// (Punkt 10) XSS-Fix: renderPlayerList/renderGamePlayerList nutzt textContent
-// (Punkt 7) Host-Krone: renderPlayerList/renderGamePlayerList fügt .is-host Klasse hinzu
-// (Punkt 13) Akzentfarben: renderPlayerList/renderGamePlayerList setzt --player-accent-color
-// (Punkt 14) WS Reconnect: connectWebSocket hat jetzt Retry-Logik
-// (Punkt 1, 2, 8) Game Over: handleWebSocketMessage/showGameOver rufen neuen End-Screen auf & triggern updatePlayerProgress
+// --- BRASHKI-FIXES (NEUE LISTE / TEIL 1) ---
+// (Punkt 1, 4, 5, 7) Content-Erweiterung: Alle Item-Listen massiv erweitert.
+// (Punkt 2) Timeline: WebSocket-Handler für 'timeline-start' & 'new-timeline-round' hinzugefügt.
+// (Punkt 5) XP-Fix: showGameOver überarbeitet, ruft End-Screen & updatePlayerProgress() auf.
+// (Punkt 13) Admin-Konsole: initializeApp prüft jetzt auf "Taubey".
+// (Alte Fixes) XSS-Schutz, Host-Krone, Akzentfarben & WS-Reconnect sind implementiert.
 
 document.addEventListener('DOMContentLoaded', () => {
     let supabase, currentUser = null, spotifyToken = null, ws = { socket: null };
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let ownedIconIds = new Set();
     let ownedBackgroundIds = new Set();
     let ownedColorIds = new Set();
-    let ownedAccentColorIds = new Set(); // NEU
+    let ownedAccentColorIds = new Set(); 
     let inventory = {};
 
     let currentGame = { pin: null, playerId: null, isHost: false, gameMode: null, lastTimeline: [], players: [] };
@@ -32,17 +32,16 @@ document.addEventListener('DOMContentLoaded', () => {
     let gameCreationSettings = {
         gameType: null,
         lives: 3,
-        guessTypes: [], // KORREKTUR: Standardmäßig leer
+        guessTypes: [], 
         answerType: 'freestyle'
     };
 
     let allPlaylists = [], availableDevices = [], currentPage = 1, itemsPerPage = 10;
     let wsPingInterval = null;
     let guessDebounceTimer = null; 
-    let reactionCooldown = false; // NEU
+    let reactionCooldown = false; 
     let wsRetryCount = 0; // Für Reconnect
     
-    // NEU: Für Freundes-Invites
     let pendingGameInvites = {};
     let inviteCooldowns = {};
     let activePopups = {
@@ -60,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const originalConsole = { ...console };
     const formatArg = (arg) => { if (arg instanceof Error) { return `❌ Error: ${arg.message}\nStack:\n${arg.stack || 'No stack trace available'}`; } if (typeof arg === 'object' && arg !== null) { try { return JSON.stringify(arg, (key, value) => typeof value === 'bigint' ? value.toString() : value, 2); } catch (e) { return '[Object (circular structure or stringify failed)]'; } } return String(arg); };
     
-    // FIX (Punkt 10 - XSS): 'innerHTML' durch 'textContent' ersetzt für Sicherheit
+    // (XSS-Fix) 'innerHTML' durch 'textContent' ersetzt für Sicherheit
     const logToPage = (type, args) => { 
         if (!consoleOutput) return; 
         try { 
@@ -80,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
             originalConsole.error("Error logging to page console:", e); 
         } 
     };
-    // ENDE FIX
     
     console.log = (...args) => { originalConsole.log(...args); logToPage('log', args); };
     console.warn = (...args) => { originalConsole.warn(...args); logToPage('warn', args); };
@@ -90,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.onunhandledrejection = (event) => { const reason = event.reason instanceof Error ? event.reason : new Error(JSON.stringify(event.reason)); originalConsole.error('Unhandled Promise Rejection:', reason); logToPage('error', ['🚧 Unhandled Promise Rejection:', reason]); };
     // --- Ende On-Page Konsole ---
 
-    // --- ERWEITERTE DATENBANKEN (MEHR CONTENT) ---
+    // --- FIX (Punkt 1, 4, 5, 7): ERWEITERTE DATENBANKEN (MEHR CONTENT) ---
     const achievementsList = [ 
         { id: 1, name: 'Erstes Spiel', description: 'Spiele dein erstes Spiel.' }, 
         { id: 2, name: 'Besserwisser', description: 'Beantworte 100 Fragen richtig (gesamt).' }, 
@@ -120,13 +118,23 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 26, name: 'Host-Flucht', description: 'Überlebe ein Spiel, das der Host abgebrochen hat.' },
         { id: 27, name: 'Schnell-Rater', description: 'Sei der Erste, der in einer Runde auf "Bereit" klickt.' },
         { id: 28, name: 'Bling-Bling', description: 'Rüste eine Gold-Namensfarbe aus.' },
-        { id: 29, name: '???', description: '???', hidden: true },
+        { id: 29, name: 'Gönner', description: 'Verschenke Spots an einen Freund.' },
         { id: 30, name: 'Loyal', description: 'Spiele 50 Spiele.' },
         { id: 31, name: 'Spam-König', description: 'Sende 5 Reaktionen in 15 Sekunden.' },
         { id: 32, name: 'Fashionista', description: 'Ändere deine Akzentfarbe.'},
         { id: 33, name: 'Vollgas', description: 'Beende eine Runde (Quiz) in unter 5 Sekunden.'},
-        { id: 34, name: '???', description: '???', hidden: true },
-        { id: 35, name: 'Streber', description: 'Gewinne ein Spiel mit über 2000 Punkten.' }
+        { id: 34, name: 'Timeline-Anfänger', description: 'Spiele 3 Timeline-Runden.' },
+        { id: 35, name: 'Streber', description: 'Gewinne ein Spiel mit über 2000 Punkten.' },
+        { id: 36, name: 'Fashion-Show', description: 'Rüste einen Shop-Hintergrund aus.' },
+        { id: 37, name: 'Perfektes Timing', description: 'Platziere einen Song in Timeline exakt richtig.' },
+        { id: 38, name: 'Quiz-Veteran', description: 'Beantworte 1000 Fragen richtig (gesamt).' },
+        { id: 39, name: 'Hattrick', description: 'Gewinne 3 Spiele in Folge.' },
+        { id: 40, name: 'Comeback-King', description: 'Gewinne ein Spiel, nachdem du Letzter warst.' },
+        { id: 41, name: 'Musik-Historiker', description: 'Gewinne ein Spiel im Timeline-Modus.' },
+        { id: 42, name: 'Unaufhaltsam', description: 'Erreiche Level 25.' },
+        { id: 43, name: 'Spot-Sparfuchs', description: 'Besitze 5000 Spots auf einmal.' },
+        { id: 44, name: 'Gute Gesellschaft', description: 'Nimm eine Einladung eines Freundes an.' },
+        { id: 45, name: 'Volles Haus', description: 'Spiele in einer Lobby mit 6+ Spielern.' }
     ];
     const getXpForLevel = (level) => Math.max(0, Math.ceil(Math.pow(level - 1, 1 / 0.7) * 100));
     const getLevelForXp = (xp) => Math.max(1, Math.floor(Math.pow(Math.max(0, xp) / 100, 0.7)) + 1);
@@ -155,6 +163,9 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 25, name: 'Neuzugang', unlockType: 'achievement', unlockValue: 25, type:'title', description: 'Erfolg: Willkommen!' },
         { id: 26, name: 'Überlebender', unlockType: 'achievement', unlockValue: 26, type:'title', description: 'Erfolg: Host-Flucht' },
         { id: 27, name: 'Schnell-Rater', unlockType: 'achievement', unlockValue: 27, type:'title', description: 'Erfolg: Schnell-Rater' },
+        { id: 28, name: 'Gönnerhaft', unlockType: 'achievement', unlockValue: 29, type:'title', description: 'Erfolg: Gönner' },
+        { id: 29, name: 'Historiker', unlockType: 'achievement', unlockValue: 41, type:'title', description: 'Erfolg: Musik-Historiker' },
+        { id: 30, name: 'Veteran', unlockType: 'achievement', unlockValue: 38, type:'title', description: 'Erfolg: Quiz-Veteran' },
         { id: 101, name: 'Musik-Guru', unlockType: 'spots', cost: 100, unlockValue: 100, description: 'Nur im Shop', type:'title' }, 
         { id: 102, name: 'Playlist-Meister', unlockType: 'spots', cost: 150, unlockValue: 150, description: 'Nur im Shop', type:'title' }, 
         { id: 103, name: 'Beat-Dropper', cost: 200, unlockType: 'spots', description: 'Nur im Shop', type:'title' }, 
@@ -167,6 +178,10 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 110, name: 'DJ', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
         { id: 111, name: 'Oldtimer', cost: 250, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
         { id: 112, name: 'One-Hit-Wonder', cost: 50, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 113, name: 'Vinyl-Junkie', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 114, name: 'Festivalgänger', cost: 350, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 115, name: 'Audiophil', cost: 600, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
+        { id: 116, name: 'Klassiker', cost: 250, unlockType: 'spots', description: 'Nur im Shop', type:'title' },
         { id: 99, name: 'Entwickler', iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Titel', type:'title' } 
     ];
     const iconsList = [ 
@@ -183,6 +198,10 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 4, iconClass: 'fa-trophy', unlockType: 'achievement', unlockValue: 3, description: 'Erfolg: Seriensieger', type:'icon' }, 
         { id: 6, iconClass: 'fa-headphones', unlockType: 'achievement', unlockValue: 2, description: 'Erfolg: Besserwisser', type:'icon' }, 
         { id: 13, iconClass: 'fa-icons', unlockType: 'achievement', unlockValue: 16, description: 'Erfolg: Icon-Liebhaber', type:'icon'},
+        { id: 14, iconClass: 'fa-handshake', unlockType: 'achievement', unlockValue: 14, description: 'Erfolg: Sozial Vernetzt', type:'icon' },
+        { id: 15, iconClass: 'fa-clock', unlockType: 'achievement', unlockValue: 34, description: 'Erfolg: Timeline-Anfänger', type:'icon' },
+        { id: 16, iconClass: 'fa-user-astronaut', unlockType: 'achievement', unlockValue: 42, description: 'Erfolg: Unaufhaltsam', type:'icon' },
+        { id: 17, iconClass: 'fa-piggy-bank', unlockType: 'achievement', unlockValue: 43, description: 'Erfolg: Spot-Sparfuchs', type:'icon' },
         { id: 201, name: 'Diamant', iconClass: 'fa-diamond', unlockType: 'spots', cost: 250, unlockValue: 250, description: 'Nur im Shop', type:'icon' }, 
         { id: 202, name: 'Zauberhut', iconClass: 'fa-hat-wizard', unlockType: 'spots', cost: 300, unlockValue: 300, description: 'Nur im Shop', type:'icon' }, 
         { id: 203, type: 'icon', name: 'Raumschiff', iconClass: 'fa-rocket', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' }, 
@@ -195,6 +214,10 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 210, type: 'icon', name: 'Sonne', iconClass: 'fa-sun', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
         { id: 211, type: 'icon', name: 'Herz', iconClass: 'fa-heart', cost: 100, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
         { id: 212, type: 'icon', name: 'Pflanze', iconClass: 'fa-leaf', cost: 150, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 213, type: 'icon', name: 'Saturn', iconClass: 'fa-satellite', cost: 450, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 214, type: 'icon', name: 'Kamera', iconClass: 'fa-camera-retro', cost: 300, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 215, type: 'icon', name: 'Schneeflocke', iconClass: 'fa-snowflake', cost: 350, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
+        { id: 216, type: 'icon', name: 'Maske', iconClass: 'fa-masks-theater', cost: 400, unlockType: 'spots', description: 'Nur im Shop', type:'icon' },
         { id: 99, iconClass: 'fa-bug', unlockType: 'special', unlockValue: 'Taubey', description: 'Entwickler-Icon', type:'icon' } 
     ];
     // NEU: CSS-Hintergründe statt Bilder
@@ -209,7 +232,17 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: '307', name: 'Sternenhimmel', cssClass: 'bg-stars', cost: 750, unlockType: 'spots', unlockValue: 750, type: 'background', backgroundId: '307'},
         { id: '308', name: 'Retro-Rot', cssClass: 'bg-retro', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '308'},
         { id: '309', name: 'Studio', cssClass: 'bg-studio', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '309'},
-        { id: '310', name: 'Party', cssClass: 'bg-party', cost: 1000, unlockType: 'spots', unlockValue: 1000, type: 'background', backgroundId: '310'}
+        { id: '310', name: 'Party', cssClass: 'bg-party', cost: 1000, unlockType: 'spots', unlockValue: 1000, type: 'background', backgroundId: '310'},
+        { id: '311', name: 'Aurora', cssClass: 'bg-aurora', cost: 1200, unlockType: 'spots', unlockValue: 1200, type: 'background', backgroundId: '311'},
+        { id: '312', name: 'Comic', cssClass: 'bg-comic', cost: 800, unlockType: 'spots', unlockValue: 800, type: 'background', backgroundId: '312'},
+        { id: '313', name: 'Matrix', cssClass: 'bg-matrix', cost: 1500, unlockType: 'spots', unlockValue: 1500, type: 'background', backgroundId: '313'},
+        { id: '314', name: 'Nebula', cssClass: 'bg-nebula', cost: 1500, unlockType: 'spots', unlockValue: 1500, type: 'background', backgroundId: '314'},
+        { id: '315', name: 'Schaltkreis', cssClass: 'bg-circuit', cost: 1000, unlockType: 'spots', unlockValue: 1000, type: 'background', backgroundId: '315'},
+        { id: '316', name: 'Lava', cssClass: 'bg-lava', cost: 800, unlockType: 'spots', unlockValue: 800, type: 'background', backgroundId: '316'},
+        { id: '317', name: 'Eis', cssClass: 'bg-ice', cost: 800, unlockType: 'spots', unlockValue: 800, type: 'background', backgroundId: '317'},
+        { id: '318', name: 'Wüste', cssClass: 'bg-desert', cost: 600, unlockType: 'spots', unlockValue: 600, type: 'background', backgroundId: '318'},
+        { id: '319', name: 'Metall', cssClass: 'bg-metal', cost: 900, unlockType: 'spots', unlockValue: 900, type: 'background', backgroundId: '319'},
+        { id: '320', name: 'Holz', cssClass: 'bg-wood', cost: 500, unlockType: 'spots', unlockValue: 500, type: 'background', backgroundId: '320'}
     ];
     // NEU: Massiv erweiterte Farbliste
     const nameColorsList = [ 
@@ -247,14 +280,21 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 5, name: 'Rubinrot', type: 'accent-color', colorHex: '#e01e5a', unlockType: 'level', unlockValue: 15, description: 'Erreiche Level 15' },
         { id: 6, name: 'Sonnengelb', type: 'accent-color', colorHex: '#ffc700', unlockType: 'level', unlockValue: 20, description: 'Erreiche Level 20' },
         { id: 7, name: 'Platin', type: 'accent-color', colorHex: '#e5e4e2', unlockType: 'level', unlockValue: 50, description: 'Erreiche Level 50' },
+        { id: 8, name: 'Fashion-Pink', type: 'accent-color', colorHex: '#FF69B4', unlockType: 'achievement', unlockValue: 36, description: 'Erfolg: Fashion-Show' },
         { id: 601, name: 'Dynamisches Pink', type: 'accent-color', colorHex: '#FF00FF', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 602, name: 'Dynamisches Blau', type: 'accent-color', colorHex: '#00FFFF', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 603, name: 'Feuriges Orange', type: 'accent-color', colorHex: '#ff4500', cost: 500, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 604, name: 'Reines Gold', type: 'accent-color', colorHex: '#FFD700', cost: 2000, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 605, name: 'Regenbogen', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)', cost: 5000, unlockType: 'spots', description: 'Nur im Shop' },
         { id: 606, name: 'Synthwave-Verlauf', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff00ff, #00ffff)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
-        { id: 607, name: 'Sonnen-Verlauf', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' }
+        { id: 607, name: 'Sonnen-Verlauf', type: 'accent-color', colorHex: 'linear-gradient(90deg, #ff7e5f, #feb47b)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 608, name: 'Matrix-Grün', type: 'accent-color', colorHex: '#39FF14', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 609, name: 'Blutmond', type: 'accent-color', colorHex: '#FF4500', cost: 1000, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 610, name: 'Geist-Weiß', type: 'accent-color', colorHex: '#F8F8FF', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 611, name: 'Dunkle Materie', type: 'accent-color', colorHex: '#010101', cost: 1500, unlockType: 'spots', description: 'Nur im Shop' },
+        { id: 612, name: 'Lava-Verlauf', type: 'accent-color', colorHex: 'linear-gradient(90deg, #f7b733, #fc4a1a)', cost: 2500, unlockType: 'spots', description: 'Nur im Shop' }
     ];
+    // --- ENDE FIX (Punkt 1, 4, 5, 7) ---
     
     const allItems = [...titlesList, ...iconsList, ...backgroundsList, ...nameColorsList, ...accentColorsList];
     window.titlesList = titlesList; window.iconsList = iconsList; window.backgroundsList = backgroundsList; window.nameColorsList = nameColorsList; window.accentColorsList = accentColorsList; window.allItems = allItems;
@@ -295,6 +335,8 @@ document.addEventListener('DOMContentLoaded', () => {
         joinModal: { overlay: document.getElementById('join-modal-overlay'), closeBtn: document.getElementById('close-join-modal-button'), pinDisplay: document.querySelectorAll('#join-pin-display .pin-digit'), numpad: document.querySelector('#numpad-join'), }, 
         friendsModal: { overlay: document.getElementById('friends-modal-overlay'), closeBtn: document.getElementById('close-friends-modal-button'), addFriendInput: document.getElementById('add-friend-input'), addFriendBtn: document.getElementById('add-friend-button'), friendsList: document.getElementById('friends-list'), requestsList: document.getElementById('requests-list'), requestsCount: document.getElementById('requests-count'), tabsContainer: document.querySelector('.friends-modal .tabs'), tabs: document.querySelectorAll('.friends-modal .tab-button'), tabContents: document.querySelectorAll('.friends-modal .tab-content') }, 
         inviteFriendsModal: { overlay: document.getElementById('invite-friends-modal-overlay'), closeBtn: document.getElementById('close-invite-modal-button'), list: document.getElementById('online-friends-list') }, 
+        // (Punkt 1) Gifting-Modal Referenzen
+        giftModal: { overlay: document.getElementById('gift-modal-overlay'), closeBtn: document.getElementById('close-gift-modal-button'), recipientName: document.getElementById('gift-recipient-name'), spotsAmount: document.getElementById('gift-spots-amount'), sendBtn: document.getElementById('gift-send-button') },
         customValueModal: { overlay: document.getElementById('custom-value-modal-overlay'), closeBtn: document.getElementById('close-custom-value-modal-button'), title: document.getElementById('custom-value-title'), display: document.querySelectorAll('#custom-value-display .pin-digit'), numpad: document.querySelector('#numpad-custom-value'), confirmBtn: document.getElementById('confirm-custom-value-button')}, 
         achievements: { grid: document.getElementById('achievement-grid'), screen: document.getElementById('achievements-screen') }, 
         levelProgress: { list: document.getElementById('level-progress-list'), screen: document.getElementById('level-progress-screen') }, 
@@ -334,7 +376,6 @@ document.addEventListener('DOMContentLoaded', () => {
             invite: null,
             friendRequest: null
         },
-        // FIX (Punkt 8): Referenz zum neuen End-Screen
         endScreen: {
             screen: document.getElementById('end-screen'),
             leaderboard: document.getElementById('end-screen-leaderboard'),
@@ -396,10 +437,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const showConfirmModal = (title, text, onConfirm) => { 
-        // FIX (Punkt 10 - XSS): Sicherstellen, dass textContent verwendet wird
+        // (XSS-Fix): Sicherstellen, dass textContent verwendet wird
         elements.confirmActionModal.title.textContent = title; 
         elements.confirmActionModal.text.textContent = text; 
-        // ENDE FIX
         currentConfirmAction = onConfirm; 
         elements.confirmActionModal.overlay.classList.remove('hidden'); 
     };
@@ -460,6 +500,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         console.log("Setting up initial UI with fallback data..."); 
         document.body.classList.toggle('is-guest', isGuest); 
+        
+        // FIX (Punkt 13): Admin-Konsole anzeigen, wenn "Taubey"
+        if (!isGuest && currentUser.username.toLowerCase() === 'taubey') {
+            toggleConsoleBtn.classList.remove('hidden');
+        }
+        // ENDE FIX
+
         if(document.getElementById('welcome-nickname')) document.getElementById('welcome-nickname').textContent = currentUser.username; // SAFE (textContent)
         if(document.getElementById('profile-title')) equipTitle(userProfile.equipped_title_id || 1, false); 
         if(elements.home.profileIcon) equipIcon(userProfile.equipped_icon_id || 1, false);
@@ -618,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("WebSocket connected successfully.");
             
             showToast("Server verbunden!", false); 
-            wsRetryCount = 0; // FIX (Punkt 14): Retry-Zähler zurücksetzen
+            wsRetryCount = 0; // (Reconnect-Fix) Retry-Zähler zurücksetzen
 
             if (currentUser && !currentUser.isGuest) {
                 ws.socket.send(JSON.stringify({ type: 'register-online', payload: { userId: currentUser.id, username: currentUser.username } }));
@@ -645,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("WebSocket Error:", error);
         };
 
-        // FIX (Punkt 14): Automatische Reconnect-Logik
+        // (Reconnect-Fix): Automatische Reconnect-Logik
         ws.socket.onclose = (event) => {
             console.warn(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
             if (wsPingInterval) clearInterval(wsPingInterval);
@@ -666,7 +713,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast("Reconnect fehlgeschlagen. Bitte lade die Seite neu.", true);
             }
         };
-        // ENDE FIX
     }
 
     const handleWebSocketMessage = ({ type, payload }) => {
@@ -677,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleLobbyUpdate(payload);
                 setLoading(false); 
                 elements.joinModal.overlay.classList.add('hidden'); 
-                if (screenHistory[screenHistory.length - 1] !== 'game-screen') {
+                if (screenHistory[screenHistory.length - 1] !== 'game-screen' && screenHistory[screenHistory.length - 1] !== 'end-screen') {
                     showScreen('lobby-screen');
                 }
                 break;
@@ -693,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setLoading(true, "Spiel startet...");
                 break;
             case 'countdown':
-                setLoading(false); // NEU: Loading-Screen ausblenden
+                setLoading(false); 
                 showCountdown(payload.number); 
                 break;
             case 'new-round':
@@ -701,21 +747,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 setupNewRound(payload); 
                 showScreen('game-screen');
                 break;
-            case 'new-timeline-round': // NEU
+            
+            // FIX (Punkt 2): Timeline-Events
+            case 'timeline-start':
                 setLoading(false);
-                setupTimelineRound(payload);
+                setupTimelineStart(payload); // TODO: Diese Funktion in Teil 2 erstellen
                 showScreen('game-screen');
                 break;
+            case 'new-timeline-round': 
+                setLoading(false);
+                setupTimelineRound(payload); // TODO: Diese Funktion in Teil 2 erstellen
+                showScreen('game-screen');
+                break;
+            // ENDE FIX
+
             case 'round-result':
+                // TODO (Punkt 2): Hier prüfen, ob gameMode === 'timeline' und ggf. eine andere Funktion aufrufen
                 showRoundResult(payload); 
                 break;
             
-            // FIX (Punkt 1, 2, 8): Game Over leitet jetzt zu showGameOver weiter
+            // FIX (Punkt 5): Game Over leitet jetzt zu showGameOver weiter
             case 'game-over':
                 setLoading(false);
                 pendingGameInvites = {};
                 showGameOver(payload); // Diese Funktion zeigt jetzt den End-Screen an
-                // updatePlayerProgress(); // Wird jetzt IN showGameOver aufgerufen
                 break;
             // ENDE FIX
 
@@ -753,11 +808,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         renderPlayerList(players, hostId);
-        // FIX (Punkt 7): hostId an renderGamePlayerList weitergeben
         renderGamePlayerList(players, hostId);
-        // ENDE FIX
 
-        // NEU: Ready-Zähler-Text im Spiel aktualisieren
         if (document.getElementById('ready-status-display')) {
             const readyPlayers = players.filter(p => p.isReady).length;
             const totalPlayers = players.length;
@@ -769,14 +821,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         updateHostSettings(settings, currentGame.isHost);
         
-        // Lösche Invites, wenn man einer Lobby beitritt (auch per Reconnect)
         pendingGameInvites = {};
     }
     
-    // FIX (Punkt 1, 2, 8): Game-Over-Funktion überarbeitet
+    // FIX (Punkt 5): Game-Over-Funktion überarbeitet
     function showGameOver(payload) {
         console.log("Game Over. Payload:", payload);
         
+        // (Altes Fix) Musik stoppen, falls sie noch läuft
+        if (spotifyToken && currentGame.settings?.deviceId) {
+            spotifyApiCall('PUT', `https://api.spotify.com/v1/me/player/pause?device_id=$${currentGame.settings.deviceId}`, spotifyToken, null);
+        }
+
         if (payload.message) {
             // Host hat das Spiel verlassen
             const myPlayer = payload.scores.find(p => p.id === currentUser.id);
@@ -790,7 +846,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     showScreen('home-screen');
                 }
             );
-            elements.confirmActionModal.cancelBtn.classList.add('hidden'); // Nur "OK"-Button
+            // (Altes Fix) Nur "OK"-Button
+            elements.confirmActionModal.cancelBtn.classList.add('hidden'); 
+            elements.confirmActionModal.confirmBtn.classList.remove('hidden');
         
         } else {
             // Normales Spielende - zeige neuen Screen
@@ -807,7 +865,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const playerEl = document.createElement('div');
                 playerEl.className = `end-screen-player rank-${rank}`;
                 
-                // FIX (Punkt 10 - XSS): Manuelles DOM-Building
+                // (XSS-Fix): Manuelles DOM-Building
                 const infoEl = document.createElement('div');
                 infoEl.className = 'end-screen-player-info';
                 
@@ -837,7 +895,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(spotsEl) spotsEl.textContent = '0';
             }
             
-            // FIX (Punkt 1, 2): Lade die neuen Stats/XP/Spots vom Server, *nachdem* das Spiel vorbei ist
+            // (Punkt 5) Lade die neuen Stats/XP/Spots vom Server, *nachdem* das Spiel vorbei ist
             updatePlayerProgress(); 
             showScreen('end-screen');
         }
@@ -846,7 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // ENDE FIX
 
-    // FIX (Punkt 10, 13, 7): renderPlayerList komplett überarbeitet
+    // (XSS-Fix, Host-Krone, Akzentfarben): renderPlayerList komplett überarbeitet
     function renderPlayerList(players, hostId) {
         if (!elements.lobby.playerList) return;
         elements.lobby.playerList.innerHTML = ''; 
@@ -857,10 +915,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const isHost = player.id === hostId;
             const playerCard = document.createElement('div');
             playerCard.className = 'player-card';
-            playerCard.classList.toggle('is-host', isHost); // (Punkt 7)
+            playerCard.classList.toggle('is-host', isHost); // (Host-Krone)
             playerCard.dataset.playerId = player.id;
-            
-            // --- XSS-FIX (PUNKT 10) & FEATURE-FIXES (PUNKT 13 & 7) ---
             
             const iconData = iconsList.find(i => i.id === player.iconId) || iconsList[0];
             const iconClass = iconData ? iconData.iconClass : 'fa-user'; 
@@ -872,7 +928,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const backgroundData = backgroundsList.find(b => b.backgroundId === player.backgroundId);
             const backgroundStyle = backgroundData ? backgroundData.cssClass : 'radial-only';
             
-            // (Punkt 13) Akzentfarbe anwenden
+            // (Akzentfarben)
             const accentColorData = accentColorsList.find(c => c.id === player.accentColorId) || accentColorsList[0];
             if (accentColorData) {
                 playerCard.style.setProperty('--player-accent-color', accentColorData.colorHex);
@@ -886,7 +942,7 @@ document.addEventListener('DOMContentLoaded', () => {
             contentEl.className = 'player-card-content';
             
             const iconEl = document.createElement('i');
-            iconEl.className = `player-icon fa-solid ${iconClass}`; // (Punkt 7) Zeige immer das Icon
+            iconEl.className = `player-icon fa-solid ${iconClass}`; 
             
             const infoEl = document.createElement('div');
             infoEl.className = 'player-info';
@@ -903,28 +959,25 @@ document.addEventListener('DOMContentLoaded', () => {
             infoEl.append(titleEl, nameEl);
             contentEl.append(iconEl, infoEl);
             playerCard.append(backgroundEl, contentEl);
-            // --- Ende XSS-Fix ---
             
             elements.lobby.playerList.appendChild(playerCard);
         });
     }
 
-    // FIX (Punkt 10, 13, 7): renderGamePlayerList komplett überarbeitet
-    function renderGamePlayerList(players, hostId) { // (Punkt 7) hostId hinzugefügt
+    // (XSS-Fix, Host-Krone, Akzentfarben): renderGamePlayerList komplett überarbeitet
+    function renderGamePlayerList(players, hostId) { 
         if (!elements.game.playerList) return;
         elements.game.playerList.innerHTML = ''; 
         
         const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
         
         sortedPlayers.forEach(player => {
-            const isHost = player.id === hostId; // (Punkt 7)
+            const isHost = player.id === hostId; 
             const playerCard = document.createElement('div');
             playerCard.className = 'game-player-card';
             playerCard.classList.toggle('is-ready', player.isReady); 
-            playerCard.classList.toggle('is-host', isHost); // (Punkt 7)
+            playerCard.classList.toggle('is-host', isHost); // (Host-Krone)
             playerCard.dataset.playerId = player.id;
-            
-            // --- XSS-FIX (PUNKT 10) & FEATURE-FIXES (PUNKT 13 & 7) ---
             
             const iconData = iconsList.find(i => i.id === player.iconId) || iconsList[0];
             const iconClass = iconData ? iconData.iconClass : 'fa-user';
@@ -936,7 +989,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const backgroundData = backgroundsList.find(b => b.backgroundId === player.backgroundId);
             const backgroundStyle = backgroundData ? backgroundData.cssClass : 'radial-only';
             
-            // (Punkt 13) Akzentfarbe anwenden
+            // (Akzentfarben)
             const accentColorData = accentColorsList.find(c => c.id === player.accentColorId) || accentColorsList[0];
             if (accentColorData) {
                 playerCard.style.setProperty('--player-accent-color', accentColorData.colorHex);
@@ -950,7 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
             contentEl.className = 'player-card-content';
 
             const iconEl = document.createElement('i');
-            iconEl.className = `player-icon fa-solid ${iconClass}`; // (Punkt 7) Zeige immer das Icon
+            iconEl.className = `player-icon fa-solid ${iconClass}`; 
             
             const infoEl = document.createElement('div');
             infoEl.className = 'player-info';
@@ -979,7 +1032,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             playerCard.append(backgroundEl, contentEl);
-            // --- Ende XSS-Fix ---
             
             elements.game.playerList.appendChild(playerCard);
         });
@@ -1026,8 +1078,6 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.lobby.playlistSelectBtn.textContent = settings.playlistName || 'Playlist auswählen';
         }
         
-        // Persönlicher Hintergrund wird jetzt in initializeApp/equipBackground geladen
-
         updatePresets(elements.lobby.songCountPresets, settings.songCount, 'song-count');
         updatePresets(elements.lobby.guessTimePresets, settings.guessTime, 'guess-time');
         
@@ -1070,8 +1120,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 rewardText += ` & ${reward.type === 'title' ? 'Titel' : 'Icon'}: ${reward.name || reward.iconClass}`;
             }
 
-            // FIX (Punkt 10 - XSS): Daten kommen aus hardcodierter Liste (achievementsList),
-            // daher ist innerHTML hier sicher.
+            // SAFE: Daten aus hardcodierter achievementsList
             card.innerHTML = `
                 <h3>${isHidden ? '???' : ach.name}</h3>
                 <p>${isHidden ? '???' : ach.description}</p>
@@ -1107,16 +1156,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // script.js - V2.0 (TEIL 2/2)
-//
-// --- BRASHKI-FIXES (TEIL 2) ---
-// (Punkt 10) XSS-Fix: Alle .innerHTML durch .textContent / createElement ersetzt (displayReaction, setupNewRound, showRoundResult, renderFriendsList, renderRequestsList, renderDeviceList, renderPaginatedPlaylists, showInvitePopup, showFriendRequestPopup)
-// (Punkt 15) Gradient-Fix: equipColor zielt jetzt auf #welcome-nickname
-// (Punkt 3) Hintergrund-Fix: renderCustomBackgrounds repariert + 3 neue BGs
-// (Punkt 4) Numpad-Fix: Custom-Button-Text wird jetzt in der Lobby aktualisiert
-// (Punkt 5) Limit-Fix: Ratezeit-Limit auf 999 erhöht
-// (Punkt 9) Balancing: Level-Belohnungen geben jetzt jedes Level Spots
-
     function renderTitles() {
         if (!elements.titles.list || currentUser.isGuest) return;
         elements.titles.list.innerHTML = '';
@@ -1140,7 +1179,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('equipped', isEquipped);
             card.dataset.titleId = title.id;
 
-            // SAFE: Daten aus hardcodierter titlesList
             card.innerHTML = `
                 <span class="title-name">${title.name}</span>
                 <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : getUnlockDescription(title)}</span>
@@ -1200,7 +1238,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('equipped', isEquipped);
             card.dataset.iconId = icon.id;
 
-            // SAFE: Daten aus hardcodierter iconsList
             card.innerHTML = `
                 <div class="icon-preview"><i class="fa-solid ${icon.iconClass}"></i></div>
                 <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : (icon.description || getUnlockDescription(icon))}</span>
@@ -1215,7 +1252,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCustomIcons();
         renderCustomColors();
         renderCustomBackgrounds();
-        renderCustomAccentColors(); // NEU
+        renderCustomAccentColors(); 
     }
     
     function renderCustomTitles() {
@@ -1241,7 +1278,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('locked', !isUnlocked);
             card.classList.toggle('equipped', isEquipped);
             card.dataset.titleId = title.id;
-            // SAFE: Daten aus hardcodierter titlesList
             card.innerHTML = `
                 <span class="title-name">${title.name}</span>
                 <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : getUnlockDescription(title)}</span>
@@ -1273,7 +1309,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('locked', !isUnlocked);
             card.classList.toggle('equipped', isEquipped);
             card.dataset.iconId = icon.id;
-            // SAFE: Daten aus hardcodierter iconsList
             card.innerHTML = `
                 <div class="icon-preview"><i class="fa-solid ${icon.iconClass}"></i></div>
                 <span class="title-desc">${isUnlocked ? (isEquipped ? 'Ausgerüstet' : 'Zum Ausrüsten klicken') : (icon.description || getUnlockDescription(icon))}</span>
@@ -1282,11 +1317,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // FIX (Punkt 15): Gradienten-Fix
     async function equipColor(colorId, saveToDb = true) {
         if (currentUser.isGuest) return;
         
-        // Finde das h2-Element für den Namen
         const nicknameEl = document.getElementById('welcome-nickname'); 
         
         if (!colorId) {
@@ -1317,7 +1350,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         userProfile.equipped_color_id = colorId;
-        if (nicknameEl) { // Direkt das h2-Element stylen
+        if (nicknameEl) { 
             if (color.colorHex.includes('gradient')) {
                 nicknameEl.style.color = '';
                 nicknameEl.style.background = color.colorHex;
@@ -1340,7 +1373,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // ENDE FIX
 
     function renderCustomColors() {
         const container = elements.customize.colorsList;
@@ -1360,7 +1392,6 @@ document.addEventListener('DOMContentLoaded', () => {
         noneCard.className = 'color-card';
         noneCard.classList.toggle('equipped', !userProfile.equipped_color_id);
         noneCard.dataset.colorId = ''; 
-        // SAFE: Hardcodierter String
         noneCard.innerHTML = `
             <div class="color-preview" style="background-color: var(--dark-grey); border: 2px dashed var(--medium-grey);">
                 <i class="fa-solid fa-ban"></i>
@@ -1381,7 +1412,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.dataset.colorId = color.id;
             
             let preview;
-            // SAFE: Daten aus hardcodierter nameColorsList
             if (color.colorHex.includes('gradient')) {
                 preview = `<div class="color-preview" style="background: ${color.colorHex};">
                                <span class="gradient-text" style="background: ${color.colorHex};">Aa</span>
@@ -1415,7 +1445,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         userProfile.equipped_accent_color_id = colorId;
         
-        // Farbe global anwenden
         document.documentElement.style.setProperty('--accent-color', color.colorHex);
         if (color.colorHex.includes('linear-gradient')) {
              document.documentElement.style.setProperty('--accent-color-faded', color.colorHex.replace('linear-gradient(90deg, ', 'linear-gradient(90deg, #ffffff20, '));
@@ -1460,7 +1489,6 @@ document.addEventListener('DOMContentLoaded', () => {
             card.classList.toggle('equipped', isEquipped);
             card.dataset.colorId = color.id;
 
-            // SAFE: Daten aus hardcodierter accentColorsList
             card.innerHTML = `
                 <div class="color-preview" style="background: ${color.colorHex}">
                 </div>
@@ -1484,8 +1512,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         userProfile.equipped_background_id = backgroundId;
-        applyBackground(backgroundId); // Global anwenden
-        renderCustomBackgrounds(); // UI im Menü aktualisieren
+        applyBackground(backgroundId); 
+        renderCustomBackgrounds(); 
 
         if (saveToDb && supabase) {
             const { error } = await supabase.from('profiles').update({ equipped_background_id: backgroundId }).eq('id', currentUser.id);
@@ -1498,25 +1526,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // FIX (Punkt 3): renderCustomBackgrounds repariert
     function renderCustomBackgrounds() {
         const container = elements.customize.backgroundsList;
         if (currentUser.isGuest || !container) return;
         container.innerHTML = '';
         const currentLevel = getLevelForXp(userProfile.xp || 0);
         
-        // Finde alle BGs, die freigeschaltet sind
         const unlockedBGs = backgroundsList.filter(bg => isItemUnlocked(bg, currentLevel));
         
         unlockedBGs.forEach(bg => {
             const isEquipped = (userProfile.equipped_background_id === bg.backgroundId) || (!userProfile.equipped_background_id && bg.backgroundId === 'default');
             
             const card = document.createElement('div');
-            card.className = 'background-card'; // Benutzt die neuen CSS-Klassen
+            card.className = 'background-card'; 
             card.classList.toggle('equipped', isEquipped);
             card.dataset.bgId = bg.backgroundId;
 
-            // SAFE: Daten aus hardcodierter backgroundsList
             card.innerHTML = `
                 <div class="background-preview ${bg.cssClass}"></div>
                 <span class="background-name">${bg.name}</span>
@@ -1525,7 +1550,6 @@ document.addEventListener('DOMContentLoaded', () => {
             container.appendChild(card);
         });
     }
-    // ENDE FIX
 
     function applyBackground(backgroundId) {
         const bg = backgroundsList.find(b => b.backgroundId === backgroundId) || backgroundsList[0];
@@ -1536,7 +1560,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // FIX (Punkt 9): Level-Balancing
     function renderLevelProgress() {
         if (!elements.levelProgress.list || currentUser.isGuest) return;
         elements.levelProgress.list.innerHTML = '';
@@ -1558,8 +1581,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let rewardsHtml = '';
             
-            // Jedes Level gibt Spots
-            const spotAmount = 10 + (level * 2); // z.B. Lvl 1 = 12, Lvl 10 = 30, Lvl 50 = 110
+            const spotAmount = 10 + (level * 2); 
             rewardsHtml += `
                 <div class="reward-item">
                     <i class="fa-solid fa-coins" style="color: #FFD700;"></i>
@@ -1573,7 +1595,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (reward.type === 'icon') icon = reward.iconClass;
                     else if (reward.type === 'accent-color') icon = 'fa-palette';
                     
-                    // SAFE: Daten aus hardcodierten Listen
                     rewardsHtml += `
                         <div class="reward-item">
                             <i class="fa-solid ${icon}"></i>
@@ -1587,7 +1608,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 rewardsHtml = '<div class="no-reward">Keine spezielle Belohnung</div>';
             }
 
-            // SAFE: Daten sind generiert oder aus hardcodierten Listen
             item.innerHTML = `
                 <div class="level-progress-header">
                     <h3>Level ${level}</h3>
@@ -1600,7 +1620,6 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.levelProgress.list.appendChild(item);
         }
     }
-    // ENDE FIX
     
     function updatePlayerProgressDisplay() {
         if (currentUser.isGuest) return;
@@ -1625,10 +1644,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (error) throw error;
             userProfile = { ...userProfile, ...data };
             
-            // FIX (Punkt 1 & 2): UI nach dem Fetch sofort aktualisieren
-            updatePlayerProgressDisplay(); // XP-Balken
-            updateStatsDisplay(); // Stats-Box
-            updateSpotsDisplay(); // Spots-Anzeige
+            updatePlayerProgressDisplay(); 
+            updateStatsDisplay(); 
+            updateSpotsDisplay(); 
             console.log("Live UI updated with new stats.");
 
         } catch(error) {
@@ -1728,7 +1746,6 @@ document.addEventListener('DOMContentLoaded', () => {
         el.classList.toggle('owned', isOwned);
         
         let previewHtml = '';
-        // SAFE: Alle Daten (item.iconClass, item.cssClass, etc.) kommen aus hardcodierten Listen
         if (item.type === 'icon') {
             previewHtml = `<div class="item-preview-icon"><i class="fa-solid ${item.iconClass}"></i></div>`;
         } else if (item.type === 'background') {
@@ -1816,7 +1833,6 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
     
-    // FIX (Punkt 10 - XSS): displayReaction überarbeitet
     function displayReaction(playerId, nickname, iconId, reaction) {
         const iconData = iconsList.find(i => i.id === iconId) || iconsList[0];
         const iconClass = iconData ? iconData.iconClass : 'fa-user';
@@ -1829,11 +1845,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const nameEl = document.createElement('span');
         nameEl.className = 'name';
-        nameEl.textContent = nickname; // SAFE
+        nameEl.textContent = nickname; 
         
         const reactionEl = document.createElement('span');
         reactionEl.className = 'reaction';
-        reactionEl.textContent = reaction; // SAFE
+        reactionEl.textContent = reaction; 
         
         toast.append(iconEl, nameEl, reactionEl);
         elements.popups.container.appendChild(toast);
@@ -1842,7 +1858,6 @@ document.addEventListener('DOMContentLoaded', () => {
             toast.remove();
         }, 2000);
     }
-    // ENDE FIX
     
     function showCountdown(number) { 
         console.log(`Countdown: ${number}`); 
@@ -1850,7 +1865,6 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.countdownOverlay.classList.remove('hidden');
     }
     
-    // FIX (Punkt 10 - XSS): setupNewRound überarbeitet
     function setupNewRound(data) { 
         console.log("New Round Setup", data); 
         elements.countdownOverlay.classList.add('hidden');
@@ -1913,7 +1927,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const btn = document.createElement('button');
                     btn.className = 'button-secondary mc-button';
                     btn.dataset.value = option;
-                    btn.textContent = option; // SAFE (kommt vom Server, aber besser als innerHTML)
+                    btn.textContent = option; 
                     group.appendChild(btn);
                 });
                 return group;
@@ -1948,7 +1962,7 @@ document.addEventListener('DOMContentLoaded', () => {
         readyContainer.append(readyBtn, readyStatus);
         guessContainer.appendChild(readyContainer);
         
-        elements.game.gameContentArea.innerHTML = ''; // Clear old content
+        elements.game.gameContentArea.innerHTML = ''; 
         elements.game.gameContentArea.appendChild(guessContainer);
         
         elements.game.timerBar.style.transition = 'none';
@@ -1958,9 +1972,71 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.game.timerBar.style.width = '0%';
         }, 100);
     }
-    // ENDE FIX
     
-    // FIX (Punkt 10 - XSS): showRoundResult überarbeitet
+    function setupTimelineStart(data) {
+        console.log("Timeline-Modus gestartet, Basis-Song:", data.baseTrack);
+        elements.countdownOverlay.classList.add('hidden');
+        elements.game.round.textContent = data.round;
+        elements.game.totalRounds.textContent = data.totalRounds;
+    
+        const container = document.createElement('div');
+        container.className = 'round-result-container'; 
+    
+        const h2 = document.createElement('h2');
+        h2.textContent = 'Timeline-Modus!';
+        container.appendChild(h2);
+
+        const p = document.createElement('p');
+        p.textContent = 'Merkt euch diesen Song als Startpunkt:';
+        container.appendChild(p);
+    
+        const card = document.createElement('div');
+        card.className = 'correct-answer-card';
+        
+        const img = document.createElement('img');
+        img.src = data.baseTrack.albumArtUrl || '';
+        img.alt = 'Album Art';
+        img.className = 'album-art';
+        
+        const trackInfo = document.createElement('div');
+        trackInfo.className = 'track-info';
+        
+        const title = document.createElement('span');
+        title.className = 'track-title';
+        title.textContent = data.baseTrack.title;
+        
+        const artist = document.createElement('span');
+        artist.className = 'track-artist';
+        artist.textContent = data.baseTrack.artist;
+        
+        const year = document.createElement('span');
+        year.className = 'track-year';
+        year.textContent = data.baseTrack.year;
+        
+        trackInfo.append(title, artist, year);
+        card.append(img, trackInfo);
+        container.appendChild(card);
+    
+        elements.game.gameContentArea.innerHTML = '';
+        elements.game.gameContentArea.appendChild(container);
+    }
+    
+    function setupTimelineRound(data) {
+        console.log("Neue Timeline-Runde:", data);
+        elements.countdownOverlay.classList.add('hidden');
+        elements.game.round.textContent = data.round;
+        elements.game.totalRounds.textContent = data.totalRounds;
+    
+        elements.game.gameContentArea.innerHTML = '<h2>Timeline-Raten (UI STUB)</h2>'; 
+        
+        elements.game.timerBar.style.transition = 'none';
+        elements.game.timerBar.style.width = '100%';
+        setTimeout(() => {
+            elements.game.timerBar.style.transition = `width ${gameCreationSettings.guessTime}s linear`;
+            elements.game.timerBar.style.width = '0%';
+        }, 100);
+    }
+    
     function showRoundResult(data) { 
         console.log("Round Result", data);
         
@@ -1976,7 +2052,6 @@ document.addEventListener('DOMContentLoaded', () => {
         h2.textContent = 'Runde vorbei!';
         container.appendChild(h2);
         
-        // --- Correct Answer Card ---
         const card = document.createElement('div');
         card.className = 'correct-answer-card';
         
@@ -1990,15 +2065,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const title = document.createElement('span');
         title.className = 'track-title';
-        title.textContent = correct.title; // SAFE
+        title.textContent = correct.title; 
         
         const artist = document.createElement('span');
         artist.className = 'track-artist';
-        artist.textContent = correct.artist; // SAFE
+        artist.textContent = correct.artist; 
         
         const year = document.createElement('span');
         year.className = 'track-year';
-        year.textContent = correct.year; // SAFE
+        year.textContent = correct.year; 
         
         trackInfo.append(title, artist, year);
         card.append(img, trackInfo);
@@ -2011,14 +2086,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const detailsContainer = document.createElement('div');
         detailsContainer.className = 'round-result-details';
         
-        // --- Player Result Cards ---
         data.scores.forEach(player => {
             const playerCard = document.createElement('div');
             playerCard.className = 'player-result-card';
             
             const playerName = document.createElement('span');
             playerName.className = 'player-name';
-            playerName.textContent = player.nickname; // SAFE
+            playerName.textContent = player.nickname; 
             
             const breakdownEl = document.createElement('div');
             breakdownEl.className = 'points-breakdown';
@@ -2033,10 +2107,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     item.className = `point-item ${breakdown[key].points > 0 ? 'correct' : 'wrong'}`;
                     
                     const itemText = document.createElement('span');
-                    itemText.textContent = `${breakdown[key].text}: `; // SAFE
+                    itemText.textContent = `${breakdown[key].text}: `; 
                     
                     const itemPoints = document.createElement('strong');
-                    itemPoints.textContent = `+${breakdown[key].points}`; // SAFE
+                    itemPoints.textContent = `+${breakdown[key].points}`; 
                     
                     item.append(itemText, itemPoints);
                     breakdownEl.appendChild(item);
@@ -2055,9 +2129,8 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.game.gameContentArea.innerHTML = '';
         elements.game.gameContentArea.appendChild(container);
         
-        renderGamePlayerList(data.scores, currentGame.isHost ? currentGame.playerId : null); // hostId hier unklar, ggf. anpassen
+        renderGamePlayerList(data.scores, currentGame.isHost ? currentGame.playerId : null); 
     }
-    // ENDE FIX
     
     async function loadFriendsData() { 
         if (!ws.socket || ws.socket.readyState !== WebSocket.OPEN) {
@@ -2070,7 +2143,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ws.socket.send(JSON.stringify({ type: 'load-friends' }));
     }
     
-    // FIX (Punkt 10 - XSS): renderFriendsList überarbeitet
     function renderFriendsList(friends) {
         if (!elements.friendsModal.friendsList) return;
         elements.friendsModal.friendsList.innerHTML = '';
@@ -2093,11 +2165,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const nameEl = document.createElement('span');
             nameEl.className = 'friend-name';
-            nameEl.textContent = friend.username; // SAFE
+            nameEl.textContent = friend.username; 
             
             const statusEl = document.createElement('span');
             statusEl.className = `friend-status ${friend.isOnline ? 'online' : ''}`;
-            statusEl.textContent = friend.isOnline ? 'Online' : 'Offline'; // SAFE
+            statusEl.textContent = friend.isOnline ? 'Online' : 'Offline'; 
             
             infoEl.append(nameEl, statusEl);
             
@@ -2109,9 +2181,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="button-primary button-small button-join" data-friend-id="${friend.id}" title="Lobby beitreten">
                         <i class="fa-solid fa-right-to-bracket"></i> Beitreten
                     </button>
-                `; // SAFE: friend.id ist eine ID
+                `; 
             } else {
-                // SAFE: friend.id und friend.username werden nur in data-Attributen verwendet
                 actionsEl.innerHTML = `
                     <button class="button-icon button-gift" data-friend-id="${friend.id}" data-friend-name="${friend.username}" title="Spots schenken"><i class="fa-solid fa-gift"></i></button>
                     <button class="button-icon button-danger button-remove-friend" data-friend-id="${friend.id}" data-friend-name="${friend.username}" title="Freund entfernen"><i class="fa-solid fa-user-minus"></i></button>
@@ -2122,9 +2193,7 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.friendsModal.friendsList.appendChild(li);
         });
     }
-    // ENDE FIX
 
-    // FIX (Punkt 10 - XSS): renderRequestsList überarbeitet
     function renderRequestsList(requests) {
         if (!elements.friendsModal.requestsList) return;
         elements.friendsModal.requestsList.innerHTML = '';
@@ -2148,13 +2217,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const nameEl = document.createElement('span');
             nameEl.className = 'friend-name';
-            nameEl.textContent = req.username; // SAFE
+            nameEl.textContent = req.username; 
             
             infoEl.appendChild(nameEl);
             
             const actionsEl = document.createElement('div');
             actionsEl.className = 'friend-actions';
-            // SAFE: req.id ist eine ID
             actionsEl.innerHTML = `
                 <button class="button-icon button-primary button-accept-request" data-sender-id="${req.id}" title="Annehmen"><i class="fa-solid fa-check"></i></button>
                 <button class="button-icon button-danger button-decline-request" data-sender-id="${req.id}" title="Ablehnen"><i class="fa-solid fa-user-minus"></i></button>
@@ -2164,7 +2232,6 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.friendsModal.requestsList.appendChild(li);
         });
     }
-    // ENDE FIX
     
     async function fetchHostData(isRefresh = false) {
         console.log(`Fetching host data... Refresh: ${isRefresh}`);
@@ -2211,7 +2278,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // FIX (Punkt 10 - XSS): renderDeviceList überarbeitet
     function renderDeviceList(devices) {
         if (!elements.deviceSelectModal.list) return;
         elements.deviceSelectModal.list.innerHTML = '';
@@ -2233,13 +2299,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const icon = document.createElement('i');
             icon.className = `fa-solid ${getDeviceIcon(device.type)}`;
             
-            btn.append(icon, ` ${device.name}`); // SAFE: Baut Text Node
+            btn.append(icon, ` ${device.name}`); 
             
             li.appendChild(btn);
             elements.deviceSelectModal.list.appendChild(li);
         });
     }
-    // ENDE FIX
     
     function getDeviceIcon(type) {
         switch (type.toLowerCase()) {
@@ -2250,7 +2315,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // FIX (Punkt 10 - XSS): renderPaginatedPlaylists überarbeitet
     function renderPaginatedPlaylists(playlistsToRender, page = 1) {
         if (!elements.playlistSelectModal.list) return;
         
@@ -2280,12 +2344,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.className = 'button-select';
                 
                 const nameSpan = document.createElement('span');
-                nameSpan.textContent = p.name; // SAFE
+                nameSpan.textContent = p.name; 
                 
                 const countSpan = document.createElement('span');
                 countSpan.style.color = 'var(--text-muted-color)';
                 countSpan.style.fontSize = '0.8rem';
-                countSpan.textContent = ` (${p.tracks.total} Songs)`; // SAFE
+                countSpan.textContent = ` (${p.tracks.total} Songs)`; 
                 
                 btn.append(nameSpan, countSpan);
                 li.appendChild(btn);
@@ -2317,20 +2381,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // ENDE FIX
     
-    // FIX (Punkt 5): Limit auf 999 erhöht
     function openCustomValueModal(type, title, min = 1, max = 100) { 
         currentCustomType = { type, min, max };
         customValueInput = "";
-        elements.customValueModal.title.textContent = `${title} (${min}-${max})`; // SAFE
+        elements.customValueModal.title.textContent = title; 
         elements.customValueModal.display.forEach(d => d.textContent = "");
         elements.customValueModal.confirmBtn.disabled = true;
         elements.customValueModal.overlay.classList.remove('hidden');
     }
-    // ENDE FIX
 
-    // FIX (Punkt 10 - XSS): showInvitePopup überarbeitet
     function showInvitePopup(from, pin, fromUserId) { 
         if (activePopups.invite) {
             activePopups.invite.remove();
@@ -2342,12 +2402,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const p = document.createElement('p');
         const nameSpan = document.createElement('span');
         nameSpan.id = 'invite-sender-name';
-        nameSpan.textContent = from; // SAFE
+        nameSpan.textContent = from; 
         p.append(nameSpan, ' lädt dich ein!');
         
         const actions = document.createElement('div');
         actions.className = 'invite-actions';
-        // SAFE: Hardcodierte Button-Strings
         actions.innerHTML = `
             <button class="accept-invite-button button-primary button-small">Annehmen</button>
             <button class="decline-invite-button button-secondary button-small">Ablehnen</button>
@@ -2360,7 +2419,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const closePopup = () => {
             popup.remove();
             activePopups.invite = null;
-            // "Beitreten"-Button in Freundesliste anzeigen
             renderFriendsList(onlineFriends);
         };
         
@@ -2379,9 +2437,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         setTimeout(closePopup, 10000);
     }
-    // ENDE FIX
     
-    // FIX (Punkt 10 - XSS): showFriendRequestPopup überarbeitet
     function showFriendRequestPopup(from, senderId) {
         if (activePopups.friendRequest) {
             activePopups.friendRequest.remove();
@@ -2392,12 +2448,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const p = document.createElement('p');
         const nameSpan = document.createElement('span');
-        nameSpan.textContent = from; // SAFE
+        nameSpan.textContent = from; 
         p.append(nameSpan, ' hat dir eine Freundschaftsanfrage gesendet!');
         
         const actions = document.createElement('div');
         actions.className = 'invite-actions';
-        // SAFE: Hardcodierte Button-Strings
         actions.innerHTML = `
             <button class="button-primary button-small accept-friend-request">Annehmen</button>
             <button class="button-secondary button-small decline-friend-request">Ablehnen</button>
@@ -2427,7 +2482,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         setTimeout(closePopup, 10000);
     }
-    // ENDE FIX
     
     function handlePresetClick(e, groupId) { 
         const btn = e.target.closest('.preset-button');
@@ -2441,11 +2495,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const type = btn.dataset.type;
         
         if (value === 'custom') {
-            // FIX (Punkt 5): Limit auf 999 erhöht
             if (type === 'song-count') openCustomValueModal('song-count', 'Anzahl Songs', 1, 999);
             else if (type === 'guess-time') openCustomValueModal('guess-time', 'Ratezeit (Sek.)', 10, 999); 
-            // ENDE FIX
-            else if (type === 'lives') openCustomValueModal('lives', 'Leben (1-999)', 1, 999);
+            else if (type === 'lives') openCustomValueModal('lives', 'Leben', 1, 999);
             return;
         }
 
@@ -2462,7 +2514,41 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function handleGiftSpots(friendId, friendName) {
-        showToast("Freunde-System (Gifting) kommt bald!", false);
+        if (!elements.giftModal.overlay) return;
+        elements.giftModal.recipientName.textContent = friendName || '...';
+        elements.giftModal.overlay.classList.remove('hidden');
+        
+        elements.giftModal.sendBtn.onclick = () => {
+            const amount = parseInt(elements.giftModal.spotsAmount.value, 10);
+            if (!amount || amount <= 0) {
+                showToast("Ungültige Anzahl.", true);
+                return;
+            }
+            if (amount > userProfile.spots) {
+                showToast("Du hast nicht genug Spots.", true);
+                return;
+            }
+            
+            showConfirmModal(
+                `Senden bestätigen`,
+                `Möchtest du ${amount} 🎵 an ${friendName} senden?`,
+                () => {
+                    if (ws.socket?.readyState === WebSocket.OPEN) {
+                        setLoading(true, "Geschenk wird gesendet...");
+                        ws.socket.send(JSON.stringify({
+                            type: 'handle-gift',
+                            payload: {
+                                recipientId: friendId,
+                                itemType: 'spots',
+                                amount: amount
+                            }
+                        }));
+                        elements.giftModal.overlay.classList.add('hidden');
+                        elements.giftModal.spotsAmount.value = '';
+                    }
+                }
+            );
+        };
     }
     
     function sendGuess() {
@@ -2501,10 +2587,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (elements.game.reactionButtons) {
                             elements.game.reactionButtons.classList.remove('cooldown');
                         }
-                    }, 2000); // 2 Sekunden Cooldown
+                    }, 2000); 
                 }
                 
-                // NEU: Hilfe-Icon Klicks
                 const helpIcon = e.target.closest('.help-icon');
                 if (helpIcon && helpIcon.title) {
                     e.preventDefault();
@@ -2539,13 +2624,10 @@ document.addEventListener('DOMContentLoaded', () => {
             elements.home.shopButton?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { loadShopItems(); showScreen('shop-screen'); } });
             elements.home.customizationBtn?.addEventListener('click', () => { if(currentUser && !currentUser.isGuest) { renderCustomizationMenu(); showScreen('customization-screen'); } }); 
 
-            // FIX (Punkt 8): Event Listener für den "Zurück"-Button auf dem End-Screen
             elements.endScreen.backButton?.addEventListener('click', () => {
                 showScreen('home-screen');
-                // Setze den Verlauf zurück, damit man vom Home-Screen nicht zurück zum End-Screen kann
                 screenHistory = ['auth-screen', 'home-screen']; 
             });
-            // ENDE FIX
 
              elements.modeSelection.container?.addEventListener('click', (e) => { 
                 const mb=e.target.closest('.mode-box'); 
@@ -2568,7 +2650,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             elements.gameTypeScreen.pointsBtn?.addEventListener('click', () => { gameCreationSettings.gameType='points'; elements.gameTypeScreen.pointsBtn.classList.add('active'); elements.gameTypeScreen.livesBtn?.classList.remove('active'); elements.gameTypeScreen.livesSettings?.classList.add('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
             elements.gameTypeScreen.livesBtn?.addEventListener('click', () => { gameCreationSettings.gameType='lives'; elements.gameTypeScreen.pointsBtn?.classList.remove('active'); elements.gameTypeScreen.livesBtn.classList.add('active'); elements.gameTypeScreen.livesSettings?.classList.remove('hidden'); if(elements.gameTypeScreen.createLobbyBtn) elements.gameTypeScreen.createLobbyBtn.disabled=false; });
-            elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const btn=e.target.closest('.preset-button'); if(btn){ elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const v=btn.dataset.value; if(v==='custom'){ openCustomValueModal('lives', 'Leben (1-999)', 1, 999); } else { gameCreationSettings.lives=parseInt(v); console.log(`Lives: ${gameCreationSettings.lives}`); } } });
+            elements.gameTypeScreen.livesPresets?.addEventListener('click', (e) => { const btn=e.target.closest('.preset-button'); if(btn){ elements.gameTypeScreen.livesPresets.querySelectorAll('.preset-button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); const v=btn.dataset.value; if(v==='custom'){ openCustomValueModal('lives', 'Leben', 1, 999); } else { gameCreationSettings.lives=parseInt(v); console.log(`Lives: ${gameCreationSettings.lives}`); } } });
             
             elements.gameTypeScreen.guessTypesCheckboxes.forEach(cb => {
                 cb.addEventListener('change', () => {
@@ -2620,10 +2702,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     onlineFriends.forEach(friend => {
                         const li = document.createElement('li');
                         const isCoolingDown = inviteCooldowns[friend.id];
-                        li.innerHTML = `<button class="button-select" data-friend-id="${friend.id}" ${isCoolingDown ? 'disabled' : ''}>
-                                            ${friend.username}
-                                            ${isCoolingDown ? '<span style="color:var(--text-muted-color); font-size: 0.8rem;"> (Warte...)</span>' : ''}
-                                        </button>`; // SAFE: friend.id / friend.username
+                        const btn = document.createElement('button');
+                        btn.className = 'button-select';
+                        btn.dataset.friendId = friend.id;
+                        btn.disabled = isCoolingDown;
+                        btn.textContent = friend.username; 
+                        
+                        if (isCoolingDown) {
+                            const waitSpan = document.createElement('span');
+                            waitSpan.style.color = 'var(--text-muted-color)';
+                            waitSpan.style.fontSize = '0.8rem';
+                            waitSpan.textContent = ' (Warte...)';
+                            btn.appendChild(waitSpan);
+                        }
+                        li.appendChild(btn);
                         elements.inviteFriendsModal.list.appendChild(li);
                     });
                 }
@@ -2707,15 +2799,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 } 
             });
             
-            // FIX (Punkt 3): Event Listener an .background-card angepasst
             elements.customize.backgroundsList?.addEventListener('click', (e) => {
-                const card = e.target.closest('.background-card:not(.locked)'); // Neue Klasse
+                const card = e.target.closest('.background-card:not(.locked)');
                 if (card) {
                     const bgId = card.dataset.bgId;
                     equipBackground(bgId, true); 
                 }
             });
-            // ENDE FIX
 
             elements.shop.screen?.addEventListener('click', (e) => { const buyBtn = e.target.closest('.buy-button:not([disabled])'); if (buyBtn) { handleBuyItem(buyBtn.dataset.itemId); } });
             
@@ -2801,15 +2891,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         delete inviteCooldowns[friendId];
                         const friend = onlineFriends.find(f => f.id === friendId);
-                        if (btn) { // Sicherstellen, dass der Button noch existiert
+                        if (btn) { 
                             btn.disabled = false;
                             btn.innerHTML = friend ? friend.username : 'Freund';
                         }
-                    }, 10000); // 10 Sekunden Cooldown
+                    }, 10000); 
                 }
             });
             
-            // FIX (Punkt 4): Numpad-Button-Text-Fix
             elements.customValueModal.numpad?.addEventListener('click', (e) => { 
                 const btn=e.target.closest('button'); if(!btn) return; 
                 const key=btn.dataset.key, action=btn.dataset.action;
@@ -2832,8 +2921,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 let setting = {};
-                // Helper-Funktion aus updateHostSettings (Teil 1) hier neu definieren,
-                // da sie in einem anderen Scope war.
                 const updateButtonText = (presetContainer, value, customValueType) => {
                     if (!presetContainer) return;
                     let valueFound = false;
@@ -2865,7 +2952,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     gameCreationSettings.lives = value;
                     updateButtonText(elements.gameTypeScreen.livesPresets, value, 'lives');
                 }
-                // ENDE FIX (Punkt 4)
                 
                 if (currentGame.pin && currentGame.isHost && (currentCustomType.type === 'song-count' || currentCustomType.type === 'guess-time')) {
                     ws.socket.send(JSON.stringify({ type: 'update-settings', payload: setting }));
@@ -2947,7 +3033,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (event === 'SIGNED_OUT') { 
                     currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
                     ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); ownedAccentColorIds.clear(); inventory = {};
-                    if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(1000); // FIX (Punkt 14): Sauber schließen
+                    if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(1000); 
                     if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                     localStorage.removeItem('fakesterGame'); screenHistory = ['auth-screen']; showScreen('auth-screen'); 
                     document.body.classList.add('is-guest'); setLoading(false); 
@@ -2967,7 +3053,7 @@ document.addEventListener('DOMContentLoaded', () => {
                      if (currentUser) { 
                          currentUser = null; userProfile = {}; userUnlockedAchievementIds = []; spotifyToken = null; 
                          ownedTitleIds.clear(); ownedIconIds.clear(); ownedBackgroundIds.clear(); ownedColorIds.clear(); ownedAccentColorIds.clear(); inventory = {};
-                         if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(1000); // FIX (Punkt 14): Sauber schließen
+                         if (ws.socket?.readyState === WebSocket.OPEN) ws.socket.close(1000); 
                          if (wsPingInterval) clearInterval(wsPingInterval); wsPingInterval = null; ws.socket = null; 
                          localStorage.removeItem('fakesterGame'); 
                     }

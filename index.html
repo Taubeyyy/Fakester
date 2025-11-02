@@ -258,12 +258,12 @@
     <main id="end-screen" class="screen">
         <div class="container text-left">
             <h2>Spiel beendet!</h2>
-            <div id="end-screen-leaderboard">
+            <div id="end-screen-leaderboard" style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;">
                 </div>
-            <div id="end-screen-rewards">
+            <div id="end-screen-rewards" style="background: var(--surface-color); border-radius: var(--border-radius); padding: 20px; text-align: center; margin-top: 20px;">
                 <h3>Deine Belohnungen</h3>
-                <p>+<span id="end-screen-xp">0</span> XP</p>
-                <p>+<span id="end-screen-spots">0</span> 🎵</p>
+                <p style="font-size: 1.5rem; font-weight: 700; color: white; margin: 10px 0 0 0;">+<span id="end-screen-xp" style="color: var(--accent-color);">0</span> XP</p>
+                <p style="font-size: 1.5rem; font-weight: 700; color: white; margin: 5px 0 0 0;">+<span id="end-screen-spots" style="color: var(--accent-color);">0</span> 🎵</p>
             </div>
             <button id="end-screen-back-button" class="button-primary" style="margin-top: 20px;">Zurück zum Menü</button>
         </div>
@@ -405,7 +405,7 @@
     </div>
     <div id="countdown-overlay" class="countdown-overlay hidden"></div>
 
-    <button id="toggle-console-btn" class="toggle-console-btn"><i class="fa-solid fa-terminal"></i></button>
+    <button id="toggle-console-btn" class="toggle-console-btn hidden"><i class="fa-solid fa-terminal"></i></button>
     <div id="on-page-console" class="on-page-console hidden">
         <div class="console-header">
             <span>KONSOLE</span>
@@ -563,6 +563,15 @@
         </div>
     </div>
     
+    <div id="gift-modal-overlay" class="modal-overlay hidden">
+        <div class="modal">
+            <button class="button-exit-modal" id="close-gift-modal-button">×</button>
+            <h2>Geschenk senden an <span id="gift-recipient-name"></span></h2>
+            <p>Wähle, was du verschenken möchtest.</p>
+            <input type="number" id="gift-spots-amount" placeholder="Anzahl Spots...">
+            <button id="gift-send-button" class="button-primary">Senden</button>
+        </div>
+    </div>
     <div id="invite-friends-modal-overlay" class="modal-overlay hidden selection-modal">
         <div class="modal">
             <button class="button-exit-modal" id="close-invite-modal-button">×</button>
